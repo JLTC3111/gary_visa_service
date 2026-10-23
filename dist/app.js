@@ -19,7 +19,8 @@ const t=(key)=>language==='vi'?(vi[key]??ui.vi[key]??ui.en[key]??english[key]??k
 export function setLanguage(next){
   language=next==='vi'?'vi':'en';
   document.documentElement.lang=language;
-  document.title=language==='vi'?'Gary Agency | Khởi đầu mới tại Việt Nam':'Gary Agency | Your next chapter in Vietnam';
+  document.title=language==='vi'?'Dịch vụ visa và giấy phép lao động tại Việt Nam | Gary Agency':'Visa & Work Permit Services in Vietnam | Gary Agency';
+  document.querySelector('meta[property="og:title"]').content=document.title;
   $$('[data-i18n]').forEach(node=>{node.textContent=t(node.dataset.i18n)});
   for(const kind of ['placeholder','aria','alt']) for(const node of $$(`[data-i18n-${kind}]`)) node.setAttribute(kind==='aria'?'aria-label':kind,t(node.dataset[`i18n${kind[0].toUpperCase()+kind.slice(1)}`]));
   $$('[data-lang]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.lang===language)));

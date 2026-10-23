@@ -41,7 +41,7 @@ const crm=createCRM({db,doc:document,t,isStaff:staff,getUser:()=>state.user,getR
 const inbox=createInbox({db,doc:document,t,isStaff:staff,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id)});
 
 function translate(){
- document.documentElement.lang=language;document.title=language==='vi'?'Không gian của bạn | Gary Agency':'Your workspace | Gary Agency';
+ document.documentElement.lang=language;
  $$('[data-p]').forEach(node=>{node.textContent=t(node.dataset.p)});$$('[data-p-placeholder]').forEach(node=>{node.placeholder=t(node.dataset.pPlaceholder)});
  $$('[data-language]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.language===language)));
  try{localStorage.setItem('gary-language',language)}catch{}
@@ -52,6 +52,7 @@ function translate(){
 $$('[data-language]').forEach(button=>button.addEventListener('click',()=>{language=button.dataset.language;translate()}));
 
 function renderAuth(){
+ updateDocumentTitle();
  const mode=state.mode,isSignup=mode==='signup',isReset=mode==='reset',isRecovery=mode==='recovery';
  $$('[data-area]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.area===state.area)));
  const keys=isRecovery?['recoveryEyebrow','recoveryTitle','recoveryIntro','recoveryButton']:isReset?['resetEyebrow','resetTitle','resetIntro','resetButton']:isSignup?['signupEyebrow','signupTitle','signupIntro','signupButton']:state.area==='staff'?['staffWelcome','staffSigninTitle','staffSigninIntro','signin']:['welcomeBack','signinTitle','signinIntro','signin'];
@@ -90,7 +91,16 @@ $('#auth-form').addEventListener('submit',async event=>{
  }catch(error){feedback('#auth-notice',errorKey(error),true)}});
 });
 
-function setScreen(name){for(const id of ['auth-screen','workspace-loading','workspace-error','workspace'])$(`#${id}`).hidden=id!==name;$('#signout').hidden=!state.user}
+function updateDocumentTitle(){
+ const copy=language==='vi'?{customer:'Cổng khách hàng',staff:'Cổng nhân viên',signin:'Đăng nhập khách hàng',staffSignin:'Đăng nhập nhân viên',signup:'Tạo tài khoản khách hàng',reset:'Đặt lại mật khẩu',recovery:'Đặt mật khẩu mới',applications:'Hồ sơ',profile:'Hồ sơ cá nhân',customers:'Quan hệ khách hàng',inbox:'Hộp thư chat trực tiếp',error:'Không thể tải không gian làm việc'}:{customer:'Customer Portal',staff:'Staff Portal',signin:'Customer Sign In',staffSignin:'Staff Sign In',signup:'Create Customer Account',reset:'Reset Password',recovery:'Set New Password',applications:'Applications',profile:'My Profile',customers:'Customer Relationships',inbox:'Live Chat Inbox',error:'Workspace Unavailable'};
+ let title;
+ if(!$('#workspace').hidden)title=`${copy[state.view]} | ${copy[staff()?'staff':'customer']}`;
+ else if(!$('#auth-screen').hidden)title=copy[state.mode==='signin'&&state.area==='staff'?'staffSignin':state.mode];
+ else if(!$('#workspace-error').hidden)title=copy.error;
+ else title=copy[staff()||state.area==='staff'?'staff':'customer'];
+ document.title=`${title} | Gary Agency`;
+}
+function setScreen(name){for(const id of ['auth-screen','workspace-loading','workspace-error','workspace'])$(`#${id}`).hidden=id!==name;$('#signout').hidden=!state.user;updateDocumentTitle()}
 function resetWorkspace(){
  delete document.body.dataset.role;crm.reset();inbox.reset();rosterCache=null;state.generation++;state.user=null;state.role=null;state.profile=null;state.cases=[];state.customers=[];state.currentCase=null;state.caseData=null;state.caseId=null;state.loading=false;state.page=0;state.customerPage=0;state.total=0;state.customerTotal=0;
  $$('dialog[open]').forEach(closeDialog);$('#applications-list').replaceChildren();$('#customers-list').replaceChildren();$('#case-message-list').replaceChildren();$('#case-note-list').replaceChildren();$('#case-document-list').replaceChildren();$('#case-events').replaceChildren();$('#case-title').textContent='';$('#case-details').textContent='';$('#case-customer').replaceChildren();$('#profile-form').reset();$('#account-email').textContent='';$('#auth-password').value='';$('#user-display-name').textContent='';$('#profile-notice').textContent='';$('#message-form').reset();$('#note-form').reset();$('#request-form').reset();$('#document-form').reset();setScreen('auth-screen');renderAuth();
@@ -115,6 +125,7 @@ function renderIdentity(){
 function setView(view,load=true){
  if(!['applications','profile','customers','inbox'].includes(view)||(['customers','inbox'].includes(view)&&!staff()))return;
  if(state.view==='inbox'&&view!=='inbox')inbox.leave();state.view=view;
+ updateDocumentTitle();
  for(const name of ['applications','profile','customers','inbox'])$(`#${name}-view`).hidden=name!==view;
  $$('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
  if(view==='profile')renderProfile();if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
