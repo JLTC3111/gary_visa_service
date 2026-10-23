@@ -1,0 +1,1 @@
+-- Intentionally empty. No fabricated customers or staff credentials are seeded.

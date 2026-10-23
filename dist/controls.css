@@ -1,0 +1,34 @@
+/* A single, quiet form treatment across the website and both workspaces. */
+:root{--control-border:#d3ddd3;--control-border-hover:#b4c5b6;--control-focus:#7f9b8a;--control-surface:#fcfdfb;--chat-accent:#b45e45;--chat-accent-hover:#9f503b}
+button,input,select,textarea{-webkit-appearance:none;appearance:none;box-shadow:none}
+body :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea){border-style:solid;border-width:.75px;border-color:var(--control-border);border-radius:6px;background-color:var(--control-surface);color:var(--ink);caret-color:var(--teal);transition:border-color .16s,background-color .16s,outline-color .16s}
+body :is(input,select,textarea):hover:not(:disabled):not(:focus){border-color:var(--control-border-hover)}
+body :is(input,select,textarea):focus{border-color:var(--control-focus);background-color:#fff;outline:1px solid var(--control-focus);outline-offset:2px;box-shadow:none}
+body :is(input,select,textarea):disabled{cursor:not-allowed;background-color:#f2f5ef;color:#8a9991;opacity:.75}
+body :is(input,textarea)::placeholder{color:#96a69b;opacity:1}
+select{cursor:pointer;background-image:url('./assets/chevron-down.svg');background-position:right 13px center;background-repeat:no-repeat;background-size:12px;white-space:nowrap;text-overflow:ellipsis}
+body select{padding-right:36px!important}
+select::-ms-expand{display:none}
+input::-webkit-search-decoration,input::-webkit-search-cancel-button,input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;appearance:none;display:none;margin:0}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=datetime-local]{min-width:0}
+input[type=datetime-local]::-webkit-calendar-picker-indicator{opacity:.55;cursor:pointer}
+input[type=file]{padding:7px;font-size:12px}
+body input[type=file]::file-selector-button{font:inherit;border:.75px solid var(--control-border);border-radius:4px;background:#edf3e9;color:var(--ink);padding:8px 12px;margin-right:12px;cursor:pointer;transition:background-color .16s}
+body input[type=file]:hover::file-selector-button{background:#e1ebdc}
+input:autofill{box-shadow:0 0 0 1000px var(--control-surface) inset!important;color:var(--ink)}
+input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--control-surface) inset!important;-webkit-text-fill-color:var(--ink);caret-color:var(--teal)}
+.select-menu{position:fixed;inset:auto;margin:0;padding:5px;border:.75px solid #cedbce;border-radius:9px;background:#fffffd;color:var(--ink);box-shadow:0 10px 32px #17395412,0 2px 6px #17395406;font-family:var(--font);font-size:13px;line-height:1.5;overflow-y:auto;overscroll-behavior:contain;z-index:120;scrollbar-width:thin;scrollbar-color:#c8d5c8 transparent;max-width:calc(100vw - 24px)}
+.select-menu::backdrop{background:transparent}
+.select-menu-option{position:relative;padding:10px 33px 10px 11px;border-radius:5px;cursor:pointer;overflow-wrap:anywhere;transition:background-color .1s}
+.select-menu-option.is-active{background:#edf3e9;color:#294b3a}
+.select-menu-option[aria-selected=true]{font-weight:600;color:#305743}
+.select-menu-option[aria-selected=true]::after{content:'';position:absolute;right:13px;top:50%;width:5px;height:9px;border-right:1.25px solid #64866f;border-bottom:1.25px solid #64866f;transform:translateY(-65%) rotate(45deg)}
+.select-menu-option[aria-disabled=true]{color:#a0ada3;cursor:default;font-weight:400}
+.select-menu-option[aria-disabled=true]::after{display:none}
+.floating-chat,.portal-body .floating-chat{background:var(--chat-accent);border:.75px solid #ffffff30;color:#fff;box-shadow:0 6px 24px #a7583e30;transition:background-color .18s,box-shadow .18s,transform .18s}
+.floating-chat:hover,.portal-body .floating-chat:hover{background:var(--chat-accent-hover);box-shadow:0 8px 28px #a7583e3b;transform:translateY(-2px)}
+.floating-chat[aria-expanded=true],.portal-body .floating-chat[aria-expanded=true]{background:var(--chat-accent-hover)}
+@media(max-width:649px){.select-menu{font-size:15px}.select-menu-option{min-height:44px;padding-block:11px}body :is(input,select,textarea){scroll-margin-block:24px}}
+@media(prefers-reduced-motion:reduce){body :is(input,select,textarea),.select-menu-option,.floating-chat,.portal-body .floating-chat{transition:none}.floating-chat:hover,.portal-body .floating-chat:hover{transform:none}}
+@media(forced-colors:active){body :is(input,select,textarea):focus{outline-color:Highlight}.select-menu{border-color:ButtonText;box-shadow:none}.select-menu-option.is-active{background:Highlight;color:HighlightText}.select-menu-option[aria-selected=true]::after{border-color:currentColor}.floating-chat,.portal-body .floating-chat{border-color:ButtonText}}

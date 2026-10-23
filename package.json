@@ -1,0 +1,27 @@
+{
+  "name": "gary-visa-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gary Agency's bilingual Vietnam visa and work permit website.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "build": "node scripts/bundle.mjs && node scripts/prepare-live-chat.mjs && node scripts/check.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test scripts/site.test.mjs scripts/workspace.test.mjs scripts/controls.test.mjs",
+    "test:db": "node --test scripts/database.test.mjs scripts/crm-chat.test.mjs",
+    "check:backend": "node scripts/check-backend.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "26.1.0",
+    "@electric-sql/pglite": "0.5.11"
+  }
+}
