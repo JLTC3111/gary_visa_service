@@ -47,6 +47,41 @@ test('Customer signup never accepts a staff role and explains email confirmation
 test('Customer portal shows only customer controls and submits a minimal application payload',async()=>{
  const {dom,w,doc,calls}=await portalEnvironment();doc.querySelector('#auth-email').value='alex@example.test';doc.querySelector('#auth-password').value='Asecurepassword123';doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();assert.equal(doc.querySelector('#workspace').hidden,false);assert.equal(doc.querySelector('#customers-nav').hidden,true);assert.equal(doc.querySelector('#new-application').hidden,false);assert.equal(doc.querySelector('#user-display-name').textContent,'Alex Customer');doc.querySelector('#new-application').click();doc.querySelector('#request-service').value='work';doc.querySelector('#request-subject').value='My work permit';doc.querySelector('#request-details').value='A new teaching position';doc.querySelector('#request-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();const call=calls.find(call=>call.table==='gary_applications'&&call.operation==='insert');assert.ok(call);assert.deepEqual(Object.keys(call.values).sort(),['details','service','subject']);assert.equal(doc.querySelector('#tab-notes').hidden,true);assert.equal(doc.querySelector('#staff-status-form').hidden,true);doc.querySelector('[data-language=vi]').click();assert.equal(doc.documentElement.lang,'vi');assert.equal(doc.querySelector('#dashboard-title').textContent,'Hồ sơ của bạn');doc.querySelector('#signout').click();await flush();assert.equal(doc.querySelector('#workspace').hidden,true);assert.equal(doc.querySelector('#applications-list').children.length,0);assert.equal(doc.querySelector('#case-title').textContent,'');dom.window.close();
 });
+test('Gary Apps header menu links the three sites in both languages',async()=>{
+ const html=await readFile(new URL('../dist/index.html',import.meta.url),'utf8');const dom=environment(html);const w=dom.window,doc=w.document;
+ const app=await build({entryPoints:['dist/app.js'],bundle:true,write:false,format:'iife',platform:'browser'});
+ const apps=await build({entryPoints:['dist/gary-apps.js'],bundle:true,write:false,format:'iife',platform:'browser'});
+ w.eval(app.outputFiles[0].text);w.eval(apps.outputFiles[0].text);
+ const menu=doc.querySelector('.header .gary-apps-menu--header');const summary=menu.querySelector('summary');
+ assert.equal(summary.querySelector('[data-gary=label]').textContent,'Our Platforms');
+ assert.equal(menu.querySelector('.gary-app-home').getAttribute('href'),'https://garyhome.vn/');
+ assert.equal(menu.querySelector('.gary-app-jobs').getAttribute('href'),'https://jobs.garyhome.vn/');
+ assert.equal(menu.querySelector('.gary-app-visa').getAttribute('href'),'./index.html');
+ assert.equal(menu.querySelector('.gary-app-visa').hasAttribute('target'),false);
+ assert.equal(menu.querySelector('.gary-app-home').target,'_blank');assert.match(menu.querySelector('.gary-app-home').rel,/noopener/);
+ assert.equal(menu.querySelector('.gary-apps-menu-travel a').getAttribute('href'),'https://jobs.garyhome.vn/#life');
+ assert.equal(menu.querySelector('.gary-apps-menu-all').getAttribute('href'),'https://garyhome.vn/services#gary-services');
+ assert.equal(menu.querySelector('.gary-app-visa small').textContent,'This site');
+ assert.ok(summary.querySelector('svg').childElementCount>0);assert.notEqual(menu.querySelector('nav').id,doc.querySelector('.mobile-app-services nav').id);
+ summary.click();await flush();assert.equal(menu.open,true);assert.equal(summary.getAttribute('aria-expanded'),'true');
+ doc.querySelector('[data-lang=vi]').click();
+ assert.equal(menu.open,true,'language changes keep the menu open');
+ assert.equal(summary.querySelector('[data-gary=label]').textContent,'Các nền tảng');
+ assert.equal(summary.getAttribute('aria-label'),'Khám phá các trang và dịch vụ Gary');
+ assert.equal(menu.querySelector('.gary-app-visa small').textContent,'Trang hiện tại');
+ assert.equal(doc.querySelector('.mobile-app-services [data-gary=label]').textContent,'Các nền tảng');
+ summary.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));await flush();
+ assert.equal(doc.activeElement,menu.querySelector('.gary-app-home'));
+ menu.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+ assert.equal(menu.open,false);assert.equal(doc.activeElement,summary);
+ summary.click();await flush();doc.body.dispatchEvent(new w.Event('pointerdown',{bubbles:true}));
+ assert.equal(menu.open,false);
+ const portalHtml=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const portalDom=environment(portalHtml);const portalWindow=portalDom.window,portalDoc=portalWindow.document;const portalApps=await build({entryPoints:['dist/gary-apps.js'],bundle:true,write:false,format:'iife',platform:'browser'});
+ portalWindow.eval(portalApps.outputFiles[0].text);portalDoc.documentElement.lang='vi';portalDoc.dispatchEvent(new portalWindow.CustomEvent('gary:language'));
+ assert.equal(portalDoc.querySelector('.portal-header [data-gary=label]').textContent,'Các nền tảng');
+ assert.equal(portalDoc.querySelector('.gary-app-visa').getAttribute('href'),'./index.html');
+ dom.window.close();portalWindow.close();
+});
 test('Staff portal requires a server-confirmed staff role',async()=>{
  const customer=await portalEnvironment('customer','http://localhost:4173/portal.html?area=staff');customer.doc.querySelector('#auth-email').value='alex@example.test';customer.doc.querySelector('#auth-password').value='Asecurepassword123';customer.doc.querySelector('#auth-form').dispatchEvent(new customer.w.Event('submit',{cancelable:true}));await flush();assert.equal(customer.doc.querySelector('#workspace').hidden,true);assert.match(customer.doc.querySelector('#auth-notice').textContent,/does not have staff access/);customer.dom.window.close();
  const staff=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff');staff.doc.querySelector('#auth-email').value='staff@example.test';staff.doc.querySelector('#auth-password').value='Asecurepassword123';staff.doc.querySelector('#auth-form').dispatchEvent(new staff.w.Event('submit',{cancelable:true}));await flush();assert.equal(staff.doc.querySelector('#workspace').hidden,false);assert.equal(staff.doc.querySelector('#customers-nav').hidden,false);assert.equal(staff.doc.querySelector('#new-application').hidden,true);staff.doc.querySelector('[data-case]').click();await flush();assert.equal(staff.doc.querySelector('#tab-notes').hidden,false);assert.equal(staff.doc.querySelector('#staff-status-form').hidden,false);staff.dom.window.close();

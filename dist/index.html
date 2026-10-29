@@ -13,8 +13,8 @@
   <meta property="og:image" content="./assets/vietnam-city.jpg">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="./assets/vietnam-city.jpg" as="image" fetchpriority="high">
-  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./chat.css"><link rel="stylesheet" href="./controls.css"><script type="module" src="./form-controls.js"></script>
-  <script type="module" src="./app.js"></script><script type="module" src="./chat-widget.js"></script>
+  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./gary-apps.css"><link rel="stylesheet" href="./chat.css"><link rel="stylesheet" href="./controls.css"><script type="module" src="./form-controls.js"></script>
+  <script type="module" src="./app.js"></script><script type="module" src="./gary-apps.js"></script><script type="module" src="./chat-widget.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
@@ -50,13 +50,14 @@
         <a href="#faq" data-i18n="navFaq">FAQs</a>
       </nav>
       <div class="header-actions">
+        <div class="gary-apps-slot" data-gary-apps="header"></div>
         <div class="language-control" role="group" aria-label="Language" data-i18n-aria="language"><button type="button" data-lang="en" aria-pressed="true">EN</button><span>/</span><button type="button" data-lang="vi" aria-pressed="false">VI</button></div>
         <a class="portal-link" href="./portal.html" data-i18n="portal">Sign in</a>
         <a class="button button-small header-cta" href="#contact"><span data-i18n="letsTalk">Let’s talk</span><svg class="icon"><use href="#i-up"/></svg></a>
         <button type="button" class="icon-button menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav" aria-label="Open menu" data-i18n-aria="openMenu"><svg class="icon"><use href="#i-menu"/></svg></button>
       </div>
     </div>
-    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation" data-i18n-aria="mobileNav" hidden><a href="#services" data-i18n="navServices">Our services</a><a href="#process" data-i18n="navProcess">How it works</a><a href="#about" data-i18n="navAbout">Why Gary</a><a href="#faq" data-i18n="navFaq">FAQs</a><a href="#contact" data-i18n="letsTalk">Let’s talk</a></nav>
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation" data-i18n-aria="mobileNav" hidden><div class="mobile-app-services" data-gary-apps="mobile"></div><a href="#services" data-i18n="navServices">Our services</a><a href="#process" data-i18n="navProcess">How it works</a><a href="#about" data-i18n="navAbout">Why Gary</a><a href="#faq" data-i18n="navFaq">FAQs</a><a href="#contact" data-i18n="letsTalk">Let’s talk</a></nav>
   </header>
 
   <main id="main">
