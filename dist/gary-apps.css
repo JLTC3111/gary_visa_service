@@ -1,5 +1,9 @@
-/* Header menu adapted from gary-home/shared/gary-apps. Current site: Gary Visa Service. */
+/* Visa layout adapter and offline snapshot. Canonical component: Gary Home shared/gary-apps. */
 .gary-apps-slot{display:contents}
+.gary-apps-remote{display:contents}
+[data-gary-apps]>.gary-apps-menu[hidden],.gary-apps-remote[hidden]{display:none!important}
+body .gary-apps-menu{font-family:var(--font),var(--sans,"Be Vietnam Pro",system-ui,sans-serif);letter-spacing:0}
+body .gary-apps-menu>summary,body .gary-apps-menu>summary:hover,body .gary-apps-menu[open]>summary{background:transparent}
 .gary-apps-menu{--gary-app-ink:#243e32;--gary-app-muted:#5a6d5a;--gary-app-line:#d7e0cf;position:relative;min-width:0;line-height:1.6;font-family:var(--font),var(--sans,"Be Vietnam Pro",system-ui,sans-serif);color:var(--gary-app-ink);text-align:left;letter-spacing:0}
 .gary-apps-menu[open]{z-index:5}
 .header:has(#mobile-nav:not([hidden])),.header:has(.gary-apps-menu--header[open]),.portal-header:has(.gary-apps-menu[open]){z-index:80}
@@ -35,18 +39,18 @@
 .gary-apps-menu-panel .gary-apps-menu-all{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:7px;background:#eaf0e2;color:#36523a;min-height:44px;padding:11px 13px;font-size:11px;font-weight:600;margin-top:6px}
 .gary-apps-menu:focus-visible,.gary-apps-menu summary:focus-visible,.gary-apps-menu a:focus-visible{outline:2px solid #a75e3c;outline-offset:3px}
 .gary-apps-menu summary:focus-visible{outline-offset:2px}
-.mobile-app-services{display:none}
+body .mobile-app-services{display:none;border-top:0;margin-top:0;padding-top:0}
 @media(max-width:979px){
   .header .gary-apps-menu--header>summary>span{display:none}
 }
 @media(max-width:759px){
   .header .gary-apps-menu--header{display:none}
   #mobile-nav:not([hidden]){max-height:calc(100dvh - 103px);overflow-y:auto;overscroll-behavior:contain}
-  .mobile-app-services{display:block;width:100%;border-bottom:1px solid #dde3d4;margin-bottom:6px;padding-bottom:10px}
-  .mobile-app-services .gary-apps-menu>summary{justify-content:flex-start;min-height:46px;padding:11px 13px;font-size:13px}
-  .mobile-app-services .gary-apps-chevron{margin-left:auto}
-  .mobile-app-services .gary-apps-menu-panel{position:static;width:100%;max-height:none;box-shadow:none;margin-top:10px;border-radius:9px}
-  .mobile-app-services .gary-apps-menu-heading>strong{font-size:13px}
+  body .mobile-app-services{display:block;width:100%;border-bottom:1px solid #dde3d4;margin-bottom:6px;padding-bottom:10px}
+  .header .mobile-app-services .gary-apps-menu>summary{justify-content:flex-start;min-height:46px;padding:11px 13px;font-size:13px}
+  .header .mobile-app-services .gary-apps-chevron{margin-left:auto}
+  .header .mobile-app-services .gary-apps-menu-panel{position:static;width:100%;max-height:none;box-shadow:none;margin-top:10px;border-radius:9px}
+  .header .mobile-app-services .gary-apps-menu-heading>strong{font-size:13px}
   .portal-header .gary-apps-menu--header>summary>span{display:none}
   .portal-header .gary-apps-menu-panel{position:fixed;top:82px;left:12px;right:12px;width:auto;max-height:calc(100dvh - 96px)}
 }

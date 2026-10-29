@@ -1,3 +1,5 @@
+import { connectGaryApps } from './gary-apps-client.js';
+
 const currentApp = 'visa';
 const apps = [
   { id: 'home', url: 'https://garyhome.vn/', host: 'garyhome.vn', icon: 'house', short: 'homeShort' },
@@ -197,11 +199,36 @@ function applyCopy() {
   }
 }
 
+const connections = [];
+const language = () => document.documentElement.lang === 'vi' ? 'vi' : 'en';
 for (const slot of [...document.querySelectorAll('[data-gary-apps]')]) {
-  const menu = render(slot.getAttribute('data-gary-apps'));
-  if (slot.classList.contains('mobile-app-services')) slot.append(menu);
-  else slot.replaceWith(menu);
+  const variant = slot.getAttribute('data-gary-apps');
+  const menu = render(variant);
+  const remote = document.createElement('div');
+  remote.className = 'gary-apps-remote';
+  remote.hidden = true;
+  slot.append(menu, remote);
   bind(menu);
+  let ready = false;
+  const connection = connectGaryApps(remote, {
+    kind: 'menu', currentApp, language: language(),
+    className: variant === 'header' ? 'gary-apps-menu--header' : '',
+  }, {
+    isBusy: () => menu.open || menu.contains(document.activeElement),
+    onReady() {
+      ready = true;
+      menu.hidden = true;
+      remote.hidden = false;
+    },
+    onError() {
+      // Failed refreshes keep the last working shared release visible.
+      if (!ready) { remote.hidden = true; menu.hidden = false; }
+    },
+  });
+  connections.push(connection);
 }
 applyCopy();
-document.addEventListener('gary:language', applyCopy);
+document.addEventListener('gary:language', () => {
+  applyCopy();
+  for (const connection of connections) connection.update({ language: language() });
+});

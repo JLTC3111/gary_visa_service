@@ -91,6 +91,41 @@ test('Gary Apps header menu links the three sites in both languages',async()=>{
  assert.equal(portalDoc.querySelector('.gary-app-visa').getAttribute('href'),'./index.html');
  dom.window.close();portalWindow.close();
 });
+test('Shared menu activates only when ready, follows language and keeps a usable menu after network failure',async()=>{
+ const apps=await build({entryPoints:['dist/gary-apps.js'],bundle:true,write:false,format:'iife',platform:'browser',plugins:[{
+  name:'shared-menu-contract',setup(builder){
+   builder.onResolve({filter:/gary-apps-client\.js$/},()=>({path:'test-shared-client',namespace:'test'}));
+   builder.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export const connectGaryApps = (...args) => globalThis.__connectGaryApps(...args);',loader:'js'}));
+  }
+ }]});
+ for(const page of ['index.html','portal.html']){
+  const html=await readFile(new URL(`../dist/${page}`,import.meta.url),'utf8');const dom=environment(html);const w=dom.window,doc=w.document,connections=[];
+  w.__connectGaryApps=(target,props,options)=>{const updates=[];connections.push({target,props,options,updates});return {update(next){updates.push(next)},unmount(){}}};
+  w.eval(apps.outputFiles[0].text);
+  assert.equal(connections.length,page==='index.html'?2:1);
+  for(const entry of connections){
+   const fallback=entry.target.previousElementSibling;
+   assert.equal(entry.props.kind,'menu');assert.equal(entry.props.currentApp,'visa');assert.equal(entry.props.language,'en');
+   assert.equal(fallback.hidden,false,'local menu remains usable before remote success');assert.equal(entry.target.hidden,true);
+   assert.ok(fallback.closest('[data-gary-apps]'),'stable integration wrapper remains');
+   entry.options.onError(new Error('shared host unavailable'));
+   assert.equal(fallback.hidden,false);assert.equal(entry.target.hidden,true);
+   fallback.open=true;assert.equal(entry.options.isBusy(),true);fallback.open=false;
+   entry.options.onReady();assert.equal(fallback.hidden,true);assert.equal(entry.target.hidden,false);
+  }
+  doc.documentElement.lang='vi';doc.dispatchEvent(new w.CustomEvent('gary:language'));
+  for(const entry of connections){
+   assert.equal(entry.updates.at(-1).language,'vi');
+   entry.options.onError(new Error('shared host unavailable'));
+   assert.equal(entry.target.hidden,false,'failed refresh retains the shared menu');assert.equal(entry.target.previousElementSibling.hidden,true);
+   assert.equal(entry.target.previousElementSibling.querySelector('[data-gary=label]').textContent,'Dịch Vụ Khác');
+  }
+  const policy=doc.querySelector('meta[http-equiv=Content-Security-Policy]').content;
+  for(const directive of ['script-src','style-src','connect-src'])assert.ok(policy.split(';').find(value=>value.trim().startsWith(directive)).includes('https://garyhome.vn'));
+  assert.ok(!policy.includes('unsafe-inline'));assert.ok(!policy.includes('unsafe-eval'));
+  dom.window.close();
+ }
+});
 test('Staff portal requires a server-confirmed staff role',async()=>{
  const customer=await portalEnvironment('customer','http://localhost:4173/portal.html?area=staff');customer.doc.querySelector('#auth-email').value='alex@example.test';customer.doc.querySelector('#auth-password').value='Asecurepassword123';customer.doc.querySelector('#auth-form').dispatchEvent(new customer.w.Event('submit',{cancelable:true}));await flush();assert.equal(customer.doc.querySelector('#workspace').hidden,true);assert.match(customer.doc.querySelector('#auth-notice').textContent,/does not have staff access/);customer.dom.window.close();
  const staff=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff');staff.doc.querySelector('#auth-email').value='staff@example.test';staff.doc.querySelector('#auth-password').value='Asecurepassword123';staff.doc.querySelector('#auth-form').dispatchEvent(new staff.w.Event('submit',{cancelable:true}));await flush();assert.equal(staff.doc.querySelector('#workspace').hidden,false);assert.equal(staff.doc.querySelector('#customers-nav').hidden,false);assert.equal(staff.doc.querySelector('#new-application').hidden,true);staff.doc.querySelector('[data-case]').click();await flush();assert.equal(staff.doc.querySelector('#tab-notes').hidden,false);assert.equal(staff.doc.querySelector('#staff-status-form').hidden,false);staff.dom.window.close();

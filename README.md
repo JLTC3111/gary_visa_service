@@ -90,6 +90,16 @@ The development environment did not grant browser/computer-use access. No claim 
 
 ## Architecture
 
+### Shared Gary apps menu
+
+The website and portal load the Gary Apps menu from the shared runtime published by Gary Home at `https://garyhome.vn/shared/gary-apps/v1/manifest.json`. After the initial integration is deployed on all sites, publishing a shared release there updates Visa, Jobs and Home without rebuilding each consumer. New visits load the latest release. Visible open pages check every 60 seconds and when becoming visible again; replacements wait while a menu is open or focused.
+
+The source of truth is the Gary Home repository's `shared/gary-apps/` directory. Edit its catalogue, React components and shared styles there, then use its release build and publishing workflow. Do not edit `dist/gary-apps-client.js` here: it is the identical protocol client copied from Gary Home. It validates the manifest and loads a matching immutable JavaScript/CSS pair.
+
+`dist/gary-apps.js` is the small Visa adapter plus the local offline snapshot. It supplies `currentApp: 'visa'`, follows the website/portal's `gary:language` event and keeps the local menu visible until the central menu and styles have loaded successfully. Initial network, manifest or asset errors leave the local menu usable; subsequent refresh failures retain the last working shared release. `dist/gary-apps.css` contains Visa header, mobile and portal layout rules; these remain local to the site. Both HTML pages allow only the exact `https://garyhome.vn` origin in their script, style and connection policies for this integration.
+
+Keep the local snapshot for outage resilience. Routine shared content/design changes belong in Gary Home; changing the loader protocol requires updating the copied client in each consuming repository.
+
 - `dist/`: deployable, static website and portal. The marketing content works without the backend; login, CRM and chat require Supabase.
 - `dist/crm.js`, `dist/inbox.js`: staff contact management and chat workflows.
 - `dist/chat-widget.js`: reusable bilingual visitor/customer chat.
