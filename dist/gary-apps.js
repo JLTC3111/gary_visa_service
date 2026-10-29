@@ -6,7 +6,7 @@ const apps = [
 ];
 const copy = {
   explore: ['Explore Gary apps and services', 'Khám phá các trang và dịch vụ Gary'],
-  label: ['Our Platforms', 'Các dịch vụ khác'],
+  label: ['Other Services', 'Dịch Vụ Khác'],
   nav: ['Gary websites and services', 'Các trang và dịch vụ Gary'],
   heading: ['Three sites. Here for your next step.', 'Ba trang. Đồng hành cùng bước tiếp theo.'],
   intro: ['Find the right place to start.', 'Tìm nơi bắt đầu phù hợp với bạn.'],
