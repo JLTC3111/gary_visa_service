@@ -61,6 +61,9 @@ test('Gary Apps header menu links the three sites in both languages',async()=>{
  assert.equal(menu.querySelector('.gary-app-home').target,'_blank');assert.match(menu.querySelector('.gary-app-home').rel,/noopener/);
  assert.equal(menu.querySelector('.gary-apps-menu-travel a').getAttribute('href'),'https://jobs.garyhome.vn/#life');
  assert.equal(menu.querySelector('.gary-apps-menu-all').getAttribute('href'),'https://garyhome.vn/services#gary-services');
+ assert.equal(menu.querySelector('.gary-app-home [data-gary=homeName]').textContent,'Gary Home');
+ assert.equal(menu.querySelector('.gary-app-jobs [data-gary=jobsName]').textContent,'Gary Jobs');
+ assert.equal(menu.querySelector('.gary-app-visa [data-gary=visaName]').textContent,'Gary Visa Service');
  assert.equal(menu.querySelector('.gary-app-visa small').textContent,'This site');
  assert.ok(summary.querySelector('svg').childElementCount>0);assert.notEqual(menu.querySelector('nav').id,doc.querySelector('.mobile-app-services nav').id);
  summary.click();await flush();assert.equal(menu.open,true);assert.equal(summary.getAttribute('aria-expanded'),'true');
@@ -68,6 +71,9 @@ test('Gary Apps header menu links the three sites in both languages',async()=>{
  assert.equal(menu.open,true,'language changes keep the menu open');
  assert.equal(summary.querySelector('[data-gary=label]').textContent,'Dịch Vụ Khác');
  assert.equal(summary.getAttribute('aria-label'),'Khám phá các trang và dịch vụ Gary');
+ assert.equal(menu.querySelector('.gary-app-home [data-gary=homeName]').textContent,'Tìm Nhà');
+ assert.equal(menu.querySelector('.gary-app-jobs [data-gary=jobsName]').textContent,'Tìm Việc');
+ assert.equal(menu.querySelector('.gary-app-visa [data-gary=visaName]').textContent,'Dịch Vụ Visa');
  assert.equal(menu.querySelector('.gary-app-visa small').textContent,'Trang hiện tại');
  assert.equal(doc.querySelector('.mobile-app-services [data-gary=label]').textContent,'Dịch Vụ Khác');
  summary.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));await flush();
@@ -79,6 +85,9 @@ test('Gary Apps header menu links the three sites in both languages',async()=>{
  const portalHtml=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const portalDom=environment(portalHtml);const portalWindow=portalDom.window,portalDoc=portalWindow.document;const portalApps=await build({entryPoints:['dist/gary-apps.js'],bundle:true,write:false,format:'iife',platform:'browser'});
  portalWindow.eval(portalApps.outputFiles[0].text);portalDoc.documentElement.lang='vi';portalDoc.dispatchEvent(new portalWindow.CustomEvent('gary:language'));
  assert.equal(portalDoc.querySelector('.portal-header [data-gary=label]').textContent,'Dịch Vụ Khác');
+ assert.equal(portalDoc.querySelector('.gary-app-home [data-gary=homeName]').textContent,'Tìm Nhà');
+ assert.equal(portalDoc.querySelector('.gary-app-jobs [data-gary=jobsName]').textContent,'Tìm Việc');
+ assert.equal(portalDoc.querySelector('.gary-app-visa [data-gary=visaName]').textContent,'Dịch Vụ Visa');
  assert.equal(portalDoc.querySelector('.gary-app-visa').getAttribute('href'),'./index.html');
  dom.window.close();portalWindow.close();
 });

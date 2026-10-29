@@ -1,8 +1,8 @@
 const currentApp = 'visa';
 const apps = [
-  { id: 'home', name: 'Gary Home', url: 'https://garyhome.vn/', host: 'garyhome.vn', icon: 'house', short: 'homeShort' },
-  { id: 'jobs', name: 'Gary Jobs', url: 'https://jobs.garyhome.vn/', host: 'jobs.garyhome.vn', icon: 'briefcase', short: 'jobsShort' },
-  { id: 'visa', name: 'Gary Visa Service', url: 'https://visa.garyhome.vn/', host: 'visa.garyhome.vn', icon: 'plane', short: 'visaShort' }
+  { id: 'home', url: 'https://garyhome.vn/', host: 'garyhome.vn', icon: 'house', short: 'homeShort' },
+  { id: 'jobs', url: 'https://jobs.garyhome.vn/', host: 'jobs.garyhome.vn', icon: 'briefcase', short: 'jobsShort' },
+  { id: 'visa', url: 'https://visa.garyhome.vn/', host: 'visa.garyhome.vn', icon: 'plane', short: 'visaShort' }
 ];
 const copy = {
   explore: ['Explore Gary apps and services', 'Khám phá các trang và dịch vụ Gary'],
@@ -11,6 +11,9 @@ const copy = {
   heading: ['Three sites. Here for your next step.', 'Ba trang. Đồng hành cùng bước tiếp theo.'],
   intro: ['Find the right place to start.', 'Tìm nơi bắt đầu phù hợp với bạn.'],
   thisSite: ['This site', 'Trang hiện tại'],
+  homeName: ['Gary Home', 'Tìm Nhà'],
+  jobsName: ['Gary Jobs', 'Tìm Việc'],
+  visaName: ['Gary Visa Service', 'Dịch Vụ Visa'],
   homeShort: ['Apartments, rentals & viewings in Hanoi', 'Căn hộ, nhà cho thuê & lịch xem tại Hà Nội'],
   jobsShort: ['Teaching jobs, recruitment & life in Vietnam', 'Việc làm giảng dạy, tuyển dụng & cuộc sống Việt Nam'],
   visaShort: ['Visas, work permits & document support', 'Visa, giấy phép lao động & hỗ trợ hồ sơ'],
@@ -97,7 +100,7 @@ function render(variant) {
     mark.append(icon(app.icon, 22));
     const body = document.createElement('span');
     const name = document.createElement('strong');
-    name.append(document.createTextNode(app.name));
+    name.append(text(`${app.id}Name`));
     if (app.id === currentApp) name.append(text('thisSite', 'small'));
     const host = document.createElement('small');
     host.className = 'gary-app-menu-host';
