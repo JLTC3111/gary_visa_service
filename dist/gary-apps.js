@@ -177,7 +177,7 @@ function bind(menu) {
     links[next]?.focus();
   });
   menu.addEventListener('focusout', event => {
-    if (!menu.contains(event.relatedTarget)) setOpen(false);
+    if (event.relatedTarget && !menu.contains(event.relatedTarget)) setOpen(false);
   });
   menu.addEventListener('click', event => {
     if (event.target.closest('a')) setOpen(false);

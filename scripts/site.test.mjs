@@ -67,6 +67,14 @@ test('Gary Apps header menu links the three sites in both languages',async()=>{
  assert.equal(menu.querySelector('.gary-app-visa small').textContent,'This site');
  assert.ok(summary.querySelector('svg').childElementCount>0);assert.notEqual(menu.querySelector('nav').id,doc.querySelector('.mobile-app-services nav').id);
  summary.click();await flush();assert.equal(menu.open,true);assert.equal(summary.getAttribute('aria-expanded'),'true');
+ menu.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true,relatedTarget:null}));
+ assert.equal(menu.open,true,'touch blur without a focus destination must not hide links before their click');
+ let followed=false;const touchedLink=menu.querySelector('.gary-app-jobs');
+ touchedLink.addEventListener('click',event=>{event.preventDefault();followed=true},{once:true});touchedLink.click();
+ assert.equal(followed,true);assert.equal(menu.open,false,'following the touched link closes the menu normally');
+ summary.click();await flush();menu.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true,relatedTarget:doc.body}));
+ assert.equal(menu.open,false,'moving keyboard focus to a known outside element closes the menu');
+ summary.click();await flush();
  doc.querySelector('[data-lang=vi]').click();
  assert.equal(menu.open,true,'language changes keep the menu open');
  assert.equal(summary.querySelector('[data-gary=label]').textContent,'Dịch Vụ Khác');
