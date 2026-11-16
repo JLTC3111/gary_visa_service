@@ -3,6 +3,7 @@ import {config} from './config.js';
 import {portalCopy} from './portal-copy.js';
 import {createCRM} from './crm.js';
 import {createInbox} from './inbox.js';
+import {createAgencyCms} from './cms-workspace.js';
 
 const $=selector=>document.querySelector(selector),$$=selector=>[...document.querySelectorAll(selector)];
 const english={};
@@ -38,6 +39,7 @@ async function getRoster(){
  if(generation!==state.generation||!staff())return [];rosterCache={data,expires:Date.now()+60000};return data;
 }
 const crm=createCRM({db,doc:document,t,isStaff:staff,getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:id=>{setView('inbox',false);inbox.enter(id)}});
+const cms=createAgencyCms({doc:document,db,isStaff:staff,getUser:()=>state.user,getLanguage:()=>language});
 const inbox=createInbox({db,doc:document,t,isStaff:staff,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id)});
 
 function translate(){
@@ -45,7 +47,7 @@ function translate(){
  $$('[data-p]').forEach(node=>{node.textContent=t(node.dataset.p)});$$('[data-p-placeholder]').forEach(node=>{node.placeholder=t(node.dataset.pPlaceholder)});
  $$('[data-language]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.language===language)));
  try{localStorage.setItem('gary-language',language)}catch{}
- document.dispatchEvent(new CustomEvent('gary:language',{detail:{language}}));renderAuth();if(state.user&&state.profile){renderIdentity();renderApplications();crm.render();inbox.render();if(state.currentCase&&state.caseData)renderCase();}
+ document.dispatchEvent(new CustomEvent('gary:language',{detail:{language}}));renderAuth();if(state.user&&state.profile){renderIdentity();renderApplications();crm.render();inbox.render();cms.translate();if(state.currentCase&&state.caseData)renderCase();}
  $('#request-dialog-title').textContent=t(state.editingId?'editTitle':'newApplication');$('#request-submit>span').textContent=t(state.editingId?'saveChanges':'submitApplication');
  $('#toggle-password').textContent=t($('#auth-password').type==='password'?'show':'hide');
 }
@@ -92,7 +94,7 @@ $('#auth-form').addEventListener('submit',async event=>{
 });
 
 function updateDocumentTitle(){
- const copy=language==='vi'?{customer:'Cổng khách hàng',staff:'Cổng nhân viên',signin:'Đăng nhập khách hàng',staffSignin:'Đăng nhập nhân viên',signup:'Tạo tài khoản khách hàng',reset:'Đặt lại mật khẩu',recovery:'Đặt mật khẩu mới',applications:'Hồ sơ',profile:'Hồ sơ cá nhân',customers:'Quan hệ khách hàng',inbox:'Hộp thư chat trực tiếp',error:'Không thể tải không gian làm việc'}:{customer:'Customer Portal',staff:'Staff Portal',signin:'Customer Sign In',staffSignin:'Staff Sign In',signup:'Create Customer Account',reset:'Reset Password',recovery:'Set New Password',applications:'Applications',profile:'My Profile',customers:'Customer Relationships',inbox:'Live Chat Inbox',error:'Workspace Unavailable'};
+ const copy=language==='vi'?{customer:'Cổng khách hàng',staff:'Cổng nhân viên',signin:'Đăng nhập khách hàng',staffSignin:'Đăng nhập nhân viên',signup:'Tạo tài khoản khách hàng',reset:'Đặt lại mật khẩu',recovery:'Đặt mật khẩu mới',applications:'Hồ sơ',profile:'Hồ sơ cá nhân',customers:'Quan hệ khách hàng',inbox:'Hộp thư chat trực tiếp',cms:'Quản lý nội dung',error:'Không thể tải không gian làm việc'}:{customer:'Customer Portal',staff:'Staff Portal',signin:'Customer Sign In',staffSignin:'Staff Sign In',signup:'Create Customer Account',reset:'Reset Password',recovery:'Set New Password',applications:'Applications',profile:'My Profile',customers:'Customer Relationships',inbox:'Live Chat Inbox',cms:'Content Management',error:'Workspace Unavailable'};
  let title;
  if(!$('#workspace').hidden)title=`${copy[state.view]} | ${copy[staff()?'staff':'customer']}`;
  else if(!$('#auth-screen').hidden)title=copy[state.mode==='signin'&&state.area==='staff'?'staffSignin':state.mode];
@@ -102,7 +104,7 @@ function updateDocumentTitle(){
 }
 function setScreen(name){for(const id of ['auth-screen','workspace-loading','workspace-error','workspace'])$(`#${id}`).hidden=id!==name;$('#signout').hidden=!state.user;updateDocumentTitle()}
 function resetWorkspace(){
- delete document.body.dataset.role;crm.reset();inbox.reset();rosterCache=null;state.generation++;state.user=null;state.role=null;state.profile=null;state.cases=[];state.customers=[];state.currentCase=null;state.caseData=null;state.caseId=null;state.loading=false;state.page=0;state.customerPage=0;state.total=0;state.customerTotal=0;
+ delete document.body.dataset.role;crm.reset();inbox.reset();cms.reset();rosterCache=null;state.generation++;state.user=null;state.role=null;state.profile=null;state.cases=[];state.customers=[];state.currentCase=null;state.caseData=null;state.caseId=null;state.loading=false;state.page=0;state.customerPage=0;state.total=0;state.customerTotal=0;
  $$('dialog[open]').forEach(closeDialog);$('#applications-list').replaceChildren();$('#customers-list').replaceChildren();$('#case-message-list').replaceChildren();$('#case-note-list').replaceChildren();$('#case-document-list').replaceChildren();$('#case-events').replaceChildren();$('#case-title').textContent='';$('#case-details').textContent='';$('#case-customer').replaceChildren();$('#profile-form').reset();$('#account-email').textContent='';$('#auth-password').value='';$('#user-display-name').textContent='';$('#profile-notice').textContent='';$('#message-form').reset();$('#note-form').reset();$('#request-form').reset();$('#document-form').reset();setScreen('auth-screen');renderAuth();
 }
 async function signOut(){try{await inbox.goAway();const {error}=await db.auth.signOut({scope:'local'});if(error)throw error;resetWorkspace()}catch{toast('genericError')}}
@@ -114,21 +116,22 @@ async function loadWorkspace(){
   const role=unwrap(await db.rpc('gary_my_role'));if(generation!==state.generation)return;if(!['customer','staff'].includes(role))throw new Error('genericError');state.role=role;
   if(state.area==='staff'&&role!=='staff'){setScreen('auth-screen');feedback('#auth-notice','roleError',true);return}
   const profile=await ensureProfile(data.user);if(generation!==state.generation)return;state.profile=profile;renderIdentity();renderProfile();setView('applications',false);
-  await Promise.all([loadApplications(),loadStats()]);if(generation!==state.generation)return;setScreen('workspace');if(staff()&&params.get('view')==='inbox')setView('inbox');
+  await Promise.all([loadApplications(),loadStats()]);if(generation!==state.generation)return;setScreen('workspace');if(staff()&&['inbox','cms'].includes(params.get('view')))setView(params.get('view'));
  }catch(error){if(generation===state.generation){setScreen('workspace-error');$('#signout').hidden=!state.user}}
  finally{if(generation===state.generation)state.loading=false}
 }
 $('#retry-workspace').addEventListener('click',()=>loadWorkspace());
 function renderIdentity(){
- document.body.dataset.role=state.role;$('#user-display-name').textContent=state.profile.full_name||state.user.email||t('account');$('#user-avatar').textContent=(state.profile.full_name||state.user.email||'G').slice(0,1).toUpperCase();$('#user-role-label').textContent=t(staff()?'staff':'customer');$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('#customers-nav').hidden=!staff();$('#inbox-nav').hidden=!staff();$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?'allApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?'staffDashboardIntro':'dashboardIntro');
+ document.body.dataset.role=state.role;$('#user-display-name').textContent=state.profile.full_name||state.user.email||t('account');$('#user-avatar').textContent=(state.profile.full_name||state.user.email||'G').slice(0,1).toUpperCase();$('#user-role-label').textContent=t(staff()?'staff':'customer');$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('#customers-nav').hidden=!staff();$('#inbox-nav').hidden=!staff();$('#cms-nav').hidden=!staff();$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?'allApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?'staffDashboardIntro':'dashboardIntro');
 }
 function setView(view,load=true){
- if(!['applications','profile','customers','inbox'].includes(view)||(['customers','inbox'].includes(view)&&!staff()))return;
+ if(!['applications','profile','customers','inbox','cms'].includes(view)||(['customers','inbox','cms'].includes(view)&&!staff()))return;
+ if(state.view==='cms'&&view!=='cms'){if(!cms.canLeave())return;cms.reset();}
  if(state.view==='inbox'&&view!=='inbox')inbox.leave();state.view=view;
  updateDocumentTitle();
- for(const name of ['applications','profile','customers','inbox'])$(`#${name}-view`).hidden=name!==view;
+ for(const name of ['applications','profile','customers','inbox','cms'])$(`#${name}-view`).hidden=name!==view;
  $$('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
- if(view==='profile')renderProfile();if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
+ if(view==='cms'&&load)void cms.enter();if(view==='profile')renderProfile();if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
 }
 $$('[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
 function renderProfile(){if(!state.profile)return;for(const key of ['full_name','contact_email','phone','nationality','preferred_language'])$('#profile-form').elements.namedItem(key).value=state.profile[key]??'';$('#account-email').textContent=state.user.email??''}

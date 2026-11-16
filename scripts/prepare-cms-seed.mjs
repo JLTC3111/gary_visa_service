@@ -1,0 +1,17 @@
+// Maintainer-only source snapshot helper. The normal build never runs it.
+// Generates reviewable SQL from the existing bilingual landing page; no backend calls.
+import {readFile,writeFile} from 'node:fs/promises';
+import {JSDOM} from 'jsdom';
+import {vi,services} from '../dist/content.js';
+const doc=new JSDOM(await readFile(new URL('../dist/index.html',import.meta.url),'utf8')).window.document;
+const en={};for(const node of doc.querySelectorAll('[data-i18n]')){const clone=node.cloneNode(true);clone.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));en[node.dataset.i18n]??=clone.textContent.trim()}
+const entry=(kind,slug,title_en,title_vi,summary_en,summary_vi,body_en,body_vi,data={})=>({kind,slug,title_en,title_vi,summary_en,summary_vi,body_en,body_vi,data});
+const rows=[];
+for(const [index,[slug,service]]of Object.entries(services).entries())rows.push(entry('service',slug,en[service.title],vi[service.title],en[service.intro],vi[service.intro],service.includes.en.join('\n'),service.includes.vi.join('\n'),{service_type:slug,category:slug==='visa'?'travel':slug==='documents'?'documents':'settle',includes_en:service.includes.en.join('\n'),includes_vi:service.includes.vi.join('\n'),position:index+1}));
+for(let i=1;i<=4;i++)rows.push(entry('process','step-'+i,en[`step${i}Title`],vi[`step${i}Title`],en[`step${i}Body`],vi[`step${i}Body`],en[`step${i}Body`],vi[`step${i}Body`],{position:i,label_en:en[`step${i}Label`],label_vi:vi[`step${i}Label`]}));
+for(let i=1;i<=5;i++)rows.push(entry('faq','question-'+i,en[`faq${i}Q`],vi[`faq${i}Q`],en[`faq${i}A`].slice(0,240),vi[`faq${i}A`].slice(0,240),en[`faq${i}A`],vi[`faq${i}A`],{position:i}));
+for(const slot of ['hero','services','process','about','faq','contact'])rows.push(entry('landing',slot,en[`${slot}Line1`],vi[`${slot}Line1`],en[slot==='hero'?'heroDescription':`${slot}Intro`],vi[slot==='hero'?'heroDescription':`${slot}Intro`],'','',{slot,accent_en:en[`${slot}Line2`],accent_vi:vi[`${slot}Line2`],...(slot==='hero'?{third_line_en:en.heroLine3,third_line_vi:vi.heroLine3}:{})}));
+for(const row of rows)for(const key of ['title_en','title_vi','summary_en','summary_vi'])if(!row[key])throw new Error(`Missing source ${row.kind}/${row.slug}/${key}`);
+const sql=`-- Source snapshot of the existing public Agency site. No new legal claims.\ninsert into public.gary_cms_entries(kind,slug,title_en,title_vi,summary_en,summary_vi,body_en,body_vi,data,status,published_at)\nselect kind,slug,title_en,title_vi,summary_en,summary_vi,body_en,body_vi,data,'published',now() from jsonb_to_recordset($agency_seed$${JSON.stringify(rows)}$agency_seed$::jsonb) as seed(kind text,slug text,title_en text,title_vi text,summary_en text,summary_vi text,body_en text,body_vi text,data jsonb)\non conflict(kind,slug) do nothing;\ninsert into public.gary_cms_public(entry_id,kind,slug,content,published_at)\nselect e.id,e.kind,e.slug,gary_private.cms_public_payload(e),e.published_at from public.gary_cms_entries e where e.status='published'\non conflict(entry_id) do nothing;\ninsert into public.gary_cms_revisions(entry_id,version,status,action,snapshot)\nselect e.id,e.version,e.status,'imported',to_jsonb(e) from public.gary_cms_entries e where e.status='published'\non conflict(entry_id,version) do nothing;\n`;
+await writeFile(new URL('../supabase/cms-content-seed.sql',import.meta.url),sql);
+console.log(`Prepared ${rows.length} existing bilingual content records; no backend calls.`);

@@ -1,0 +1,23 @@
+export type CmsLanguage = 'en' | 'vi';
+export type CmsStatus = 'draft' | 'review' | 'published' | 'archived';
+export type CmsEntry = { id?: string; kind: string; slug: string; title_en: string; title_vi: string; summary_en: string; summary_vi: string; body_en: string; body_vi: string; status: CmsStatus; version: number; data: Record<string, unknown>; updated_at?: string; [key: string]: unknown };
+export type CmsField = { key: string; label: string | Record<CmsLanguage, string>; type?: 'text' | 'textarea' | 'url' | 'number' | 'date' | 'select' | 'list'; bilingual?: boolean; required?: boolean; min?: number; max?: number; options?: Array<string | {value: string; label: string | Record<CmsLanguage, string>}> };
+export type CmsCollection = { kind: string; label: string | Record<CmsLanguage, string>; fields?: CmsField[]; requireBody?: boolean };
+export type CmsCapabilities = { read: boolean; edit: boolean; publish: boolean; media: boolean; role?: string };
+export type CmsAdapter = {
+  errorText?(error: unknown, language: CmsLanguage): string | undefined;
+  mediaPolicy?: {mimeTypes: string[]; maxBytes: number};
+  capabilities(): Promise<CmsCapabilities>;
+  list(input: {kind: string; query: string; status: string; page: number; pageSize: number}): Promise<{records: CmsEntry[]; total: number}>;
+  save(record: CmsEntry, input: {expectedVersion: number}): Promise<CmsEntry>;
+  transition(id: string, status: CmsStatus, input: {expectedVersion: number}): Promise<CmsEntry>;
+  revisions(id: string): Promise<Array<{id: string; version: number; created_at: string; status: CmsStatus}>>;
+  restore(id: string, revisionId: string, input: {expectedVersion: number}): Promise<CmsEntry>;
+  listMedia?(): Promise<unknown[]>;
+  uploadMedia?(file: File, metadata: {alt_en: string; alt_vi: string}): Promise<unknown>;
+};
+export declare const CMS_VERSION: string;
+export declare function mountCms(root: HTMLElement, options: {appId: string; appName?: string; language?: CmsLanguage; collections: CmsCollection[]; adapter: CmsAdapter; mediaPolicy?: {mimeTypes: string[];maxBytes: number}; onNotice?: (message: string) => void}): {ready: Promise<void>; isDirty(): boolean; canLeave(): boolean; refresh(): Promise<boolean>; setLanguage(language: CmsLanguage): void; destroy(options?: {force?: boolean}): boolean};
+export declare function validateEntry(record: CmsEntry, collection: CmsCollection, publish?: boolean): Array<{code: string; field: string; params: Record<string, unknown>; severity: string}>;
+export declare function contentSeoFindings(record: CmsEntry, collection: CmsCollection): Array<Record<string, unknown>>;
+export declare function safeMediaUrl(value: string): string;

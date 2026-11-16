@@ -6,6 +6,7 @@ import {JSDOM} from 'jsdom';
 import {portalCopy} from '../dist/portal-copy.js';
 import {createCRM} from '../dist/crm.js';
 import {createInbox} from '../dist/inbox.js';
+import {createAgencyCms} from '../dist/cms-workspace.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function flush(){for(let i=0;i<8;i++)await tick()}
 function environment(html,url='http://localhost:4173/'){
@@ -27,7 +28,7 @@ test('Public site filters, translates, recommends services and safely prepares e
  dom.window.close();
 });
 
-async function portalEnvironment(role='customer',url='http://localhost:4173/portal.html'){
+async function portalEnvironment(role='customer',url='http://localhost:4173/portal.html',cmsFactory=createAgencyCms){
  const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const dom=environment(html,url);const w=dom.window;const calls=[];const profile={id:'customer-id',full_name:'Alex Customer',contact_email:'alex@example.test',phone:'',nationality:'',preferred_language:'en'};
  const application={id:'12345678-0000-4000-8000-000000000001',customer_id:'customer-id',service:'visa',subject:'A real service request',details:'Customer plans',status:'submitted',created_at:'2026-10-20T10:00:00Z',updated_at:'2026-10-20T10:00:00Z',assigned_staff_id:null};
  class Query{
@@ -37,8 +38,8 @@ async function portalEnvironment(role='customer',url='http://localhost:4173/port
   then(resolve,reject){let data=[];if(this.table==='gary_applications')data=this.singleRow?{...application,...this.values}:[application];if(this.table==='gary_profiles')data=this.singleRow?profile:[profile];if(this.table==='gary_application_events')data=[{id:'event-1',status:'submitted',created_at:application.created_at}];return Promise.resolve({data:this.options.head?null:data,error:null,count:this.table==='gary_applications'?1:0}).then(resolve,reject)}
  }
  const auth={getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>{},getUser:async()=>({data:{user:{id:'customer-id',email:'alex@example.test',user_metadata:{full_name:'Alex Customer'}}},error:null}),signInWithPassword:async values=>{calls.push({operation:'signin',values});return {data:{session:{}},error:null}},signUp:async values=>{calls.push({operation:'signup',values});return {data:{session:null},error:null}},signOut:async()=>({error:null})};
- w.__backend={db:{auth,rpc:async name=>({data:name==='gary_staff_directory'?[]:role,error:null}),from:table=>new Query(table)},unwrap:result=>{if(result.error)throw result.error;return result.data},ensureProfile:async()=>profile,EDITABLE_STATUSES:['submitted','documents_needed'],validateDocument:()=>{},documentPath:()=>'',authRedirect:()=>url,config:{supabaseUrl:'https://example.supabase.co'},portalCopy,createCRM,createInbox};
- let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox}=globalThis.__backend;${source}\n})()`);
+ w.__backend={db:{auth,rpc:async name=>({data:name==='gary_staff_directory'?[]:role,error:null}),from:table=>new Query(table)},unwrap:result=>{if(result.error)throw result.error;return result.data},ensureProfile:async()=>profile,EDITABLE_STATUSES:['submitted','documents_needed'],validateDocument:()=>{},documentPath:()=>'',authRedirect:()=>url,config:{supabaseUrl:'https://example.supabase.co'},portalCopy,createCRM,createInbox,createAgencyCms:cmsFactory};
+ let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox,createAgencyCms}=globalThis.__backend;${source}\n})()`);
  return {dom,w,doc:w.document,calls,application};
 }
 test('Customer signup never accepts a staff role and explains email confirmation',async()=>{
@@ -137,4 +138,25 @@ test('Shared menu activates only when ready, follows language and keeps a usable
 test('Staff portal requires a server-confirmed staff role',async()=>{
  const customer=await portalEnvironment('customer','http://localhost:4173/portal.html?area=staff');customer.doc.querySelector('#auth-email').value='alex@example.test';customer.doc.querySelector('#auth-password').value='Asecurepassword123';customer.doc.querySelector('#auth-form').dispatchEvent(new customer.w.Event('submit',{cancelable:true}));await flush();assert.equal(customer.doc.querySelector('#workspace').hidden,true);assert.match(customer.doc.querySelector('#auth-notice').textContent,/does not have staff access/);customer.dom.window.close();
  const staff=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff');staff.doc.querySelector('#auth-email').value='staff@example.test';staff.doc.querySelector('#auth-password').value='Asecurepassword123';staff.doc.querySelector('#auth-form').dispatchEvent(new staff.w.Event('submit',{cancelable:true}));await flush();assert.equal(staff.doc.querySelector('#workspace').hidden,false);assert.equal(staff.doc.querySelector('#customers-nav').hidden,false);assert.equal(staff.doc.querySelector('#new-application').hidden,true);staff.doc.querySelector('[data-case]').click();await flush();assert.equal(staff.doc.querySelector('#tab-notes').hidden,false);assert.equal(staff.doc.querySelector('#staff-status-form').hidden,false);staff.dom.window.close();
+});
+
+
+test('leaving CMS keeps a rejected dirty draft, but confirmed discard resets it before switching views',async()=>{
+ let consent=false,resets=0,enters=0,checks=0;
+ const cmsFactory=({doc})=>({
+  enter(){enters++;doc.querySelector('#cms-root').textContent='Private unsaved draft'},
+  canLeave(){checks++;return consent},
+  reset(){resets++;doc.querySelector('#cms-root').replaceChildren()},translate(){}
+ });
+ const env=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff',cmsFactory),{doc,w}=env;
+ try{
+  doc.querySelector('#auth-email').value='staff@example.test';doc.querySelector('#auth-password').value='Asecurepassword123';
+  doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
+  doc.querySelector('[data-view=cms]').click();await flush();const before=resets;
+  assert.equal(enters,1);assert.equal(doc.querySelector('#cms-view').hidden,false);
+  doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#cms-view').hidden,false);assert.equal(resets,before);assert.match(doc.querySelector('#cms-root').textContent,/Private unsaved/);
+  consent=true;doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#cms-view').hidden,true);assert.equal(doc.querySelector('#profile-view').hidden,false);assert.equal(resets,before+1);assert.equal(doc.querySelector('#cms-root').children.length,0);
+  doc.querySelector('[data-view=cms]').click();await flush();assert.equal(enters,2,'a later visit initializes clean CMS state');
+  consent=false;const previousChecks=checks;doc.querySelector('#signout').click();await flush();assert.equal(doc.querySelector('#cms-root').textContent,'');assert.equal(checks,previousChecks,'signout clears private drafts without a dirty-leave veto');assert.equal(resets,before+2);
+ }finally{env.dom.window.close()}
 });

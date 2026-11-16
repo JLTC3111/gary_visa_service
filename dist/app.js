@@ -1,4 +1,6 @@
 import {vi,ui,services} from './content.js';
+import {cmsCopyOverrides} from './cms-public.js';
+let cmsCopy={en:{},vi:{}};
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -14,7 +16,7 @@ let selectedService=null;
 let selectedGoal=null;
 let currentFilter='all';
 let messageText='';
-const t=(key)=>language==='vi'?(vi[key]??ui.vi[key]??ui.en[key]??english[key]??key):(ui.en[key]??english[key]??key);
+const t=(key)=>cmsCopy[language]?.[key]??(language==='vi'?(vi[key]??ui.vi[key]??ui.en[key]??english[key]??key):(ui.en[key]??english[key]??key));
 
 export function setLanguage(next){
   language=next==='vi'?'vi':'en';
@@ -23,7 +25,8 @@ export function setLanguage(next){
   document.querySelector('meta[property="og:title"]').content=document.title;
   $$('[data-i18n]').forEach(node=>{node.textContent=t(node.dataset.i18n)});
   for(const kind of ['placeholder','aria','alt']) for(const node of $$(`[data-i18n-${kind}]`)) node.setAttribute(kind==='aria'?'aria-label':kind,t(node.dataset[`i18n${kind[0].toUpperCase()+kind.slice(1)}`]));
-  $$('[data-lang]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.lang===language)));
+  document.addEventListener('gary:cms-ready',event=>{cmsCopy=cmsCopyOverrides(event.detail.entries);setLanguage(language)});
+$$('[data-lang]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.lang===language)));
   try{localStorage.setItem('gary-language',language)}catch{}
   const menu=$('#menu-toggle');
   if(menu.getAttribute('aria-expanded')==='true') menu.setAttribute('aria-label',t('closeMenu'));

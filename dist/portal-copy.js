@@ -5,3 +5,6 @@ export const portalCopy={
 };
 Object.assign(portalCopy.en,workspaceCopy.en);
 Object.assign(portalCopy.vi,workspaceCopy.vi);
+
+Object.assign(portalCopy.en,{cmsNav:'Content management'});
+Object.assign(portalCopy.vi,{cmsNav:'Quản lý nội dung'});
