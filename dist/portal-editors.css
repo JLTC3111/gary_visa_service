@@ -1,6 +1,6 @@
 /* Application/CRM editors share the platform geometry and controls. Forms and
    selected upload inputs stay mounted while their viewport changes. */
-.portal-body .gw-editor{--gw-surface:#fff;--gw-ink:var(--ink,#173954);--gw-line:var(--line,#d6e1dd)}
+.portal-body .gw-editor{--gw-surface:var(--vp-surface,#fff);--gw-ink:var(--ink,var(--vp-text,#173954));--gw-line:var(--line,var(--vp-line,#d6e1dd))}
 .portal-body .gw-editor>.gw-editor-header{margin:0;padding:20px 24px;gap:16px;align-items:center;flex:none}
 .portal-body .gw-editor .gw-editor-title{min-width:0;flex:1}
 .portal-body .gw-editor .gw-editor-title h2{font-size:clamp(23px,3vw,30px);padding:0;line-height:1.25;overflow-wrap:anywhere}
@@ -10,7 +10,7 @@
 .portal-body .gw-editor .gw-editor-body{padding:24px;min-width:0;scroll-padding-block:20px}
 .portal-body .gw-editor .gw-editor-body>p[data-p="requestIntro"]{font-size:14px;line-height:1.7;margin:0 0 22px}
 .portal-body .gw-editor>.gw-editor-form{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden;padding:0;margin:0}
-.portal-body .gw-editor .gw-editor-actions{padding:16px 24px;margin:0;flex:none;gap:12px;background:#fff;border-top:1px solid var(--line)}
+.portal-body .gw-editor .gw-editor-actions{padding:16px 24px;margin:0;flex:none;gap:12px;background:var(--vp-surface,#fff);border-top:1px solid var(--line)}
 .portal-body .gw-editor .gw-editor-actions>.button{width:auto;min-width:170px;margin:0}
 .portal-body .gw-editor .gw-editor-actions>.form-feedback{flex-basis:100%;margin:0}
 .portal-body .gw-editor .form-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}

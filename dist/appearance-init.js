@@ -1,4 +1,4 @@
-/* Runs before styles. Public-site preferences never change the staff portal. */
+/* Runs before styles. Shared website/portal appearance preference; hosts own their styling. */
 (() => {
   const root = document.documentElement;
   const read = key => { try { return localStorage.getItem(key); } catch { return null; } };
