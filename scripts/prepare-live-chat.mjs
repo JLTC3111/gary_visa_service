@@ -19,6 +19,9 @@ begin
  if to_regclass('public.gary_profiles') is null or to_regclass('gary_private.staff_members') is null then
   raise exception 'Install the customer/staff portal migration first.';
  end if;
+ if exists(select 1 from pg_catalog.pg_attribute where attrelid=to_regclass('gary_private.staff_members') and attname='operations_role' and not attisdropped) then
+  raise exception 'Gary Visa Operations roles are already installed. This older installer would restore broad staff access; apply new migrations instead.';
+ end if;
 end;
 $gary_check$;
 ${repairable(sql[0])}

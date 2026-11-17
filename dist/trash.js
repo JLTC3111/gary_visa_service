@@ -1,12 +1,13 @@
 import {workspaceUI} from './workspace-ui.js';
 
-export function createTrash({db,doc,t,isStaff,notify=()=>{}}){
+export function createTrash({db,doc,t,isStaff,kinds=()=>['case','contact','cms'],notify=()=>{}}){
  const {$,el,button,date,take}=workspaceUI(doc,t);
  const state={rows:[],total:0,page:0,busy:false,failed:false,generation:0,request:0};
  const kindLabel=kind=>t(kind==='case'?'trashCases':kind==='contact'?'trashContacts':'trashContent');
  function notice(key,error=false){const node=$('#trash-notice');node.textContent=key?t(key):'';node.classList.toggle('error',error)}
+ function filterKinds(){const filter=$('#trash-kind-filter'),allowed=kinds();for(const option of filter.options){const hidden=Boolean(option.value)&&!allowed.includes(option.value);option.hidden=hidden;option.disabled=hidden}if(filter.value&&!allowed.includes(filter.value))filter.value='';return filter.value||null}
  function render(){
-  if(!isStaff())return;
+  if(!isStaff())return;filterKinds();
   const list=$('#trash-list');list.setAttribute('aria-busy',String(state.busy));
   $('#trash-kind-filter').disabled=state.busy;$('#refresh-trash').disabled=state.busy;
   const end=Math.min(state.total,(state.page+1)*20);
@@ -24,7 +25,7 @@ export function createTrash({db,doc,t,isStaff,notify=()=>{}}){
   if(!isStaff())return;const generation=state.generation,request=++state.request;
   state.busy=true;state.failed=false;notice('');render();
   try{
-   const result=take(await db.rpc('gary_list_trash',{p_kind:$('#trash-kind-filter').value||null,p_offset:state.page*20,p_limit:20}));
+   const result=take(await db.rpc('gary_list_trash',{p_kind:filterKinds(),p_offset:state.page*20,p_limit:20}));
    if(generation!==state.generation||request!==state.request||!isStaff())return;
    if(!result||!Array.isArray(result.records))throw new Error('Invalid Trash response');
    state.rows=result.records;state.total=Number(result.total)||0;

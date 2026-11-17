@@ -1,6 +1,6 @@
 import {workspaceUI} from './workspace-ui.js';
 
-export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDialog,notify,openApplication,openChat}){
+export function createCRM({db,doc,t,isStaff,canAssign=isStaff,canTrash=isStaff,getUser,getRoster,showDialog,closeDialog,notify,openApplication,openChat}){
  const {$,el,button,notice,date,run,staffOptions,take}=workspaceUI(doc,t);
  const s={rows:[],total:0,page:0,stats:null,contact:null,notes:[],events:[],applications:[],chats:[],noteLimit:20,eventLimit:20,moreNotes:false,moreEvents:false,editing:null,roster:[],generation:0,request:0,detailRequest:0,editRequest:0};
  let searchTimer;
@@ -71,7 +71,7 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
   try{await refreshDetail(id)}catch{notice('#contact-feedback','detailLoadError',true)}
  }
  function renderDetail(){
-  const c=s.contact;if(!c)return;$('#contact-title').textContent=c.full_name;$('#contact-identity').textContent=t(c.profile_id?'registeredCustomer':'visitorContact');$('#contact-detail-body').hidden=false;$('#edit-contact').hidden=false;$('#trash-contact').hidden=!isStaff();
+  const c=s.contact;if(!c)return;$('#contact-title').textContent=c.full_name;$('#contact-identity').textContent=t(c.profile_id?'registeredCustomer':'visitorContact');$('#contact-detail-body').hidden=false;$('#edit-contact').hidden=false;$('#trash-contact').hidden=!canTrash();
   const pair=(label,value)=>el('div',{},[el('dt',{},t(label)),el('dd',{},value)]);
   $('#contact-summary').replaceChildren(el('div',{class:'contact-summary-top'},[badge(c.stage),...c.tags.map(tag=>el('span',{class:'contact-tag'},tag))]),el('dl',{},[
    pair('email',c.email||t('none')),pair('phone',c.phone||t('none')),pair('company',c.company||t('none')),pair('contactOwner',staffName(c.assigned_staff_id)),pair('followUp',c.follow_up_at?date(c.follow_up_at):t('noFollowUp')),pair('lastContacted',c.last_contacted_at?date(c.last_contacted_at):t('noContactYet')),pair('contactService',c.interested_service?t(`service_${c.interested_service}`):t('noService')),pair('contactSource',t(`source_${c.source}`))
@@ -84,7 +84,7 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
  }
  async function edit(contact=null){
   if(!isStaff())return;const generation=s.generation,request=++s.editRequest;s.editing=contact?.id||null;const form=$('#contact-form');form.reset();notice('#contact-edit-feedback','');const roster=await getRoster();if(generation!==s.generation||request!==s.editRequest||!isStaff())return;s.roster=roster;
-  staffOptions($('#contact-assignee'),s.roster,contact?.assigned_staff_id);
+  staffOptions($('#contact-assignee'),s.roster,contact?contact.assigned_staff_id:canAssign()?'':getUser().id);$('#contact-assignee').disabled=!canAssign();
   if(contact)for(const key of ['full_name','email','phone','company','stage','interested_service'])form.elements.namedItem(key).value=contact[key]||'';
   if(contact?.follow_up_at){const date=new Date(contact.follow_up_at);form.elements.follow_up_at.value=new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16)}
   form.elements.tags.value=contact?.tags?.join(', ')||'';$('#contact-sync-hint').hidden=!contact?.profile_id;$('#contact-edit-title').textContent=t(contact?'editContact':'newContact');showDialog($('#contact-edit-dialog'));$('#contact-name').focus();
@@ -92,7 +92,7 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
  $('#new-contact').addEventListener('click',()=>edit().catch(fail));$('#edit-contact').addEventListener('click',()=>edit(s.contact).catch(()=>notice('#contact-feedback','detailLoadError',true)));
  $('#trash-contact').addEventListener('click',async event=>{
   const id=s.contact?.id,generation=s.generation,target=event.currentTarget;
-  if(!isStaff()||!id||target.disabled||!doc.defaultView.confirm(t('trashContactConfirm')))return;
+  if(!canTrash()||!id||target.disabled||!doc.defaultView.confirm(t('trashContactConfirm')))return;
   target.disabled=true;
   try{
    take(await db.rpc('gary_trash_record',{p_kind:'contact',p_id:id,p_expected_version:null}));

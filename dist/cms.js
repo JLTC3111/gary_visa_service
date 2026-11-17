@@ -19,7 +19,7 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
    return values[error?.message]?.[language==='vi'?1:0];
   },
   mediaPolicy:{mimeTypes:['image/jpeg','image/png','image/webp','image/avif'],maxBytes:5242880},
-  async capabilities(){allowed();const caps=await rpc('gary_cms_capabilities');return {...caps,delete:!!caps.publish}},
+  async capabilities(){allowed();const caps=await rpc('gary_cms_capabilities');return {...caps,delete:caps.trash===true}},
   async list({kind,query='',status='',page=1,pageSize=20}={}){
    allowed();page=Math.max(1,Math.trunc(page));pageSize=Math.min(100,Math.max(1,Math.trunc(pageSize)));
    let request=db.from('gary_cms_entries').select('*',{count:'exact'}).eq('kind',kind).order('updated_at',{ascending:false}).order('id');

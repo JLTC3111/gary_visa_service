@@ -19,15 +19,16 @@ function harness({role='staff',width=1440,storage}={}){
 }
 test('Visa staff groups retain original destination nodes, listeners, permissions and active state',async()=>{
  const h=harness();try{
-  assert.deepEqual([...h.doc.querySelectorAll('[data-visa-nav-group]')].map(node=>node.dataset.visaNavGroup),['operations','crm','content','account']);
-  assert.equal(h.doc.querySelectorAll('.workspace-nav [data-view]').length,6);for(const button of h.buttons)assert.equal(h.doc.querySelector(`[data-view=${button.dataset.view}]`),button);
+  assert.deepEqual([...h.doc.querySelectorAll('[data-visa-nav-group]')].map(node=>node.dataset.visaNavGroup),['operations','crm','content','administration','account']);
+  assert.equal(h.doc.querySelector('[data-visa-nav-group=administration]').hidden,true,'Staff Management stays hidden until the portal grants it');
+  assert.equal(h.doc.querySelectorAll('.workspace-nav [data-view]').length,7);for(const button of h.buttons)assert.equal(h.doc.querySelector(`[data-view=${button.dataset.view}]`),button);
   let clicks=0;const cms=h.doc.querySelector('[data-view=cms]');cms.addEventListener('click',()=>{clicks++;h.buttons.forEach(button=>button.classList.toggle('active',button===cms));});cms.click();await settle();assert.equal(clicks,1);assert.equal(cms.getAttribute('aria-current'),'page');assert.ok(cms.closest('[data-visa-nav-group]').classList.contains('visa-nav-group-active'));
   for(const view of ['customers','inbox'])h.doc.querySelector(`[data-view=${view}]`).hidden=true;await settle();assert.equal(h.doc.querySelector('[data-visa-nav-group=crm]').hidden,true);assert.equal(h.doc.querySelector('[data-view=customers]').hidden,true,'navigation never grants visibility');
-  h.doc.body.dataset.role='customer';await settle();assert.equal(h.doc.querySelector('.visa-staff-workspace'),null);assert.equal(h.doc.querySelectorAll('.workspace-nav > [data-view]').length,6);assert.equal(h.doc.querySelector('[data-view=cms]'),cms);
+  h.doc.body.dataset.role='customer';await settle();assert.equal(h.doc.querySelector('.visa-staff-workspace'),null);assert.equal(h.doc.querySelectorAll('.workspace-nav > [data-view]').length,7);assert.equal(h.doc.querySelector('[data-view=cms]'),cms);
  }finally{h.close();}
 });
 test('customer navigation retains its original ungrouped layout and no staff controls',()=>{
- const h=harness({role:'customer'});try{assert.equal(h.controller.getState().enabled,false);assert.equal(h.doc.querySelector('[data-visa-sidebar-toggle]'),null);assert.equal(h.doc.querySelectorAll('.workspace-nav > [data-view]').length,6);assert.equal(h.doc.querySelector('#cms-nav').hidden,true);}finally{h.close();}
+ const h=harness({role:'customer'});try{assert.equal(h.controller.getState().enabled,false);assert.equal(h.doc.querySelector('[data-visa-sidebar-toggle]'),null);assert.equal(h.doc.querySelectorAll('.workspace-nav > [data-view]').length,7);assert.equal(h.doc.querySelector('#cms-nav').hidden,true);}finally{h.close();}
 });
 test('groups collapse independently and localized labels follow the existing page language',()=>{
  const h=harness();try{

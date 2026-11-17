@@ -2,7 +2,7 @@ import {workspaceUI} from './workspace-ui.js';
 import {mergeMessages,chatErrorKey} from './chat-data.js';
 import {createLiveRoom,createSupportWatch,liveTimeLeft,isChatSetupError} from './live-chat.js';
 
-export function createInbox({db,doc,t,isStaff,getUser,getRoster,openContact}){
+export function createInbox({db,doc,t,isStaff,canAssign=isStaff,canGoOnline=isStaff,getUser,getRoster,openContact}){
  const {$,el,button,notice,date,run,staffOptions,take}=workspaceUI(doc,t),win=doc.defaultView;
  const s={rows:[],total:0,page:0,current:null,messages:[],more:false,roster:[],active:false,generation:0,request:0,openRequest:0,threadRequest:0,channel:null,drafts:new Map(),pending:new Map(),sending:false,rendered:'',available:false,wantsOnline:false,availabilityBusy:false,globalConnected:false,connectionStatus:'CONNECTING',connectionError:null,live:null,visitorUntil:0,typingUntil:0};
  let pollTimer,searchTimer,refreshTimer,typingTimer,visitorTimer,room,watch,feedbackKey='',availabilityQueue=Promise.resolve();
@@ -21,7 +21,7 @@ export function createInbox({db,doc,t,isStaff,getUser,getRoster,openContact}){
  }
  function renderThread({scroll=false,prepend=false}={}){
   if(!isStaff()||!s.current)return;const chat=s.current,list=$('#inbox-messages'),height=list.scrollHeight,top=list.scrollTop,nearBottom=height-top-list.clientHeight<100;
-  $('#inbox-placeholder').hidden=true;$('#inbox-conversation').hidden=false;$('#inbox-name').textContent=chat.visitor_name;$('#inbox-identity').textContent=t(chat.customer_id?'chatCustomer':'chatGuest');$('#inbox-email').textContent=chat.visitor_email||t('emailNotProvided');$('#inbox-resolve').textContent=t(chat.status==='resolved'?'chatReopen':'chatResolve');staffOptions($('#inbox-assignee'),s.roster,chat.assigned_staff_id);
+  $('#inbox-placeholder').hidden=true;$('#inbox-conversation').hidden=false;$('#inbox-name').textContent=chat.visitor_name;$('#inbox-identity').textContent=t(chat.customer_id?'chatCustomer':'chatGuest');$('#inbox-email').textContent=chat.visitor_email||t('emailNotProvided');$('#inbox-resolve').textContent=t(chat.status==='resolved'?'chatReopen':'chatResolve');staffOptions($('#inbox-assignee'),s.roster,chat.assigned_staff_id);$('#inbox-assignee').disabled=!canAssign();
   const fingerprint=doc.documentElement.lang+s.messages.map(message=>message.id).join(',')+(s.live?.visitor_read_at||'');
   if(s.rendered!==fingerprint){list.replaceChildren(...s.messages.map(message=>el('article',{class:`message${message.sender_type==='staff'?' own':''}`,'data-message-id':message.id},[el('p',{},message.body),el('small',{},`${t(message.sender_type==='staff'?'chatTeam':message.sender_type==='customer'?'customer':'chatVisitor')} · ${date(message.created_at)}${message.sender_type==='staff'?' · '+t(s.live?.visitor_read_at&&new Date(s.live.visitor_read_at)>=new Date(message.created_at)?'chatSeen':'chatSent'):''}`)])));s.rendered=fingerprint}
   renderPeer();$('#inbox-older').hidden=!s.more;if(prepend)list.scrollTop=top+(list.scrollHeight-height);else if(scroll||nearBottom)list.scrollTop=list.scrollHeight;else list.scrollTop=top;
@@ -45,7 +45,8 @@ export function createInbox({db,doc,t,isStaff,getUser,getRoster,openContact}){
  async function refresh(){if(!isStaff()||!s.active||doc.hidden)return;await Promise.all([loadQueue().catch(()=>notice('#inbox-notice','chatLoadError',true)),s.current?read().catch(()=>feedback('chatRefreshError',true)):Promise.resolve()])}
  function renderAvailability(){
   const connecting=!s.globalConnected&&s.connectionStatus==='CONNECTING',failed=!s.globalConnected&&!connecting;
-  $('#staff-live-label').textContent=t(!s.globalConnected?s.wantsOnline?'liveReconnecting':connecting?'liveConnecting':'liveDisconnected':s.available?'staffOnline':'staffAway');$('#staff-live-dot').classList.toggle('online',s.available&&s.globalConnected);$('#staff-live-toggle').textContent=t(s.wantsOnline?'goAway':'goOnline');$('#staff-live-toggle').setAttribute('aria-pressed',String(s.wantsOnline));$('#staff-live-toggle').disabled=s.availabilityBusy;
+  const queue=canGoOnline();$('#staff-live-toggle').hidden=!queue;$('#staff-live-hint').textContent=t(queue?'staffAvailabilityHint':'staffAssignedChatsHint');
+  $('#staff-live-label').textContent=t(!s.globalConnected?s.wantsOnline?'liveReconnecting':connecting?'liveConnecting':'liveDisconnected':s.available?'staffOnline':queue?'staffAway':'staffAssignedOnly');$('#staff-live-dot').classList.toggle('online',s.available&&s.globalConnected);$('#staff-live-toggle').textContent=t(s.wantsOnline?'goAway':'goOnline');$('#staff-live-toggle').setAttribute('aria-pressed',String(s.wantsOnline));$('#staff-live-toggle').disabled=s.availabilityBusy;
   const reason=String(s.connectionError?.message||'');let key='liveConnectionError';if(/PrivateOnly|public.*(?:disabled|not allowed)/i.test(reason))key='livePublicAccessRequired';else if(/RealtimeDisabledForTenant|Realtime was disabled/i.test(reason))key='liveServiceDisabled';else if(/jwt|token.*(?:expired|invalid)/i.test(reason))key='liveSessionError';
   $('#staff-live-connection').hidden=s.globalConnected||!s.active;$('#staff-live-connection-message').textContent=t(connecting?s.wantsOnline?'liveWaiting':'liveConnecting':key);$('#staff-live-retry').hidden=!failed;
   const detail=[s.connectionStatus,reason].filter(Boolean).join(': ').replace(/sb_(?:publishable|secret)_[A-Za-z0-9_-]+/g,'[redacted]').replace(/\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[redacted]').slice(0,600);
@@ -58,7 +59,7 @@ export function createInbox({db,doc,t,isStaff,getUser,getRoster,openContact}){
  function pulse(available){
   const generation=s.generation;
   const pending=availabilityQueue.then(async()=>{
-   if(generation!==s.generation||!isStaff())return;if(available&&(!s.wantsOnline||!s.active||!s.globalConnected))return;
+   if(generation!==s.generation||!isStaff())return;if(available&&(!canGoOnline()||!s.wantsOnline||!s.active||!s.globalConnected))return;
    try{take(await db.rpc('gary_set_chat_availability',{p_available:available}));if(generation!==s.generation)return;s.available=available&&s.wantsOnline&&s.active;renderAvailability()}
    catch(error){if(generation!==s.generation)return;s.available=false;s.wantsOnline=false;renderAvailability();notice('#inbox-notice',isChatSetupError(error)?'liveSetupRequired':'liveAvailabilityError',true)}
   });
@@ -83,11 +84,11 @@ export function createInbox({db,doc,t,isStaff,getUser,getRoster,openContact}){
  });
  $('#inbox-reply').addEventListener('input',()=>{rememberDraft();room?.typing(!!$('#inbox-reply').value.trim())});$('#inbox-reply').addEventListener('blur',()=>room?.stopTyping());
  $('#inbox-reply').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();if(!s.sending)$('#inbox-reply-form').requestSubmit()}});
- $('#staff-live-toggle').addEventListener('click',async()=>{if(!isStaff()||!s.active||s.availabilityBusy)return;s.wantsOnline=!s.wantsOnline;s.availabilityBusy=true;renderAvailability();try{if(s.wantsOnline&&!s.globalConnected)watch?.retry();await pulse(s.wantsOnline)}finally{s.availabilityBusy=false;renderAvailability()}});
+ $('#staff-live-toggle').addEventListener('click',async()=>{if(!isStaff()||!canGoOnline()||!s.active||s.availabilityBusy)return;s.wantsOnline=!s.wantsOnline;s.availabilityBusy=true;renderAvailability();try{if(s.wantsOnline&&!s.globalConnected)watch?.retry();await pulse(s.wantsOnline)}finally{s.availabilityBusy=false;renderAvailability()}});
  $('#staff-live-retry').addEventListener('click',()=>watch?.retry());
  async function update(values){const id=s.current?.id,generation=s.generation;if(!isStaff()||!id)return;try{const chat=take(await db.from('gary_chat_conversations').update(values).eq('id',id).select().single());if(generation!==s.generation||s.current?.id!==id||!isStaff())return;s.current=chat;renderThread();feedback('chatStatusSaved');await loadQueue()}catch{if(generation===s.generation)feedback('genericError',true)}}
  $('#inbox-resolve').addEventListener('click',()=>{if(s.current)update({status:s.current.status==='open'?'resolved':'open'})});
- $('#inbox-assignee').addEventListener('change',async()=>{const select=$('#inbox-assignee');select.disabled=true;try{await update({assigned_staff_id:select.value||null})}finally{select.disabled=false}});
+ $('#inbox-assignee').addEventListener('change',async()=>{const select=$('#inbox-assignee');if(!canAssign())return;select.disabled=true;try{await update({assigned_staff_id:select.value||null})}finally{select.disabled=!canAssign()}});
  $('#inbox-contact').addEventListener('click',()=>{if(s.current)openContact(s.current.contact_id)});
  $('#inbox-older').addEventListener('click',async()=>{const button=$('#inbox-older');button.disabled=true;try{await read({older:true})}catch{feedback('chatOlderError',true)}finally{button.disabled=false}});
  $('#refresh-inbox').addEventListener('click',refresh);$('#inbox-status').addEventListener('change',()=>{s.page=0;loadQueue().catch(()=>notice('#inbox-notice','chatLoadError',true))});
