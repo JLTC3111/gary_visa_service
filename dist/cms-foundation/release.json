@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "sha256": "bd10cbe165aa9599ca4eead007565829965cf2f2049d0deb70670ce32e9768cf",
+  "sha256": "5f679c205372ec672ef8ea5e4b0b2f6cd919b7ce4dd1c4b61988a521fb9f1c8d",
   "source": "gary-home/shared/cms-foundation",
   "files": [
     "index.js",
@@ -11,5 +11,6 @@
     "seo-findings.js",
     "seo-findings.d.ts"
   ],
-  "applicationPatch": "visa-recoverable-deletion-2026-11-16"
+  "applicationPatch": "visa-recoverable-deletion-2026-11-16 + persistent-editor-workspace-2026-11-17",
+  "hashScope": "vendored-files"
 }

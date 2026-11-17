@@ -1,0 +1,3 @@
+export type WorkspaceState = {width:number;height:number;maximized:boolean;mobile:boolean;box:{width:number;height:number;left:number;top:number}};
+export type WorkspaceController = {refresh():void;getState():WorkspaceState;destroy():void};
+export function attachEditorWorkspace(element: HTMLElement, options?: {key?:string;language?:string|(()=>string);header?:HTMLElement|null;body?:HTMLElement|null;actions?:HTMLElement|null;anchor?:'right'|'center';storage?:Storage}): WorkspaceController;

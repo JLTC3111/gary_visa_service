@@ -1,0 +1,25 @@
+/* Shared editor shell: geometry changes never replace form nodes. */
+.gw-editor.gw-editor{box-sizing:border-box;position:fixed;inset:auto;left:var(--gw-left);top:var(--gw-top);width:var(--gw-width);height:var(--gw-height);min-width:0;min-height:0;max-width:none;max-height:none;margin:0;padding:0;overflow:hidden;container:editor-workspace / inline-size;isolation:isolate;--gw-surface:var(--cms-surface,var(--cream,#fff));--gw-ink:var(--cms-ink,#18384b);--gw-line:var(--cms-line,#d9e3e6);--gw-accent:#7966a5}
+.gw-editor:not(dialog),dialog.gw-editor[open]{display:flex;flex-direction:column}
+.gw-editor .gw-editor-header{position:relative;top:auto;flex:none;min-width:0;display:flex;align-items:center;gap:12px;z-index:5;background:var(--gw-surface);color:var(--gw-ink);border-bottom:1px solid var(--gw-line);padding:16px 24px;overflow-wrap:anywhere}
+.gw-editor .gw-editor-header>:first-child{min-width:0;flex:1}.gw-editor .gw-editor-header h2{overflow-wrap:anywhere;margin:0}
+.gw-editor .gw-editor-body{min-height:0;min-width:0;flex:1;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;scroll-padding-block:20px 100px}
+.gw-editor .gw-editor-actions{position:sticky;bottom:0;z-index:4;flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:10px;background:var(--gw-surface);color:var(--gw-ink);border-top:1px solid var(--gw-line);padding:16px 24px;margin:0;box-shadow:0 -5px 18px #10283e08}
+.gw-editor .gw-editor-controls{display:flex;flex:none;align-items:center;margin-left:auto;gap:8px}
+.gw-editor .gw-editor-toggle{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:1px solid var(--gw-line);border-radius:8px;background:var(--gw-surface);color:var(--gw-ink);cursor:pointer}
+.gw-editor .gw-editor-toggle:hover{background:color-mix(in srgb,var(--gw-accent) 12%,var(--gw-surface))}.gw-editor .gw-editor-toggle:focus-visible,.gw-editor .gw-editor-resize:focus-visible{outline:3px solid var(--gw-accent);outline-offset:-3px}
+.gw-editor .gw-editor-resize.gw-editor-resize{position:absolute;z-index:9;display:block;min-width:0;min-height:0;padding:0;border:0;border-radius:3px;background:transparent;color:var(--gw-accent);touch-action:none;opacity:.65}
+.gw-editor .gw-editor-resize[hidden]{display:none!important}.gw-editor .gw-editor-resize:hover,.gw-editor .gw-editor-resize:focus-visible{opacity:1;background:color-mix(in srgb,var(--gw-accent) 15%,transparent)}
+.gw-editor .gw-editor-resize[data-gw-edge=w],.gw-editor .gw-editor-resize[data-gw-edge=e]{top:24px;bottom:24px;width:10px;cursor:ew-resize}
+.gw-editor .gw-editor-resize[data-gw-edge=w]{left:0}.gw-editor .gw-editor-resize[data-gw-edge=e]{right:0}
+.gw-editor .gw-editor-resize[data-gw-edge=n],.gw-editor .gw-editor-resize[data-gw-edge=s]{left:24px;right:24px;height:10px;cursor:ns-resize}
+.gw-editor .gw-editor-resize[data-gw-edge=n]{top:0}.gw-editor .gw-editor-resize[data-gw-edge=s]{bottom:0}
+.gw-editor .gw-editor-resize[data-gw-edge=nw],.gw-editor .gw-editor-resize[data-gw-edge=ne],.gw-editor .gw-editor-resize[data-gw-edge=sw],.gw-editor .gw-editor-resize[data-gw-edge=se]{width:20px;height:20px}
+.gw-editor .gw-editor-resize[data-gw-edge=nw]{left:0;top:0;cursor:nwse-resize}.gw-editor .gw-editor-resize[data-gw-edge=ne]{right:0;top:0;cursor:nesw-resize}.gw-editor .gw-editor-resize[data-gw-edge=sw]{left:0;bottom:0;cursor:nesw-resize}.gw-editor .gw-editor-resize[data-gw-edge=se]{right:0;bottom:0;cursor:nwse-resize}
+.gw-editor .gw-editor-resize::after{content:"";position:absolute;display:block;pointer-events:none;border-radius:3px;background:currentColor}
+.gw-editor .gw-editor-resize[data-gw-edge=w]::after,.gw-editor .gw-editor-resize[data-gw-edge=e]::after{width:2px;height:36px;top:calc(50% - 18px);left:4px}
+.gw-editor .gw-editor-resize[data-gw-edge=n]::after,.gw-editor .gw-editor-resize[data-gw-edge=s]::after{height:2px;width:36px;left:calc(50% - 18px);top:4px}
+.gw-editor .gw-editor-resize[data-gw-edge=se]::after{height:2px;width:12px;right:3px;bottom:7px;transform:rotate(-45deg)}
+.gw-editor.gw-mobile{border-radius:0}.gw-editor.gw-mobile .gw-editor-header{padding:12px 16px;gap:8px}.gw-editor.gw-mobile .gw-editor-actions{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}.gw-editor.gw-mobile .gw-editor-toggle{opacity:.55}
+@container editor-workspace (max-width:760px){.gw-editor .cms-language-columns,.gw-editor .cms-editor-meta,.gw-editor .form-row,.gw-editor .form-row.three{grid-template-columns:minmax(0,1fr)}.gw-editor .cms-language-columns{gap:12px}.gw-editor .gw-editor-header h2{font-size:clamp(19px,4cqi,25px)}}
+@media(prefers-reduced-motion:reduce){.gw-editor,.gw-editor *{scroll-behavior:auto!important}.gw-editor .gw-editor-resize,.gw-editor .gw-editor-toggle{transition:none!important}}

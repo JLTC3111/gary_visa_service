@@ -1,0 +1,32 @@
+/* Application/CRM editors share the platform geometry and controls. Forms and
+   selected upload inputs stay mounted while their viewport changes. */
+.portal-body .gw-editor{--gw-surface:#fff;--gw-ink:var(--ink,#173954);--gw-line:var(--line,#d6e1dd)}
+.portal-body .gw-editor>.gw-editor-header{margin:0;padding:20px 24px;gap:16px;align-items:center;flex:none}
+.portal-body .gw-editor .gw-editor-title{min-width:0;flex:1}
+.portal-body .gw-editor .gw-editor-title h2{font-size:clamp(23px,3vw,30px);padding:0;line-height:1.25;overflow-wrap:anywhere}
+.portal-body .gw-editor .gw-editor-title .eyebrow{font-size:11px;line-height:1.5;margin:0 0 8px}
+.portal-body .gw-editor .gw-editor-controls{display:flex;align-items:center;gap:8px;flex:none}
+.portal-body .gw-editor .gw-editor-header .dialog-close{position:static;inset:auto;flex:none;width:42px;height:42px;min-height:42px;margin:0;transform:none}
+.portal-body .gw-editor .gw-editor-body{padding:24px;min-width:0;scroll-padding-block:20px}
+.portal-body .gw-editor .gw-editor-body>p[data-p="requestIntro"]{font-size:14px;line-height:1.7;margin:0 0 22px}
+.portal-body .gw-editor>.gw-editor-form{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden;padding:0;margin:0}
+.portal-body .gw-editor .gw-editor-actions{padding:16px 24px;margin:0;flex:none;gap:12px;background:#fff;border-top:1px solid var(--line)}
+.portal-body .gw-editor .gw-editor-actions>.button{width:auto;min-width:170px;margin:0}
+.portal-body .gw-editor .gw-editor-actions>.form-feedback{flex-basis:100%;margin:0}
+.portal-body .gw-editor .form-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.portal-body .gw-editor input,.portal-body .gw-editor select,.portal-body .gw-editor textarea{max-width:100%;box-sizing:border-box}
+.portal-body .gw-editor textarea{max-height:40dvh}
+.portal-body .gw-editor .case-header{min-width:0}
+.portal-body .gw-editor .case-meta{flex-wrap:wrap;gap:10px;margin-top:10px}
+.portal-body .gw-editor .case-tabs{margin:0 0 18px;gap:24px;flex:none}
+.portal-body .gw-editor.case-dialog:not(.crm-dialog)>.gw-editor-body{display:flex;flex-direction:column;overflow:hidden}
+.portal-body .gw-editor [role="tabpanel"]:not([hidden]){flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-padding-block:16px}
+.portal-body .gw-editor #case-messages:not([hidden]),.portal-body .gw-editor #case-documents:not([hidden]),.portal-body .gw-editor #case-notes:not([hidden]){display:flex;flex-direction:column;overflow:hidden}
+.portal-body .gw-editor #case-message-list,.portal-body .gw-editor #case-document-list,.portal-body .gw-editor #case-note-list{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;margin:0 0 16px;padding-bottom:16px}
+.portal-body .gw-editor .compose-form,.portal-body .gw-editor .upload-form{flex:none}
+.portal-body .gw-editor .case-feedback{flex:none;margin:12px 0 0}
+.portal-body .gw-editor .crm-detail-heading{width:100%;min-width:0;gap:12px;flex-wrap:wrap;margin:0}
+.portal-body .gw-editor .crm-detail-heading h2{margin:0}
+.portal-body .gw-editor .crm-detail-actions{flex-wrap:wrap;gap:8px}
+@container (max-width:700px){.portal-body .gw-editor .form-row,.portal-body .gw-editor .case-overview-grid,.portal-body .gw-editor .crm-detail-grid{grid-template-columns:1fr}.portal-body .gw-editor .case-timeline{border-left:0;border-top:1px solid var(--line);padding:20px 0 0}.portal-body .gw-editor .case-edit-actions{flex-wrap:wrap;gap:12px}}
+@media(max-width:720px){.portal-body .gw-editor>.gw-editor-header{padding:14px 16px;gap:10px}.portal-body .gw-editor .gw-editor-body{padding:18px 16px}.portal-body .gw-editor .gw-editor-actions{padding:12px 16px}.portal-body .gw-editor .gw-editor-actions>.button{width:100%;min-height:44px}.portal-body .gw-editor .gw-editor-title .eyebrow{font-size:10px}.portal-body .gw-editor .case-tabs{gap:20px}.portal-body .gw-editor .private-files-note{margin-bottom:14px}.portal-body .gw-editor .compose-form>textarea{max-height:25dvh}}

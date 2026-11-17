@@ -5,6 +5,7 @@ import {createCRM} from './crm.js';
 import {createInbox} from './inbox.js';
 import {createAgencyCms} from './cms-workspace.js';
 import {createTrash} from './trash.js';
+import {mountPortalEditors} from './portal-editors.js';
 
 const $=selector=>document.querySelector(selector),$$=selector=>[...document.querySelectorAll(selector)];
 const english={};
@@ -16,6 +17,7 @@ if(params.get('lang'))language=params.get('lang')==='vi'?'vi':'en';
 const state={user:null,role:null,profile:null,mode:'signin',area:params.get('area')==='staff'?'staff':'customer',view:'applications',page:0,total:0,cases:[],customerPage:0,customerTotal:0,customers:[],caseId:null,currentCase:null,caseData:null,tab:'overview',editingId:null,generation:0,loading:false,recovery:params.get('flow')==='recovery'};
 const PAGE_SIZE=20;
 const t=key=>portalCopy[language]?.[key]??portalCopy.en[key]??english[key]??key;
+const editorWorkspaces=mountPortalEditors(document,{language:()=>language});
 const element=(tag,attrs={},children=[])=>{const node=document.createElement(tag);for(const [key,value]of Object.entries(attrs)){if(value!==null&&value!==undefined)node.setAttribute(key,String(value))}for(const child of (Array.isArray(children)?children:[children]))if(child!==null&&child!==undefined)node.append(typeof child==='string'?document.createTextNode(child):child);return node};
 const icon=(name)=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','icon');svg.setAttribute('aria-hidden','true');const use=document.createElementNS('http://www.w3.org/2000/svg','use');use.setAttribute('href',`#p-${name}`);svg.append(use);return svg};
 const date=value=>new Intl.DateTimeFormat(language==='vi'?'vi-VN':'en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(value));
@@ -45,7 +47,7 @@ const trash=createTrash({db,doc:document,t,isStaff:staff,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:staff,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id)});
 
 function translate(){
- document.documentElement.lang=language;
+ document.documentElement.lang=language;editorWorkspaces.refresh();
  $$('[data-p]').forEach(node=>{node.textContent=t(node.dataset.p)});$$('[data-p-placeholder]').forEach(node=>{node.placeholder=t(node.dataset.pPlaceholder)});
  $$('[data-language]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.language===language)));
  try{localStorage.setItem('gary-language',language)}catch{}
