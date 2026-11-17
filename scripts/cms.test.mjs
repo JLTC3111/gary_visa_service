@@ -18,7 +18,7 @@ test('published content replaces public services, eligibility/documents, process
   renderServiceCms({doc,entries:rows,slug:'work',language:'vi'});assert.match(doc.querySelector('#cms-service-details').textContent,/Tiếng Việt teacher-eligibility/);assert.match(doc.querySelector('#cms-service-details').textContent,/Tiếng Việt degree/);assert.doesNotMatch(doc.querySelector('#cms-service-details').textContent,/unrelated/);
   renderPublicCms({doc,entries:rows,language:'vi'});assert.equal(doc.querySelector('.faq-list summary').textContent,'Tiếng Việt a-question');assert.equal(doc.querySelector('[data-i18n=heroDescription]').textContent,'Tóm tắt tiếng Việt');
   assert.equal(cmsCopyOverrides(rows).vi.workTitle,'Tiếng Việt work');
-  renderPublicCms({doc,entries:[],language:'en'});assert.equal(doc.querySelectorAll('.service-card').length,0,'archived content does not fall back to obsolete source cards');assert.equal(doc.querySelector('.hero').hidden,true);assert.equal(doc.querySelector('#faq').hidden,true);
+  renderPublicCms({doc,entries:[],language:'en'});assert.equal(doc.querySelectorAll('.service-card').length,0,'archived content does not fall back to obsolete source cards');assert.equal(doc.querySelector('#visa-service-discovery').hidden,true);assert.equal(doc.querySelector('#visa-cinematic-hero').hidden,false,'the protected cinematic introduction stays available without CMS landing content');assert.equal(doc.querySelector('#faq').hidden,true);
  }finally{dom.window.close()}
 });
 test('public loader reads snapshots only and surfaces missing/unavailable backend without attempting writes',async()=>{
@@ -26,6 +26,58 @@ test('public loader reads snapshots only and surfaces missing/unavailable backen
  const db={from(table){calls.push(table);assert.equal(table,'gary_cms_public');return {select(){return this},order(){return this},async range(from,to){page++;assert.equal(from,(page-1)*200);return {data:page===1?Array.from({length:200},(_,i)=>({entry_id:'id-'+i,kind:'faq',slug:'question-'+i,content:{title_en:'Question'}})):[{entry_id:'final',kind:'faq',slug:'last',content:{title_en:'Last'}}],error:null}}}}};
  const entries=await loadPublishedCms(db);assert.equal(entries.length,201);assert.equal(entries[200].id,'final');assert.equal(calls.length,2);
  const failure={from(){return {select(){return this},order(){return this},async range(){return {error:{code:'42P01'}}}}}};await assert.rejects(()=>loadPublishedCms(failure),e=>e.code==='42P01');
+});
+test('published landing SEO synchronizes declared page, Open Graph and Twitter metadata in both languages',async()=>{
+ const dom=await fixture(),doc=dom.window.document;
+ try{
+  for(const [attribute,key]of [['name','twitter:title'],['property','twitter:title'],['name','twitter:description'],['property','twitter:description']]){const meta=doc.createElement('meta');meta.setAttribute(attribute,key);meta.content='Fallback social copy';doc.head.append(meta);}
+  const hero=entry('landing','hero',{data:{slot:'hero'},seo_title_en:'Published Visa & Work Support',seo_title_vi:'Dịch vụ visa và lao động đã đăng',seo_description_en:'Published English service description.',seo_description_vi:'Mô tả dịch vụ tiếng Việt đã được đăng.'});
+  const image=doc.querySelector('meta[property="og:image"]').content;
+  for(const language of ['en','vi']){
+   renderPublicCms({doc,entries:[hero],language});
+   assert.equal(doc.title,hero['seo_title_'+language]);
+   for(const meta of doc.querySelectorAll('meta[property="og:title"],meta[name="twitter:title"],meta[property="twitter:title"]'))assert.equal(meta.content,hero['seo_title_'+language]);
+   for(const meta of doc.querySelectorAll('meta[name="description"],meta[property="og:description"],meta[name="twitter:description"],meta[property="twitter:description"]'))assert.equal(meta.content,hero['seo_description_'+language]);
+  }
+  assert.equal(doc.querySelector('meta[property="og:image"]').content,image,'Unrelated metadata remains unchanged');
+ }finally{dom.window.close()}
+});
+test('empty landing SEO preserves the current locale fallback and does not create undeclared social tags',async()=>{
+ const dom=await fixture(),doc=dom.window.document;
+ try{
+  doc.title='Current localized fallback';
+  const selectors=['meta[name="description"]','meta[property="og:title"]','meta[property="og:description"]'];
+  const original=selectors.map(selector=>doc.querySelector(selector).content);
+  const hero=entry('landing','hero',{data:{slot:'hero'},seo_title_vi:'  ',seo_description_vi:'\n'});
+  renderPublicCms({doc,entries:[hero],language:'vi'});
+  assert.equal(doc.title,'Current localized fallback');
+  selectors.forEach((selector,index)=>assert.equal(doc.querySelector(selector).content,original[index]));
+  assert.equal(doc.querySelector('meta[name^="twitter:"]'),null);
+  hero.seo_description_vi='Mô tả tiếng Việt mới.';renderPublicCms({doc,entries:[hero],language:'vi'});
+  assert.equal(doc.title,'Current localized fallback');
+  assert.equal(doc.querySelector('meta[property="og:title"]').content,original[1]);
+  assert.equal(doc.querySelector('meta[name="description"]').content,hero.seo_description_vi);
+  assert.equal(doc.querySelector('meta[property="og:description"]').content,hero.seo_description_vi);
+ }finally{dom.window.close()}
+});
+test('service details omit an exact repeated includes list while keeping distinct long-form and related content',async()=>{
+ const dom=await fixture(),doc=dom.window.document;
+ try{
+  const service=entry('service','work',{body_en:'Application review.\n\nDocument preparation.',body_vi:'Xem xét hồ sơ. Chuẩn bị giấy tờ.',data:{includes_en:['Application review.','Document preparation.'],includes_vi:['Xem xét hồ sơ.','Chuẩn bị giấy tờ.']}});
+  const related=entry('document','degree',{data:{service_slug:'work'}});
+  for(const language of ['en','vi']){
+   renderServiceCms({doc,entries:[service,related],slug:'work',language});
+   assert.equal(doc.querySelectorAll('#service-dialog-includes>li').length,2);
+   assert.equal(doc.querySelectorAll('#cms-service-details>p').length,0,'The same text is already shown as bullets');
+   assert.match(doc.querySelector('#cms-service-details').textContent,language==='vi'?/Tiếng Việt degree/:/English degree/,'Related document guidance remains visible');
+  }
+  service.body_en='Application review. Document preparation. A genuinely different explanation follows.';
+  renderServiceCms({doc,entries:[service,related],slug:'work',language:'en'});
+  assert.equal(doc.querySelector('#cms-service-details>p').textContent,service.body_en);
+  service.data.includes_en=[];service.body_en='Application review.';
+  renderServiceCms({doc,entries:[service],slug:'work',language:'en'});
+  assert.equal(doc.querySelector('#cms-service-details>p').textContent,service.body_en,'Body is retained when no bullets are shown');
+ }finally{dom.window.close()}
 });
 test('adapter keeps queries and publication authority in Agency, carries expected versions, paginates from page one and rejects files before upload',async()=>{
  const calls=[],db={rpc:async(name,args)=>{calls.push({name,args});return {data:{id:'record',version:2},error:null}},from(table){const query={select(){return this},eq(){return this},order(){return this},or(value){calls.push({search:value});return this},async range(from,to){calls.push({table,from,to});return {data:[],count:0,error:null}}};return query}};

@@ -7,6 +7,8 @@ const copy = {
   }
 };
 const additional = {
+  delete: ['Delete', 'Xóa'], deleteConfirm: ['Move this content to Trash and remove it from the website? Its history is kept and it can be restored as a draft.', 'Chuyển nội dung này vào Thùng rác và gỡ khỏi trang web? Lịch sử được giữ lại và bạn có thể khôi phục thành bản nháp.'], deleted: ['Moved to Trash. Restore it from the staff Trash view.', 'Đã chuyển vào Thùng rác. Khôi phục tại mục Thùng rác của nhân viên.'],
+
   editor: ['Editor', 'Biên tập viên'], publisher: ['Publisher', 'Người duyệt đăng'], admin: ['Administrator', 'Quản trị viên'], recruiter: ['Recruiter', 'Chuyên viên tuyển dụng'],
   reviewFirst: ['Submit this saved draft for review before publishing.', 'Gửi bản nháp đã lưu để duyệt trước khi đăng.'],
 };

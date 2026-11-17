@@ -4,6 +4,12 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
  const {$,el,button,notice,date,run,staffOptions,take}=workspaceUI(doc,t);
  const s={rows:[],total:0,page:0,stats:null,contact:null,notes:[],events:[],applications:[],chats:[],noteLimit:20,eventLimit:20,moreNotes:false,moreEvents:false,editing:null,roster:[],generation:0,request:0,detailRequest:0,editRequest:0};
  let searchTimer;
+ const toolbar=doc.querySelector('#customers-view .crm-toolbar');
+ const clearFilters=button('',()=>{clearTimeout(searchTimer);$('#customer-search').value='';$('#contact-search-by').value='full_name';for(const id of ['contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).value='';s.page=0;void load();$('#customer-search').focus()},'pagination-button crm-clear-filters');
+ clearFilters.id='clear-contact-filters';
+ const filterSummary=el('p',{class:'crm-filter-summary',role:'status','aria-live':'polite'});
+ const tableHeading=el('div',{class:'crm-table-heading','aria-hidden':'true'});
+ if(toolbar){toolbar.append(clearFilters,filterSummary);$('#customers-list').before(tableHeading)}
  const badge=stage=>el('span',{class:`relationship-badge stage-${stage}`},t(`stage_${stage}`));
  const staffName=id=>s.roster.find(person=>person.user_id===id)?.display_name||t('unassigned');
  const fail=()=>notice('#crm-notice','crmLoadError',true);
@@ -34,7 +40,12 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
  function renderStats(){if(s.stats)['all','leads','due','mine'].forEach((key,i)=>{$(`#crm-stat-${key}`).textContent=String(s.stats[i])})}
  function render(){
   if(!isStaff())return;renderStats();
-  $('#customers-list').replaceChildren(...(s.rows.length?s.rows.map(contact=>button('',()=>openContact(contact.id),'crm-contact-row')).map((row,i)=>{const c=s.rows[i],due=c.stage!=='archived'&&c.follow_up_at&&new Date(c.follow_up_at)<=new Date();row.append(el('span',{class:'crm-row-person'},[el('strong',{},c.full_name),el('small',{},c.email||c.phone||c.company||t(`source_${c.source}`))]),badge(c.stage),el('span',{class:'crm-row-owner'},[el('small',{},t('contactOwner')),el('span',{},c.assigned_staff_id?staffName(c.assigned_staff_id):t('unassigned'))]),el('span',{class:`crm-row-followup${due?' due':''}`},[el('small',{},due?t('overdue'):t('followUp')),el('span',{},c.follow_up_at?date(c.follow_up_at):t('none'))]));return row}):[el('div',{class:'empty-state'},[el('h3',{},t('crmEmpty')),el('p',{},t('crmEmptyIntro'))]) ]));
+  const filterCount=[$('#customer-search').value.trim(),$('#contact-stage-filter').value,$('#contact-owner-filter').value,$('#contact-due-filter').value].filter(Boolean).length;
+  clearFilters.textContent=t('clearFilters');clearFilters.hidden=!filterCount;
+  filterSummary.textContent=filterCount?`${t('activeFilters')}: ${filterCount}`:'';filterSummary.hidden=!filterCount;
+  tableHeading.replaceChildren(el('span',{},t('contactName')),el('span',{},t('contactStage')),el('span',{class:'crm-row-owner'},t('contactOwner')),el('span',{},t('followUp')),el('span',{},''));
+  tableHeading.hidden=!s.rows.length;
+  $('#customers-list').replaceChildren(...(s.rows.length?s.rows.map(contact=>button('',()=>openContact(contact.id),'crm-contact-row')).map((row,i)=>{const c=s.rows[i],due=c.stage!=='archived'&&c.follow_up_at&&new Date(c.follow_up_at)<=new Date();row.append(el('span',{class:'crm-row-person'},[el('strong',{},c.full_name),el('small',{},c.email||c.phone||c.company||t(`source_${c.source}`))]),badge(c.stage),el('span',{class:'crm-row-owner'},[el('small',{},t('contactOwner')),el('span',{},c.assigned_staff_id?staffName(c.assigned_staff_id):t('unassigned'))]),el('span',{class:`crm-row-followup${due?' due':''}`},[el('small',{},due?t('overdue'):t('followUp')),el('span',{},c.follow_up_at?date(c.follow_up_at):t('none'))]),el('span',{class:'crm-row-open','aria-hidden':'true'},'→'));return row}):[el('div',{class:'empty-state'},[el('h3',{},t('crmEmpty')),el('p',{},t('crmEmptyIntro'))]) ]));
   const end=Math.min(s.total,(s.page+1)*20);$('#customer-page-summary').textContent=`${s.total?s.page*20+1:0}–${end} ${t('of')} ${s.total} ${t('contactsCount')}`;$('#customer-previous').disabled=!s.page;$('#customer-next').disabled=end>=s.total;
   if(s.contact&&$('#contact-dialog').open)renderDetail();
   $('#contact-edit-title').textContent=t(s.editing?'editContact':'newContact');
@@ -56,11 +67,11 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
   renderDetail();
  }
  async function openContact(id){
-  if(!isStaff())return;s.contact=null;s.noteLimit=20;s.eventLimit=20;$('#contact-note-form').reset();notice('#contact-feedback','');$('#contact-title').textContent=t('contactLoading');$('#contact-identity').textContent='';$('#contact-detail-body').hidden=true;$('#edit-contact').hidden=true;showDialog($('#contact-dialog'));
+  if(!isStaff())return;s.contact=null;s.noteLimit=20;s.eventLimit=20;$('#contact-note-form').reset();notice('#contact-feedback','');$('#contact-title').textContent=t('contactLoading');$('#contact-identity').textContent='';$('#contact-detail-body').hidden=true;$('#edit-contact').hidden=true;$('#trash-contact').hidden=true;showDialog($('#contact-dialog'));
   try{await refreshDetail(id)}catch{notice('#contact-feedback','detailLoadError',true)}
  }
  function renderDetail(){
-  const c=s.contact;if(!c)return;$('#contact-title').textContent=c.full_name;$('#contact-identity').textContent=t(c.profile_id?'registeredCustomer':'visitorContact');$('#contact-detail-body').hidden=false;$('#edit-contact').hidden=false;
+  const c=s.contact;if(!c)return;$('#contact-title').textContent=c.full_name;$('#contact-identity').textContent=t(c.profile_id?'registeredCustomer':'visitorContact');$('#contact-detail-body').hidden=false;$('#edit-contact').hidden=false;$('#trash-contact').hidden=!isStaff();
   const pair=(label,value)=>el('div',{},[el('dt',{},t(label)),el('dd',{},value)]);
   $('#contact-summary').replaceChildren(el('div',{class:'contact-summary-top'},[badge(c.stage),...c.tags.map(tag=>el('span',{class:'contact-tag'},tag))]),el('dl',{},[
    pair('email',c.email||t('none')),pair('phone',c.phone||t('none')),pair('company',c.company||t('none')),pair('contactOwner',staffName(c.assigned_staff_id)),pair('followUp',c.follow_up_at?date(c.follow_up_at):t('noFollowUp')),pair('lastContacted',c.last_contacted_at?date(c.last_contacted_at):t('noContactYet')),pair('contactService',c.interested_service?t(`service_${c.interested_service}`):t('noService')),pair('contactSource',t(`source_${c.source}`))
@@ -79,6 +90,18 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
   form.elements.tags.value=contact?.tags?.join(', ')||'';$('#contact-sync-hint').hidden=!contact?.profile_id;$('#contact-edit-title').textContent=t(contact?'editContact':'newContact');showDialog($('#contact-edit-dialog'));$('#contact-name').focus();
  }
  $('#new-contact').addEventListener('click',()=>edit().catch(fail));$('#edit-contact').addEventListener('click',()=>edit(s.contact).catch(()=>notice('#contact-feedback','detailLoadError',true)));
+ $('#trash-contact').addEventListener('click',async event=>{
+  const id=s.contact?.id,generation=s.generation,target=event.currentTarget;
+  if(!isStaff()||!id||target.disabled||!doc.defaultView.confirm(t('trashContactConfirm')))return;
+  target.disabled=true;
+  try{
+   take(await db.rpc('gary_trash_record',{p_kind:'contact',p_id:id,p_expected_version:null}));
+   if(generation!==s.generation||!isStaff())return;
+   if(s.contact?.id===id){closeDialog($('#contact-dialog'));s.contact=null;$('#contact-detail-body').hidden=true;$('#edit-contact').hidden=true;$('#trash-contact').hidden=true;}
+   notify('recordTrashed');s.page=0;await enter();
+  }catch{if(generation===s.generation)notice('#contact-feedback','genericError',true)}
+  finally{target.disabled=false;}
+ });
  $('#contact-form').addEventListener('submit',async event=>{
   event.preventDefault();const form=event.currentTarget;if(!isStaff()||!form.reportValidity())return;const generation=s.generation,editing=s.editing;
   const tags=[...new Set(form.elements.tags.value.split(',').map(tag=>tag.trim()).filter(Boolean))];if(tags.length>12||tags.some(tag=>tag.length>30)){notice('#contact-edit-feedback','invalidTags',true);return}
@@ -99,6 +122,6 @@ export function createCRM({db,doc,t,isStaff,getUser,getRoster,showDialog,closeDi
  $('#customer-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(filter,250)});
  for(const id of ['contact-search-by','contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).addEventListener('change',filter);
  $('#refresh-contacts').addEventListener('click',enter);$('#customer-previous').addEventListener('click',()=>{if(s.page){s.page--;load()}});$('#customer-next').addEventListener('click',()=>{if((s.page+1)*20<s.total){s.page++;load()}});
- function reset(){s.generation++;s.request++;s.detailRequest++;s.editRequest++;clearTimeout(searchTimer);Object.assign(s,{rows:[],total:0,page:0,stats:null,contact:null,notes:[],events:[],applications:[],chats:[],roster:[],editing:null});for(const id of ['customers-list','contact-summary','contact-notes','contact-events','contact-applications','contact-chats'])$(`#${id}`).replaceChildren();$('#contact-form').reset();$('#contact-note-form').reset();$('#customer-search').value='';for(const id of ['contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).value='';$('#contact-title').textContent='';$('#contact-identity').textContent='';['all','leads','due','mine'].forEach(key=>{$(`#crm-stat-${key}`).textContent='—'});for(const id of ['crm-notice','contact-feedback','contact-edit-feedback'])notice(`#${id}`,'')}
+ function reset(){$('#trash-contact').hidden=true;clearFilters.hidden=true;filterSummary.hidden=true;filterSummary.textContent='';tableHeading.hidden=true;s.generation++;s.request++;s.detailRequest++;s.editRequest++;clearTimeout(searchTimer);Object.assign(s,{rows:[],total:0,page:0,stats:null,contact:null,notes:[],events:[],applications:[],chats:[],roster:[],editing:null});for(const id of ['customers-list','contact-summary','contact-notes','contact-events','contact-applications','contact-chats'])$(`#${id}`).replaceChildren();$('#contact-form').reset();$('#contact-note-form').reset();$('#customer-search').value='';for(const id of ['contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).value='';$('#contact-title').textContent='';$('#contact-identity').textContent='';['all','leads','due','mine'].forEach(key=>{$(`#crm-stat-${key}`).textContent='—'});for(const id of ['crm-notice','contact-feedback','contact-edit-feedback'])notice(`#${id}`,'')}
  return {enter,render,reset,openContact};
 }

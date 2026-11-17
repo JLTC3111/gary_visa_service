@@ -7,6 +7,7 @@ import {portalCopy} from '../dist/portal-copy.js';
 import {createCRM} from '../dist/crm.js';
 import {createInbox} from '../dist/inbox.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
+import {createTrash} from '../dist/trash.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function flush(){for(let i=0;i<8;i++)await tick()}
 function environment(html,url='http://localhost:4173/'){
@@ -18,7 +19,7 @@ test('Public site filters, translates, recommends services and safely prepares e
  const html=await readFile(new URL('../dist/index.html',import.meta.url),'utf8');const dom=environment(html);const w=dom.window,doc=w.document;
  const bundle=await build({entryPoints:['dist/app.js'],bundle:true,write:false,format:'iife',platform:'browser'});w.eval(bundle.outputFiles[0].text);
  doc.querySelector('[data-filter=settle]').click();assert.equal(doc.querySelectorAll('.service-card:not([hidden])').length,2);assert.ok(doc.querySelector('.service-card[data-service=visa]').hidden);
- doc.querySelector('[data-lang=vi]').click();assert.equal(doc.documentElement.lang,'vi');assert.equal(doc.querySelector('#hero-title span').textContent,'Bớt lo thủ tục.');assert.equal(doc.querySelector('#enquiry-name').placeholder,'Chúng tôi nên gọi bạn là gì?');
+ doc.querySelector('[data-lang=vi]').click();assert.equal(doc.documentElement.lang,'vi');assert.equal(doc.querySelector('#hero-title').textContent,'Hành trình mới bắt đầu từ đây.');assert.equal(doc.querySelector('#enquiry-name').placeholder,'Chúng tôi nên gọi bạn là gì?');
  doc.querySelector('#finder-goal').value='work';doc.querySelector('#finder-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert.ok(!doc.querySelector('#finder-result').hidden);doc.querySelector('#finder-result button').click();assert.equal(doc.querySelector('#service-dialog-title').textContent,'Giấy phép lao động');assert.ok(doc.querySelector('#service-dialog').open);
  doc.querySelector('#service-enquire').click();assert.equal(doc.querySelector('#enquiry-service').value,'work');assert.equal(doc.querySelector('#service-dialog').open,false);
  doc.querySelector('[data-lang=en]').click();doc.querySelector('#enquiry-name').value='Alex';doc.querySelector('#enquiry-message').value='<img src=x onerror=alert(1)> & a question';doc.querySelector('#enquiry-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert.ok(doc.querySelector('#enquiry-dialog').open);assert.match(doc.querySelector('#enquiry-preview').textContent,/My name is Alex/);assert.equal(doc.querySelector('#enquiry-preview img'),null,'enquiry content never becomes HTML');
@@ -35,11 +36,11 @@ async function portalEnvironment(role='customer',url='http://localhost:4173/port
   constructor(table){this.table=table;this.operation='select';this.singleRow=false;this.options={}}
   select(columns,options){this.options=options??{};return this}eq(){return this}in(){return this}ilike(){return this}order(){return this}range(){return this}limit(){return this}single(){this.singleRow=true;return this}maybeSingle(){this.singleRow=true;return this}
   insert(values){this.operation='insert';this.values=values;calls.push({table:this.table,operation:'insert',values});return this}update(values){this.operation='update';this.values=values;calls.push({table:this.table,operation:'update',values});return this}
-  then(resolve,reject){let data=[];if(this.table==='gary_applications')data=this.singleRow?{...application,...this.values}:[application];if(this.table==='gary_profiles')data=this.singleRow?profile:[profile];if(this.table==='gary_application_events')data=[{id:'event-1',status:'submitted',created_at:application.created_at}];return Promise.resolve({data:this.options.head?null:data,error:null,count:this.table==='gary_applications'?1:0}).then(resolve,reject)}
+  then(resolve,reject){let data=[];if(this.table==='gary_applications')data=this.singleRow?{...application,...this.values}:application.deleted_at?[]:[application];if(this.table==='gary_profiles')data=this.singleRow?profile:[profile];if(this.table==='gary_application_events')data=[{id:'event-1',status:'submitted',created_at:application.created_at}];return Promise.resolve({data:this.options.head?null:data,error:null,count:this.table==='gary_applications'?(application.deleted_at?0:1):0}).then(resolve,reject)}
  }
  const auth={getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>{},getUser:async()=>({data:{user:{id:'customer-id',email:'alex@example.test',user_metadata:{full_name:'Alex Customer'}}},error:null}),signInWithPassword:async values=>{calls.push({operation:'signin',values});return {data:{session:{}},error:null}},signUp:async values=>{calls.push({operation:'signup',values});return {data:{session:null},error:null}},signOut:async()=>({error:null})};
- w.__backend={db:{auth,rpc:async name=>({data:name==='gary_staff_directory'?[]:role,error:null}),from:table=>new Query(table)},unwrap:result=>{if(result.error)throw result.error;return result.data},ensureProfile:async()=>profile,EDITABLE_STATUSES:['submitted','documents_needed'],validateDocument:()=>{},documentPath:()=>'',authRedirect:()=>url,config:{supabaseUrl:'https://example.supabase.co'},portalCopy,createCRM,createInbox,createAgencyCms:cmsFactory};
- let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox,createAgencyCms}=globalThis.__backend;${source}\n})()`);
+ w.__backend={db:{auth,rpc:async(name,args)=>{if(['gary_trash_record','gary_restore_record','gary_list_trash'].includes(name)){calls.push({operation:'rpc',name,args});if(name==='gary_trash_record'&&args.p_kind==='case')application.deleted_at='2026-11-16T06:00:00Z';return {data:name==='gary_list_trash'?{records:[],total:0}:{id:args.p_id,kind:args.p_kind},error:null}}return {data:name==='gary_staff_directory'?[]:role,error:null}},from:table=>new Query(table)},unwrap:result=>{if(result.error)throw result.error;return result.data},ensureProfile:async()=>profile,EDITABLE_STATUSES:['submitted','documents_needed'],validateDocument:()=>{},documentPath:()=>'',authRedirect:()=>url,config:{supabaseUrl:'https://example.supabase.co'},portalCopy,createCRM,createInbox,createAgencyCms:cmsFactory,createTrash};
+ let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox,createAgencyCms,createTrash}=globalThis.__backend;${source}\n})()`);
  return {dom,w,doc:w.document,calls,application};
 }
 test('Customer signup never accepts a staff role and explains email confirmation',async()=>{
@@ -159,4 +160,27 @@ test('leaving CMS keeps a rejected dirty draft, but confirmed discard resets it 
   doc.querySelector('[data-view=cms]').click();await flush();assert.equal(enters,2,'a later visit initializes clean CMS state');
   consent=false;const previousChecks=checks;doc.querySelector('#signout').click();await flush();assert.equal(doc.querySelector('#cms-root').textContent,'');assert.equal(checks,previousChecks,'signout clears private drafts without a dirty-leave veto');assert.equal(resets,before+2);
  }finally{env.dom.window.close()}
+});
+
+test('staff Trash actions confirm case deletion, remove active rows and open the recovery view',async()=>{
+ const {dom,w,doc,calls}=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff');
+ try{
+  doc.querySelector('#auth-email').value='staff@example.test';doc.querySelector('#auth-password').value='Password12345';doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
+  assert.equal(doc.querySelector('#trash-nav').hidden,false);
+  doc.querySelector('.application-row').click();await flush();assert.equal(doc.querySelector('#trash-case').hidden,false);assert.equal(doc.querySelector('#case-trash-hint').hidden,false);
+  w.confirm=()=>false;doc.querySelector('#trash-case').click();await flush();assert.equal(calls.filter(call=>call.name==='gary_trash_record').length,0);
+  w.confirm=()=>true;doc.querySelector('#trash-case').click();await flush();
+  const request=calls.find(call=>call.name==='gary_trash_record');assert.equal(request.args.p_kind,'case');assert.equal(request.args.p_expected_version,null);assert.equal(doc.querySelector('#case-dialog').open,false);assert.equal(doc.querySelectorAll('.application-row').length,0);
+  doc.querySelector('#trash-nav').click();await flush();assert.equal(doc.querySelector('#trash-view').hidden,false);assert.match(doc.title,/Trash/);assert.ok(calls.some(call=>call.name==='gary_list_trash'));
+ }finally{dom.window.close()}
+});
+
+test('customer sessions cannot open Trash or delete a visa case through hidden controls',async()=>{
+ const {dom,w,doc,calls}=await portalEnvironment('customer');
+ try{
+  doc.querySelector('#auth-email').value='customer@example.test';doc.querySelector('#auth-password').value='Password12345';doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
+  assert.equal(doc.querySelector('#trash-nav').hidden,true);doc.querySelector('#trash-nav').click();assert.equal(doc.querySelector('#trash-view').hidden,true);
+  doc.querySelector('.application-row').click();await flush();assert.equal(doc.querySelector('#trash-case').hidden,true);doc.querySelector('#trash-case').click();await flush();
+  assert.equal(calls.some(call=>['gary_trash_record','gary_list_trash'].includes(call.name)),false);
+ }finally{dom.window.close()}
 });

@@ -170,3 +170,58 @@ test('Staff can request online while connecting, inspect failures, and retry wit
   $('#staff-live-toggle').click();await flush();$('#staff-live-retry').click();await until(()=>$('#staff-live-connection').hidden,'manual retry should restore the connection');assert.equal(availability.at(-1),false,'retry must respect a staff member choosing away');assert.equal($('#inbox-reply').value,'Keep this reply');
  }finally{inbox.leave();await flush();dom.window.close()}
 });
+
+test('CRM column labels and clear-filters action preserve data and translate with the workspace',async()=>{
+ const dom=await page(),w=dom.window,doc=w.document,$=selector=>doc.querySelector(selector),user={id:randomUUID()};
+ const tables={gary_crm_contacts:[
+  {id:randomUUID(),full_name:'Alex Teacher',email:'alex@example.test',company:'Acme School',stage:'qualified',assigned_staff_id:user.id,follow_up_at:'2026-01-01T10:00:00Z',source:'manual',tags:[],updated_at:'2026-11-16T00:00:00Z'},
+  {id:randomUUID(),full_name:'Binh Nguyen',email:'binh@example.test',company:'Other school',stage:'lead',assigned_staff_id:null,follow_up_at:null,source:'manual',tags:[],updated_at:'2026-11-15T00:00:00Z'}
+ ],gary_crm_notes:[],gary_crm_events:[],gary_chat_conversations:[],gary_applications:[]};
+ const db=mockDatabase(tables),t=key=>portalCopy[doc.documentElement.lang]?.[key]||portalCopy.en[key]||key;
+ const crm=createCRM({db,doc,t,isStaff:()=>true,getUser:()=>user,getRoster:async()=>[{user_id:user.id,display_name:'Gary staff'}],showDialog:node=>node.showModal(),closeDialog:node=>node.close(),notify:()=>{},openApplication:()=>{},openChat:()=>{}});
+ try{
+  await crm.enter();assert.equal(doc.querySelectorAll('.crm-contact-row').length,2);
+  assert.match($('.crm-table-heading').textContent,/Name.*Relationship stage.*Assigned staff.*Next follow-up/);
+  $('#contact-search-by').value='company';$('#customer-search').value='Acme';$('#contact-stage-filter').value='qualified';$('#contact-owner-filter').value='mine';$('#contact-due-filter').value='due';$('#contact-due-filter').dispatchEvent(new w.Event('change'));await flush();
+  assert.equal(doc.querySelectorAll('.crm-contact-row').length,1);assert.match($('.crm-filter-summary').textContent,/Active filters: 4/);assert.equal($('#clear-contact-filters').hidden,false);
+  $('#clear-contact-filters').click();await flush();
+  assert.equal(doc.querySelectorAll('.crm-contact-row').length,2);assert.equal($('#customer-search').value,'');assert.equal($('#contact-search-by').value,'full_name');
+  for(const id of ['contact-stage-filter','contact-owner-filter','contact-due-filter'])assert.equal($('#'+id).value,'');
+  assert.equal($('#clear-contact-filters').hidden,true);assert.equal($('.crm-filter-summary').hidden,true);assert.equal(doc.activeElement,$('#customer-search'));
+  assert.equal(db.calls.some(call=>call.operation!=='select'),false,'Filtering never mutates contacts');
+  doc.documentElement.lang='vi';crm.render();assert.match($('.crm-table-heading').textContent,/Tên.*Giai đoạn quan hệ.*Nhân viên phụ trách/);assert.equal($('#clear-contact-filters').textContent,'Xóa bộ lọc');
+ }finally{crm.reset();dom.window.close()}
+});
+
+test('CRM Delete confirms a recoverable Trash action and never deletes the login or contact notes',async()=>{
+ const dom=await page(),w=dom.window,doc=w.document,$=selector=>doc.querySelector(selector),user={id:randomUUID()},id=randomUUID(),notes=[{id:randomUUID(),contact_id:id,author_id:user.id,body:'Keep this history',created_at:'2026-11-16T00:00:00Z'}];
+ const tables={gary_crm_contacts:[{id,full_name:'Alex Teacher',email:'alex@example.test',stage:'lead',source:'manual',tags:[],updated_at:'2026-11-16T00:00:00Z'}],gary_crm_notes:notes,gary_crm_events:[],gary_chat_conversations:[],gary_applications:[]},db=mockDatabase(tables),rpc=[];
+ db.rpc=async(name,args)=>{rpc.push({name,args});tables.gary_crm_contacts=[];return {data:{id,kind:'contact',deleted_at:'2026-11-16T01:00:00Z'}}};
+ const t=key=>portalCopy.en[key]||key;
+ const crm=createCRM({db,doc,t,isStaff:()=>true,getUser:()=>user,getRoster:async()=>[],showDialog:node=>node.showModal(),closeDialog:node=>node.close(),notify:()=>{},openApplication:()=>{},openChat:()=>{}});
+ try{
+  await crm.enter();await crm.openContact(id);assert.equal($('#trash-contact').hidden,false);
+  w.confirm=()=>false;$('#trash-contact').click();await flush();assert.equal(rpc.length,0);
+  w.confirm=()=>true;$('#trash-contact').click();await flush();assert.deepEqual(rpc,[{name:'gary_trash_record',args:{p_kind:'contact',p_id:id,p_expected_version:null}}]);
+  assert.equal($('#contact-dialog').open,false);assert.equal(doc.querySelectorAll('.crm-contact-row').length,0);assert.equal(tables.gary_crm_notes,notes);assert.equal(notes[0].body,'Keep this history');
+  assert.equal(db.calls.some(call=>call.table==='auth.users'||call.operation==='delete'),false);
+ }finally{crm.reset();dom.window.close()}
+});
+
+test('mobile CRM constrains the grid and sidebar while keeping navigation locally scrollable',async()=>{
+ // jsdom has no layout engine: resolve authored width breakpoints, then verify
+ // the intrinsic-sizing contract that caused the native 390 px overflow bug.
+ const css=(await Promise.all(['portal.css','workspace-tools.css'].map(name=>readFile(new URL('../dist/'+name,import.meta.url),'utf8')))).join('\n');
+ for(const width of [320,390,649,899]){
+  const dom=await page(),doc=dom.window.document,source=doc.createElement('style');source.textContent=css;doc.head.append(source);
+  const matching=[];
+  const walk=rules=>{for(const rule of rules){if(rule.media){const bounds=[...rule.media.mediaText.matchAll(/(min|max)-width\s*:\s*(\d+)px/g)];if(bounds.every(([,mode,size])=>mode==='min'?width>=Number(size):width<=Number(size)))walk(rule.cssRules)}else matching.push(rule.cssText)}};
+  walk(source.sheet.cssRules);source.remove();const active=doc.createElement('style');active.textContent=matching.join('\n');doc.head.append(active);
+  const style=node=>dom.window.getComputedStyle(node),workspace=style(doc.querySelector('.workspace')),sidebar=style(doc.querySelector('.workspace-sidebar')),nav=style(doc.querySelector('.workspace-nav'));
+  assert.match(workspace.gridTemplateColumns,/minmax\(0(?:px)?,\s*1fr\)/,`zero-minimum mobile track at ${width}px`);
+  assert.equal(Number.parseFloat(sidebar.minWidth),0);assert.equal(sidebar.maxWidth,'100%');
+  assert.equal(nav.maxWidth,'100%');assert.equal(nav.overflowX,'auto');
+  assert.equal(style(doc.querySelector('.dashboard-actions')).flexWrap,'wrap');
+  dom.window.close();
+ }
+});

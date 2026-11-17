@@ -1,4 +1,5 @@
 import { connectGaryApps } from './gary-apps-client.js';
+import { enhanceGaryApps } from './gary-apps-brand.js';
 
 const currentApp = 'visa';
 const apps = [
@@ -199,7 +200,7 @@ function applyCopy() {
   }
 }
 
-const connections = [];
+const connections = [], branding = [];
 const language = () => document.documentElement.lang === 'vi' ? 'vi' : 'en';
 for (const slot of [...document.querySelectorAll('[data-gary-apps]')]) {
   const variant = slot.getAttribute('data-gary-apps');
@@ -208,6 +209,7 @@ for (const slot of [...document.querySelectorAll('[data-gary-apps]')]) {
   remote.className = 'gary-apps-remote';
   remote.hidden = true;
   slot.append(menu, remote);
+  branding.push(enhanceGaryApps(slot, language));
   bind(menu);
   let ready = false;
   const connection = connectGaryApps(remote, {
@@ -230,5 +232,6 @@ for (const slot of [...document.querySelectorAll('[data-gary-apps]')]) {
 applyCopy();
 document.addEventListener('gary:language', () => {
   applyCopy();
+  for (const controller of branding) controller.refresh();
   for (const connection of connections) connection.update({ language: language() });
 });

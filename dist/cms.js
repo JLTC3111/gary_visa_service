@@ -15,11 +15,11 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
  const rpc=async(name,args)=>{allowed();return take(await db.rpc(name,args))};
  return {
   errorText(error,language='en'){
-   const values={CMS_REVIEW_REQUIRED:['Submit the saved draft for review before publishing.','Gửi bản nháp đã lưu để duyệt trước khi đăng.'],CMS_SERVICE_GROUP_REQUIRED:['Choose a service group and enquiry service before submitting for review.','Chọn nhóm dịch vụ và dịch vụ liên hệ trước khi gửi duyệt.'],CMS_LANDING_SLOT_REQUIRED:['Choose the landing-page section before submitting for review.','Chọn phần trên trang chủ trước khi gửi duyệt.'],CMS_TRANSLATION_REQUIRED:['Complete both language versions before submitting for review.','Hoàn thiện cả hai ngôn ngữ trước khi gửi duyệt.'],CMS_INVALID_MEDIA_URL:['Choose an image from this application’s media library or existing site assets.','Chọn ảnh từ thư viện tư liệu của ứng dụng hoặc ảnh hiện có trên trang.']};
+   const values={AGENCY_RECORD_DELETED:['This content is in Trash. Restore it before editing.','Nội dung này đang ở Thùng rác. Khôi phục trước khi chỉnh sửa.'],AGENCY_PUBLISHER_REQUIRED:['A publisher or CMS administrator is required.','Cần quyền duyệt đăng hoặc quản trị CMS.'],CMS_REVIEW_REQUIRED:['Submit the saved draft for review before publishing.','Gửi bản nháp đã lưu để duyệt trước khi đăng.'],CMS_SERVICE_GROUP_REQUIRED:['Choose a service group and enquiry service before submitting for review.','Chọn nhóm dịch vụ và dịch vụ liên hệ trước khi gửi duyệt.'],CMS_LANDING_SLOT_REQUIRED:['Choose the landing-page section before submitting for review.','Chọn phần trên trang chủ trước khi gửi duyệt.'],CMS_TRANSLATION_REQUIRED:['Complete both language versions before submitting for review.','Hoàn thiện cả hai ngôn ngữ trước khi gửi duyệt.'],CMS_INVALID_MEDIA_URL:['Choose an image from this application’s media library or existing site assets.','Chọn ảnh từ thư viện tư liệu của ứng dụng hoặc ảnh hiện có trên trang.']};
    return values[error?.message]?.[language==='vi'?1:0];
   },
   mediaPolicy:{mimeTypes:['image/jpeg','image/png','image/webp','image/avif'],maxBytes:5242880},
-  async capabilities(){allowed();return rpc('gary_cms_capabilities')},
+  async capabilities(){allowed();const caps=await rpc('gary_cms_capabilities');return {...caps,delete:!!caps.publish}},
   async list({kind,query='',status='',page=1,pageSize=20}={}){
    allowed();page=Math.max(1,Math.trunc(page));pageSize=Math.min(100,Math.max(1,Math.trunc(pageSize)));
    let request=db.from('gary_cms_entries').select('*',{count:'exact'}).eq('kind',kind).order('updated_at',{ascending:false}).order('id');
@@ -28,6 +28,7 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
    const result=await request.range((page-1)*pageSize,page*pageSize-1);if(result.error)throw result.error;
    return {records:result.data??[],total:result.count??0};
   },
+  remove:async(id,{expectedVersion}={})=>rpc('gary_trash_record',{p_kind:'cms',p_id:id,p_expected_version:expectedVersion}),
   save:async(record,{expectedVersion}={})=>rpc('gary_cms_save',{p_record:record,p_expected_version:record.id?expectedVersion??record.version:null}),
   transition:async(id,status,{expectedVersion}={})=>rpc('gary_cms_transition',{p_id:id,p_status:status,p_expected_version:expectedVersion}),
   async revisions(id){allowed();const result=await db.from('gary_cms_revisions').select('id,version,status,action,snapshot,created_at').eq('entry_id',id).order('version',{ascending:false});if(result.error)throw result.error;return result.data??[]},

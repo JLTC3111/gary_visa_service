@@ -27,7 +27,7 @@ export function renderPublicCms({doc,entries,language='en'}){
  const t=(en,vi)=>language==='vi'?vi:en;
  const services=items(entries,'service'),cards=doc.querySelector('.services-grid');
  const activeSlot=slot=>entries.some(e=>e.kind==='landing'&&e.data?.slot===slot);
- for(const [slot,selector]of [['hero','.hero'],['services','#services'],['process','#process'],['about','#about'],['faq','#faq'],['contact','#contact']]){const node=doc.querySelector(selector);if(node)node.hidden=!activeSlot(slot);}
+ for(const [slot,selector]of [['hero','#visa-service-discovery'],['services','#services'],['process','#process'],['about','#about'],['faq','#faq'],['contact','#contact']]){const node=doc.querySelector(selector);if(node)node.hidden=!activeSlot(slot);}
  const allFilter=doc.querySelector('[data-filter=all]');if(allFilter)allFilter.textContent=t(`All services · ${services.length}`,`Tất cả dịch vụ · ${services.length}`);
  if(cards){cards.replaceChildren(...services.map((entry,index)=>{
   const card=el(doc,'article','',{class:'service-card','data-category':entry.data?.category||'documents','data-service':entry.slug});
@@ -41,16 +41,26 @@ export function renderPublicCms({doc,entries,language='en'}){
  let articles=doc.querySelector('#cms-articles');if(!articles){articles=el(doc,'section','',{id:'cms-articles',class:'section cms-public-articles'});doc.querySelector('#faq')?.before(articles)}
  const rows=items(entries,'article');articles.hidden=!rows.length;articles.replaceChildren();
  if(rows.length){const inner=el(doc,'div','',{class:'container'});inner.append(el(doc,'h2',t('Guides & updates','Hướng dẫn & cập nhật')));for(const entry of rows){const detail=el(doc,'details','',{id:`article-${entry.slug}`,class:'cms-public-article'});detail.append(el(doc,'summary',copy(entry,'title',language)),el(doc,'p',copy(entry,'summary',language)));for(const text of copy(entry,'body',language).split(/\n\s*\n/))if(text.trim())detail.append(el(doc,'p',text));if(entry.data?.source_url&&/^https:\/\//.test(entry.data.source_url))detail.append(el(doc,'a',t('Reference source','Nguồn tham khảo'),{href:entry.data.source_url,target:'_blank',rel:'noopener noreferrer'}));inner.append(detail)}articles.append(inner)}
- const hero=entries.find(e=>e.kind==='landing'&&e.data?.slot==='hero');if(hero){for(const [key,selector]of [['seo_title','title'],['seo_description','meta[name="description"]']]){const value=copy(hero,key,language);if(value){if(selector==='title')doc.title=value;else{const meta=doc.querySelector(selector);if(meta)meta.content=value}}}}
+ const hero=entries.find(e=>e.kind==='landing'&&e.data?.slot==='hero');
+ if(hero){
+  const title=copy(hero,'seo_title',language).trim(),description=copy(hero,'seo_description',language).trim();
+  if(title){doc.title=title;for(const meta of doc.querySelectorAll('meta[property="og:title"],meta[name="twitter:title"],meta[property="twitter:title"]'))meta.content=title;}
+  if(description)for(const meta of doc.querySelectorAll('meta[name="description"],meta[property="og:description"],meta[name="twitter:description"],meta[property="twitter:description"]'))meta.content=description;
+ }
  return services;
 }
 export function renderServiceCms({doc,entries,slug,language='en'}){
  const service=entries.find(e=>e.kind==='service'&&e.slug===slug);if(!service)return null;
  doc.querySelector('#service-dialog-title').textContent=copy(service,'title',language);doc.querySelector('#service-dialog-intro').textContent=copy(service,'summary',language);
- const includes=doc.querySelector('#service-dialog-includes');includes.replaceChildren(...lines(service.data?.[`includes_${language}`]).map(text=>el(doc,'li',text)));
+ const included=lines(service.data?.[`includes_${language}`]);
+ const includes=doc.querySelector('#service-dialog-includes');includes.replaceChildren(...included.map(text=>el(doc,'li',text)));
  let detail=doc.querySelector('#cms-service-details');if(!detail){detail=el(doc,'div','',{id:'cms-service-details',class:'cms-service-details'});includes.after(detail)}detail.replaceChildren();
  const t=(en,vi)=>language==='vi'?vi:en;
- const body=copy(service,'body',language);if(body)detail.append(el(doc,'p',body));
+ const body=copy(service,'body',language);
+ const normalized=value=>String(value).normalize('NFC').replace(/\s+/gu,' ').trim();
+ // Imported service descriptions may repeat their complete includes list.
+ // Suppress only that exact repetition; distinct editorial text stays visible.
+ if(body.trim()&&(!included.length||normalized(body)!==normalized(included.join(' '))))detail.append(el(doc,'p',body));
  for(const [kind,heading]of [['eligibility',t('Eligibility information','Thông tin điều kiện')],['document',t('Document requirements','Giấy tờ cần chuẩn bị')]]){
   const related=items(entries,kind).filter(row=>row.data?.service_slug===slug);if(!related.length)continue;detail.append(el(doc,'h3',heading));for(const entry of related){const section=el(doc,'section');section.append(el(doc,'h4',copy(entry,'title',language)),el(doc,'p',copy(entry,'body',language)));if(entry.data?.source_url&&/^https:\/\//.test(entry.data.source_url))section.append(el(doc,'a',t('Official source','Nguồn chính thức'),{href:entry.data.source_url,target:'_blank',rel:'noopener noreferrer'}));detail.append(section)}
  }

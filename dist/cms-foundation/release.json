@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "sha256": "e61f28b141bd303bc235a4e8ebde67613a61cfa74758af43028a877eb527b337",
+  "sha256": "bd10cbe165aa9599ca4eead007565829965cf2f2049d0deb70670ce32e9768cf",
   "source": "gary-home/shared/cms-foundation",
   "files": [
     "index.js",
@@ -10,5 +10,6 @@
     "styles.css",
     "seo-findings.js",
     "seo-findings.d.ts"
-  ]
+  ],
+  "applicationPatch": "visa-recoverable-deletion-2026-11-16"
 }

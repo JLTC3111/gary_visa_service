@@ -1,0 +1,27 @@
+{
+  "entry": "visual-effects.js",
+  "styles": [
+    "visuals/visual-effects.css",
+    "visuals/mount-hyperspeed-YFHHZ3OE.css"
+  ],
+  "outputs": {
+    "visuals/visual-effects.js": {
+      "bytes": 2478
+    },
+    "visuals/mount-hyperspeed-E5EPRHQV.js.LEGAL.txt": {
+      "bytes": 1886
+    },
+    "visuals/mount-hyperspeed-E5EPRHQV.js": {
+      "bytes": 751921
+    },
+    "visuals/chunk-SQE76S5B.js": {
+      "bytes": 577
+    },
+    "visuals/visual-effects.css": {
+      "bytes": 214
+    },
+    "visuals/mount-hyperspeed-YFHHZ3OE.css": {
+      "bytes": 214
+    }
+  }
+}
