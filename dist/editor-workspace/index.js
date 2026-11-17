@@ -12,16 +12,25 @@ const icon = maximized => `<svg width="19" height="19" viewBox="0 0 24 24" fill=
 export function attachEditorWorkspace(element, options = {}) {
  if (!element?.ownerDocument) throw new Error('An editor element is required');
  if (attached.has(element)) return attached.get(element);
- const doc=element.ownerDocument, win=doc.defaultView;
+ const doc=element.ownerDocument, win=doc.defaultView, drawer=options.presentation==='drawer';
+ const resizeEdges=(options.resizeEdges || (drawer?['w']:edges)).filter(edge=>edges.includes(edge));
  let storage;try{storage=options.storage || win.localStorage;}catch{}
  const key='gary-editor-workspace:v1:'+(options.key || element.id || 'content');
- const defaults={width:1120,height:820,maximized:false};
+ const defaults={width:Number(options.defaultWidth)||1120,height:820,maximized:false};
  let preference=readPreference(storage,key)||defaults, normalBox, box, mobile=false, drag=null, disposed=false;
  const oldVars=['--gw-width','--gw-height','--gw-left','--gw-top'].map(name=>[name,element.style.getPropertyValue(name)]);
  const marked=new Set();
  const mark=(node,name)=>{if(node&&!node.classList.contains(name)){node.classList.add(name);marked.add([node,name]);}};
- mark(element,'gw-editor');
+ mark(element,'gw-editor');if(drawer)mark(element,'gw-drawer');
  const viewport=()=>({width:win.innerWidth||doc.documentElement.clientWidth||1200,height:Math.min(win.innerHeight||900,win.visualViewport?.height||Infinity)});
+ // Home's drawer is full height and anchored to the right. Modal consumers
+ // retain their existing inset geometry and all-edge resizing by default.
+ const sizingBounds=view=>{
+  const bounds=viewportBounds(view);
+  if(!drawer)return bounds;
+  const left=bounds.mobile?0:Math.min(24,view.width);
+  return {...bounds,left,top:0,right:view.width,bottom:view.height,maxWidth:Math.max(0,view.width-left),maxHeight:view.height,minWidth:Math.min(640,Math.max(0,view.width-left)),minHeight:Math.min(400,view.height)};
+ };
  const save=()=>writePreference(storage,key,preference);
  const language=()=>typeof options.language==='function'?options.language():options.language;
  const text=()=>copy[language()==='vi'?'vi':'en'];
@@ -47,7 +56,7 @@ export function attachEditorWorkspace(element, options = {}) {
     if(toolbar)toolbar.insertBefore(controls,toolbar.lastElementChild);else header.insertBefore(controls,header.lastElementChild?.tagName==='BUTTON'?header.lastElementChild:null);
    }
   }
-  for(const edge of edges)if(!element.querySelector(`[data-gw-edge="${edge}"]`)){
+  for(const edge of resizeEdges)if(!element.querySelector(`[data-gw-edge="${edge}"]`)){
    const handle=doc.createElement('button');handle.type='button';handle.className='gw-editor-resize';handle.dataset.gwEdge=edge;
    if(edge.length===1){handle.setAttribute('role','separator');handle.setAttribute('aria-orientation',/[we]/.test(edge)?'vertical':'horizontal');}
    element.append(handle);
@@ -55,11 +64,16 @@ export function attachEditorWorkspace(element, options = {}) {
  }
  function refresh() {
   if(disposed)return;
-  const view=viewport(),bounds=viewportBounds(view);mobile=bounds.mobile;
-  if(!normalBox){normalBox=clampWorkspace(preference,view);if(options.anchor==='right')normalBox.left=bounds.right-normalBox.width;}
+  const view=viewport(),bounds=sizingBounds(view);mobile=bounds.mobile;
   const maximized=preference.maximized||mobile;
-  box=maximized?{left:bounds.left,top:bounds.top,width:bounds.maxWidth,height:bounds.maxHeight}:clampWorkspace({...normalBox,width:preference.width,height:preference.height},view);
-  if(!maximized)normalBox={...box};
+  if(drawer){
+   const width=maximized?view.width:Math.min(bounds.maxWidth,Math.max(bounds.minWidth,preference.width));
+   box={left:view.width-width,top:0,width,height:view.height};
+  }else{
+   if(!normalBox){normalBox=clampWorkspace(preference,view);if(options.anchor==='right')normalBox.left=bounds.right-normalBox.width;}
+   box=maximized?{left:bounds.left,top:bounds.top,width:bounds.maxWidth,height:bounds.maxHeight}:clampWorkspace({...normalBox,width:preference.width,height:preference.height},view);
+   if(!maximized)normalBox={...box};
+  }
   element.classList.toggle('gw-maximized',maximized);element.classList.toggle('gw-mobile',mobile);
   for(const [name,value]of Object.entries(box))element.style.setProperty('--gw-'+name,value+'px');
   structure();
@@ -77,6 +91,10 @@ export function attachEditorWorkspace(element, options = {}) {
   }
  }
  function resize(delta,edge,start=box) {
+  if(drawer){
+   const view=viewport(),bounds=sizingBounds(view),width=Math.min(bounds.maxWidth,Math.max(bounds.minWidth,start.width-delta.x));
+   preference={width,height:preference.height,maximized:false};refresh();return;
+  }
   const next=resizeWorkspace(start,delta,edge,viewport());
   normalBox=next;preference={width:next.width,height:next.height,maximized:false};refresh();
  }
@@ -100,7 +118,7 @@ export function attachEditorWorkspace(element, options = {}) {
   event.preventDefault();event.stopPropagation();const edge=target.dataset.gwEdge,step=event.shiftKey?64:16;
   let x=event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0,y=event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0;
   if(event.key==='Home'||event.key==='End'){
-   const bounds=viewportBounds(viewport()),large=event.key==='End';
+   const bounds=sizingBounds(viewport()),large=event.key==='End';
    if(edge.includes('w'))x=large?bounds.left-box.left:box.width-bounds.minWidth;
    if(edge.includes('e'))x=large?bounds.right-box.left-box.width:bounds.minWidth-box.width;
    if(edge.includes('n'))y=large?bounds.top-box.top:box.height-bounds.minHeight;

@@ -6,6 +6,7 @@ import {JSDOM} from 'jsdom';
 import {portalCopy} from '../dist/portal-copy.js';
 import {createCRM} from '../dist/crm.js';
 import {mountPortalEditors} from '../dist/portal-editors.js';
+import {mountStaffSidebar} from '../dist/staff-sidebar.js';
 import {createInbox} from '../dist/inbox.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
 import {createTrash} from '../dist/trash.js';
@@ -31,7 +32,7 @@ test('Public site filters, translates, recommends services and safely prepares e
 });
 
 async function portalEnvironment(role='customer',url='http://localhost:4173/portal.html',cmsFactory=createAgencyCms){
- const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const dom=environment(html,url);const w=dom.window;const calls=[];const profile={id:'customer-id',full_name:'Alex Customer',contact_email:'alex@example.test',phone:'',nationality:'',preferred_language:'en'};
+ const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const dom=environment(html,url);mountStaffSidebar(dom.window.document);const w=dom.window;const calls=[];const profile={id:'customer-id',full_name:'Alex Customer',contact_email:'alex@example.test',phone:'',nationality:'',preferred_language:'en'};
  const application={id:'12345678-0000-4000-8000-000000000001',customer_id:'customer-id',service:'visa',subject:'A real service request',details:'Customer plans',status:'submitted',created_at:'2026-10-20T10:00:00Z',updated_at:'2026-10-20T10:00:00Z',assigned_staff_id:null};
  class Query{
   constructor(table){this.table=table;this.operation='select';this.singleRow=false;this.options={}}
