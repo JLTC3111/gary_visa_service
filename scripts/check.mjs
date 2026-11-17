@@ -35,5 +35,9 @@ for(const page of ['index.html','portal.html']){
 for(const key of Object.keys(portalCopy.en))assert.ok(key in portalCopy.vi,`missing dynamic portal Vietnamese: ${key}`);
 for(const name of ['vietnam-city.jpg','vietnam-landscape.jpg'])assert.ok((await stat(resolve(root,'assets',name))).size>2000,`invalid image ${name}`);
 const font=await readFile(resolve(root,'assets/dm-sans.ttf'));assert.ok(font.length>10000&&font.readUInt32BE(0)===0x00010000,'valid local TrueType font');
+for(const name of ['be-vietnam-pro-400.woff2','be-vietnam-pro-500.woff2','be-vietnam-pro-600.woff2','be-vietnam-pro-700.woff2']){
+ const file=await readFile(resolve(root,'assets',name));
+ assert.ok(file.length>5000&&file.subarray(0,4).toString()==='wOF2',`valid Vietnamese woff2 ${name}`);
+}
 for(const name of await readdir(root)){if(name.endsWith('.js')){const text=await readFile(resolve(root,name),'utf8');assert.ok(!/sb_secret_[A-Za-z0-9_-]{10,}/.test(text),`secret key in ${name}`)}}
 console.log(`Checked 2 pages, ${checked} asset references, labels, links, translations and public-client configuration.`);
