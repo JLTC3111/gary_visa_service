@@ -54,7 +54,9 @@ test('every staff route and expanded/collapsed/mobile navigation share theme wit
     h.d.querySelectorAll('.workspace-content>section').forEach(section=>section.hidden=section.id!==route+'-view');const node=h.d.getElementById(route+'-view');change(h,theme);
     assert.equal(h.d.getElementById(route+'-view'),node);assert.equal(h.d.getElementById('request-form'),form);assert.equal(title.value,'Unsaved case title');assert.equal(file.files[0],selected);assert.equal(h.d.getElementById('request-notice').textContent,'Existing validation message');assert.equal(dialog.getAttribute('style'),style);assert.equal(dialog.open,true);
    }
-   h.d.querySelector('[data-visa-sidebar-toggle]').click();change(h,'dark');assert.equal(h.d.getElementById('request-form'),form);assert.equal(title.value,'Unsaved case title');
+   if(width<=900){dialog.close();h.d.getElementById('visa-mobile-nav-trigger').click();assert.equal(h.d.getElementById('visa-mobile-nav').open,true);}
+   else h.d.querySelector('[data-visa-sidebar-toggle]').click();
+   change(h,'dark');assert.equal(h.d.getElementById('request-form'),form);assert.equal(title.value,'Unsaved case title');
    h.d.documentElement.lang='vi';await settle();assert.equal(h.d.getElementById('portal-theme').selectedOptions[0].textContent,'Tối');
    editors.destroy();sidebar.destroy();
   }finally{h.close();}

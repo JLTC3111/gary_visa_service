@@ -150,11 +150,5 @@
 
 @media (max-width: 900px) {
   .visa-staff-sidebar .workspace-nav { overscroll-behavior: contain; }
-  .visa-staff-workspace:not(.visa-sidebar-mobile-open) > .visa-staff-sidebar .workspace-nav {
-    --gary-section-time: var(--gary-motion-close);
-    --gary-section-ease: var(--gary-motion-in);
-    opacity: 0;
-    pointer-events: none;
-  }
   #workspace.visa-staff-workspace { transition: none; }
 }

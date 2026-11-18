@@ -11,7 +11,8 @@ Object.assign(portalCopy.vi,{cmsNav:'Quản lý nội dung'});
 
 Object.assign(portalCopy.en,{
  avatarTitle:'Profile picture',avatarChoose:'Choose a picture',avatarFormats:'JPG, JPEG, PNG or WebP. Up to 5 MB.',
- avatarSquarePreview:'Square crop preview',avatarZoom:'Crop zoom',avatarSave:'Save picture',avatarRemove:'Remove picture',
+ avatarSquarePreview:'Square crop preview',avatarZoom:'Crop zoom',avatarZoomOut:'Zoom out',avatarZoomIn:'Zoom in',
+ avatarSave:'Save picture',avatarRemove:'Remove picture',
  avatarSaved:'Profile picture saved.',avatarRemoved:'Profile picture removed.',avatarSignIn:'Sign in again to update your picture.',
  avatarType:'Choose a valid JPG, JPEG, PNG or WebP picture.',avatarSize:'Choose a picture that is 5 MB or smaller.',
  avatarPreviewError:'This picture could not be opened. Choose another file.',avatarSaveError:'The picture could not be updated. Try again.',
@@ -19,7 +20,8 @@ Object.assign(portalCopy.en,{
 });
 Object.assign(portalCopy.vi,{
  avatarTitle:'Ảnh hồ sơ',avatarChoose:'Chọn ảnh',avatarFormats:'JPG, JPEG, PNG hoặc WebP. Tối đa 5 MB.',
- avatarSquarePreview:'Xem trước ảnh cắt vuông',avatarZoom:'Thu phóng vùng cắt',avatarSave:'Lưu ảnh',avatarRemove:'Gỡ ảnh',
+ avatarSquarePreview:'Xem trước ảnh cắt vuông',avatarZoom:'Thu phóng vùng cắt',avatarZoomOut:'Thu nhỏ',avatarZoomIn:'Phóng to',
+ avatarSave:'Lưu ảnh',avatarRemove:'Gỡ ảnh',
  avatarSaved:'Đã lưu ảnh hồ sơ.',avatarRemoved:'Đã gỡ ảnh hồ sơ.',avatarSignIn:'Hãy đăng nhập lại để cập nhật ảnh.',
  avatarType:'Hãy chọn ảnh JPG, JPEG, PNG hoặc WebP hợp lệ.',avatarSize:'Hãy chọn ảnh có dung lượng tối đa 5 MB.',
  avatarPreviewError:'Không thể mở ảnh này. Hãy chọn tệp khác.',avatarSaveError:'Không thể cập nhật ảnh. Vui lòng thử lại.',

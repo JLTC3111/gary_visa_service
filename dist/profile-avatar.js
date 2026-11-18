@@ -25,11 +25,14 @@ export function createProfileAvatar({db, doc, t, name, notify}) {
  const storage = db.storage.from(avatarBucket);
  let owner = null, picture = '', localPicture = '', image = null, working = false, problem = '';
  let accountEpoch = 0, photoEpoch = 0, selectionEpoch = 0;
+ const renderZoom = mountCropZoom(zoom, t, draw);
 
  function render() {
   for (const id of ['user-avatar', 'profile-avatar']) renderAvatar(get(id), name(), picture);
   remove.hidden = !picture;
-  for (const control of [fileInput, zoom, save, cancel, remove]) control.disabled = working || !owner;
+  for (const control of [fileInput, save, cancel, remove]) control.disabled = working || !owner;
+  zoom.disabled = working || !owner || !image;
+  renderZoom();
   preview.hidden = !image;
   canvas.setAttribute('aria-label', t('avatarSquarePreview'));
   feedback.textContent = problem ? t(problem) : '';
@@ -128,13 +131,75 @@ export function createProfileAvatar({db, doc, t, name, notify}) {
  }
 
  fileInput.addEventListener('change', () => void choose());
- zoom.addEventListener('input', draw);
  save.addEventListener('click', () => void mutate(false));
  cancel.addEventListener('click', () => {
   selectionEpoch++; image = null; problem = ''; render(); fileInput.focus({preventScroll: true});
  });
  remove.addEventListener('click', () => void mutate(true));
  return {load, reset, render};
+}
+
+function mountCropZoom(input, t, draw) {
+ const doc = input.ownerDocument, win = doc.defaultView, slider = input.parentElement;
+ const display = doc.getElementById('profile-zoom-value');
+ const out = doc.getElementById('profile-zoom-out'), inside = doc.getElementById('profile-zoom-in');
+ const min = Number(input.min), max = Number(input.max);
+ const motion = win.matchMedia?.('(prefers-reduced-motion: reduce)');
+ let drag = null;
+
+ function update() {
+  const value = input.valueAsNumber, percent = Math.round(value * 100) + '%';
+  slider.style.setProperty('--visa-zoom-fill', ((value - min) / (max - min) * 100) + '%');
+  display.textContent = percent;
+  input.setAttribute('aria-valuetext', percent);
+  out.setAttribute('aria-disabled', String(input.disabled || value <= min));
+  inside.setAttribute('aria-disabled', String(input.disabled || value >= max));
+ }
+ input.addEventListener('input', () => { update(); draw(); });
+ for (const [button, direction] of [[out, -1], [inside, 1]]) {
+  button.addEventListener('click', () => {
+   if (button.getAttribute('aria-disabled') === 'true') return;
+   if (direction < 0) input.stepDown();
+   else input.stepUp();
+   input.dispatchEvent(new win.Event('input', {bubbles: true}));
+  });
+ }
+
+ function release() {
+  if (!drag) return;
+  drag = null;
+  slider.removeAttribute('data-zoom-dragging');
+  slider.style.removeProperty('--visa-zoom-stretch');
+ }
+ input.addEventListener('pointerdown', event => {
+  if (event.button !== 0 || event.isPrimary === false || input.disabled || motion?.matches) return;
+  const {left, right, width} = input.getBoundingClientRect();
+  if (width <= 16) return;
+  drag = {id: event.pointerId, left, right, trackWidth: width - 16};
+  slider.setAttribute('data-zoom-dragging', '');
+ });
+ win.addEventListener('pointermove', event => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const value = input.valueAsNumber;
+  const excess = value === min && event.clientX < drag.left ? event.clientX - drag.left :
+   value === max && event.clientX > drag.right ? event.clientX - drag.right : 0;
+  if (excess) slider.style.setProperty('--visa-zoom-anchor', excess < 0 ? 'right' : 'left');
+  const extension = 5 * (1 - Math.exp(-Math.abs(excess) / 24));
+  slider.style.setProperty('--visa-zoom-stretch', String(1 + extension / drag.trackWidth));
+ });
+ const finish = event => { if (event.pointerId === drag?.id) release(); };
+ win.addEventListener('pointerup', finish);
+ win.addEventListener('pointercancel', finish);
+ win.addEventListener('blur', release);
+ input.addEventListener('lostpointercapture', finish);
+ return () => {
+  out.disabled = input.disabled;
+  inside.disabled = input.disabled;
+  out.setAttribute('aria-label', t('avatarZoomOut'));
+  inside.setAttribute('aria-label', t('avatarZoomIn'));
+  if (input.disabled) release();
+  update();
+ };
 }
 
 function avatarError(error) {

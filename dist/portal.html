@@ -11,7 +11,9 @@
   <a class="skip-link" href="#portal-main" data-p="skip">Skip to content</a>
   <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="p-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol><symbol id="p-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="p-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol><symbol id="p-file" viewBox="0 0 24 24"><path d="M14 2H5v20h14V7ZM14 2v6h5M8 12h8M8 16h6"/></symbol><symbol id="p-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol><symbol id="p-person" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></symbol><symbol id="p-people" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 22v-3a7 7 0 0 1 14 0v3M17 3a4 4 0 0 1 0 8M18 15a6 6 0 0 1 4 6"/></symbol><symbol id="p-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"/></symbol><symbol id="p-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="12" rx="2"/><path d="M7 10V6a5 5 0 0 1 10 0v4M12 15v3"/></symbol><symbol id="p-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 3 8.4 7 10 4-1.6 7-5.4 7-10V6Z"/><path d="m9 12 2 2 4-4"/></symbol><symbol id="p-chat" viewBox="0 0 24 24"><path d="M21 11a9 9 0 0 1-9 9 10 10 0 0 1-4-1l-6 2 2-6a10 10 0 0 1-1-4 9 9 0 0 1 18 0Z"/><path d="M7 10h10M7 14h6"/></symbol><symbol id="p-refresh" viewBox="0 0 24 24"><path d="M20 8a9 9 0 1 0 1 7M20 3v6h-6"/></symbol><symbol id="p-up" viewBox="0 0 24 24"><path d="m6 18 12-12M6 6h12v12"/></symbol></svg>
 
-  <header class="portal-header"><a class="wordmark" href="./index.html" aria-label="Gary Agency home">gary<span class="wordmark-dot">.</span><span class="wordmark-label">AGENCY</span></a><div class="portal-header-right"><div class="gary-apps-slot" data-gary-apps="header"></div><div class="portal-appearance" hidden><label class="sr-only" for="portal-theme" data-portal-appearance-label>Appearance</label><select id="portal-theme" name="appearance"><option value="light">Light</option><option value="dark">Dark</option><option value="system" selected>System</option></select></div><a href="./index.html" class="portal-home" data-p="backWebsite">Back to website</a><div class="language-control" role="group" aria-label="Language"><button type="button" data-language="en" aria-pressed="true">EN</button><span>/</span><button type="button" data-language="vi" aria-pressed="false">VI</button></div><button class="text-link" type="button" id="signout" data-p="signout" hidden>Sign out</button></div></header>
+  <header class="portal-header"><div class="portal-header-brand">
+    <button id="visa-mobile-nav-trigger" class="visa-mobile-nav-trigger" type="button" aria-label="Open staff navigation" aria-haspopup="dialog" aria-expanded="false" aria-controls="visa-mobile-nav" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="wordmark" href="./index.html" aria-label="Gary Agency home">gary<span class="wordmark-dot">.</span><span class="wordmark-label">AGENCY</span></a></div><div class="portal-header-right"><div class="gary-apps-slot" data-gary-apps="header"></div><div class="portal-appearance" hidden><label class="sr-only" for="portal-theme" data-portal-appearance-label>Appearance</label><select id="portal-theme" name="appearance"><option value="light">Light</option><option value="dark">Dark</option><option value="system" selected>System</option></select></div><a href="./index.html" class="portal-home" data-p="backWebsite">Back to website</a><div class="language-control" role="group" aria-label="Language"><button type="button" data-language="en" aria-pressed="true">EN</button><span>/</span><button type="button" data-language="vi" aria-pressed="false">VI</button></div><button class="text-link" type="button" id="signout" data-p="signout" hidden>Sign out</button></div></header>
 
   <main id="portal-main">
     <section class="auth-screen" id="auth-screen">
@@ -56,7 +58,16 @@
             </div>
             <div id="profile-avatar-preview" hidden>
               <canvas id="profile-avatar-canvas" role="img" width="384" height="384"></canvas>
-              <div class="form-field"><label for="profile-avatar-zoom" data-p="avatarZoom">Crop zoom</label><input id="profile-avatar-zoom" type="range" min="1" max="3" step="0.05" value="1"></div>
+              <label class="profile-zoom-label" for="profile-avatar-zoom" data-p="avatarZoom">Crop zoom</label>
+              <div class="profile-zoom">
+                <button id="profile-zoom-out" type="button" aria-label="Zoom out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                <div class="profile-zoom-slider">
+                  <span class="profile-zoom-track" aria-hidden="true"></span>
+                  <input id="profile-avatar-zoom" type="range" min="1" max="3" step="0.05" value="1">
+                </div>
+                <button id="profile-zoom-in" type="button" aria-label="Zoom in"><svg class="icon" aria-hidden="true"><use href="#p-plus"/></svg></button>
+                <span id="profile-zoom-value" aria-hidden="true">100%</span>
+              </div>
               <div class="profile-avatar-actions">
                 <button id="profile-avatar-save" type="button" class="button button-small" data-p="avatarSave">Save picture</button>
                 <button id="profile-avatar-cancel" type="button" class="pagination-button" data-p="cancel">Cancel</button>
