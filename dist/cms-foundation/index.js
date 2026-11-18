@@ -155,11 +155,17 @@ export function mountCms(root, options) {
     const target = index >= 0 ? root.querySelector(`[data-action="edit"][data-index="${index}"]`) : root.querySelector('[data-action="new"]');
     (target || root.querySelector('[data-action="refresh"]'))?.focus();
   }
+  async function closeEditorDialog() {
+    const dialog = root.querySelector('.cms-dialog');
+    dialog?.close?.();
+    const fade = dialog?.getAnimations?.().find(animation => animation.transitionProperty === 'opacity');
+    if (fade) await fade.finished.catch(() => {});
+  }
   async function onClick(event) {
     const target = event.target.closest('[data-action]'); if (!target || !root.contains(target) || target.disabled) return;
     event.stopPropagation?.();
     const action = target.dataset.action;
-    if (action === 'close') { if (!canLeave()) return; draft = null; baseline = ''; root.querySelector('.cms-dialog')?.close?.(); await refresh(); restoreEditorFocus(); return; }
+    if (action === 'close') { if (!canLeave()) return; draft = null; baseline = ''; await closeEditorDialog(); if (draft || disposed) return; await refresh(); restoreEditorFocus(); return; }
     if (action === 'delete') {
       if (!capabilities.delete || !adapter.remove || busy || !canLeave()) return;
       const selected = target.dataset.index !== undefined ? records[Number(target.dataset.index)] : draft;
@@ -168,7 +174,7 @@ export function mountCms(root, options) {
       try {
         await adapter.remove(selected.id, {expectedVersion: selected.version});
         if (disposed) return;
-        if (draft?.id === selected.id) { draft = null; baseline = ''; root.querySelector('.cms-dialog')?.close?.(); }
+        if (draft?.id === selected.id) { draft = null; baseline = ''; await closeEditorDialog(); }
         await refresh(); announce(t('deleted'));
       } catch (error) { if (!disposed) { announce(errorText(error), true); if (draft) editorNotice(errorText(error)); } }
       finally { if (!disposed) { busy = false; if (draft) editor(); else renderWorkspace(); } }

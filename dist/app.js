@@ -70,8 +70,8 @@ if(!initialLanguage) try{initialLanguage=localStorage.getItem('gary-language')}c
 setLanguage(initialLanguage);
 
 const menu=$('#menu-toggle'),mobileNav=$('#mobile-nav');
-function closeMenu(){mobileNav.hidden=true;menu.setAttribute('aria-expanded','false');menu.setAttribute('aria-label',t('openMenu'))}
-menu.addEventListener('click',()=>{const expanded=menu.getAttribute('aria-expanded')!=='true';mobileNav.hidden=!expanded;menu.setAttribute('aria-expanded',String(expanded));menu.setAttribute('aria-label',t(expanded?'closeMenu':'openMenu'))});
+function closeMenu(){mobileNav.hidden=true;mobileNav.inert=true;menu.setAttribute('aria-expanded','false');menu.setAttribute('aria-label',t('openMenu'))}
+menu.addEventListener('click',()=>{const expanded=menu.getAttribute('aria-expanded')!=='true';mobileNav.hidden=!expanded;mobileNav.inert=!expanded;menu.setAttribute('aria-expanded',String(expanded));menu.setAttribute('aria-label',t(expanded?'closeMenu':'openMenu'))});
 mobileNav.addEventListener('click',event=>{if(event.target.closest('a'))closeMenu()});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!mobileNav.hidden){closeMenu();menu.focus()}});
 document.addEventListener('click',event=>{if(!mobileNav.hidden&&!event.target.closest('.header'))closeMenu()});

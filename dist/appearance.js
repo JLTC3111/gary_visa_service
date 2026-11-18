@@ -65,6 +65,7 @@ function renderPreferences() {
 function closePreferences(restoreFocus = false) {
   if (!panel || panel.hidden) return;
   panel.hidden = true;
+  panel.inert = true;
   document.querySelectorAll('[data-open-preferences]').forEach(button => button.setAttribute('aria-expanded', 'false'));
   if (restoreFocus) returnFocus?.focus({ preventScroll: true });
 }
@@ -76,6 +77,7 @@ function openPreferences(source) {
   document.querySelectorAll('.header .gary-apps-menu[open]').forEach(menu => menu.open = false);
   returnFocus = source;
   panel.hidden = false;
+  panel.inert = false;
   document.querySelectorAll('[data-open-preferences]').forEach(button => button.setAttribute('aria-expanded', 'true'));
   const first = source.dataset.openPreferences === 'effects'
     ? panel.querySelector('[data-effects-choice][aria-pressed="true"]')

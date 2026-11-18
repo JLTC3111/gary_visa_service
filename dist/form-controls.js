@@ -5,7 +5,7 @@ export function initFormControls(doc=document){
  if(instances.has(doc))return instances.get(doc);
  const win=doc.defaultView,menu=doc.createElement('div');
  menu.id='site-select-menu';menu.className='select-menu';menu.hidden=true;menu.setAttribute('role','listbox');menu.setAttribute('popover','manual');doc.body.append(menu);
- let current=null,active=-1,items=[],suppressClick=null,query='',typedAt=0,sequence=0,observer;
+ let current=null,active=-1,items=[],suppressClick=null,query='',typedAt=0,sequence=0,closeSequence=0,observer;
  const enabled=(option)=>option&&!option.disabled&&!option.hidden&&!option.parentElement?.disabled;
  function enhance(){for(const select of doc.querySelectorAll('select:not([multiple])')){if(select.size>1)continue;select.dataset.siteSelect='';select.setAttribute('aria-haspopup','listbox');if(select!==current)select.setAttribute('aria-expanded','false');select.setAttribute('aria-controls',menu.id)}}
  function control(target){const select=target?.closest?.('select[data-site-select]');return select&&!select.matches(':disabled')?select:null}
@@ -30,13 +30,17 @@ export function initFormControls(doc=document){
  function close({commit=false,focus=false}={}){
   if(!current)return;const select=current,index=active,changed=commit&&enabled(items[index])&&select.selectedIndex!==index;current=null;observer?.disconnect();observer=null;
   if(changed){select.selectedIndex=index;select.dispatchEvent(new win.Event('input',{bubbles:true}));select.dispatchEvent(new win.Event('change',{bubbles:true}))}
-  select.setAttribute('aria-expanded','false');select.removeAttribute('aria-activedescendant');try{menu.hidePopover?.()}catch{}menu.hidden=true;menu.replaceChildren();query='';if(focus&&select.isConnected)select.focus({preventScroll:true});
+  select.setAttribute('aria-expanded','false');select.removeAttribute('aria-activedescendant');try{menu.hidePopover?.()}catch{}menu.hidden=true;menu.inert=true;query='';
+  const closing=++closeSequence,fade=menu.getAnimations?.().find(animation=>animation.transitionProperty==='opacity');
+  const clear=()=>{if(!current&&closing===closeSequence)menu.replaceChildren();};
+  if(fade)void fade.finished.then(clear,clear);else clear();
+  if(focus&&select.isConnected)select.focus({preventScroll:true});
  }
  function open(select){
   if(select===current){close({focus:true});return}close({commit:true});if(!select.options.length)return;
   current=select;active=select.selectedIndex;query='';typedAt=0;select.focus({preventScroll:true});select.setAttribute('aria-expanded','true');
   const label=select.labels?.[0];if(label){if(!label.id)label.id=`site-select-label-${++sequence}`;menu.setAttribute('aria-labelledby',label.id);menu.removeAttribute('aria-label')}else{menu.removeAttribute('aria-labelledby');menu.setAttribute('aria-label',select.getAttribute('aria-label')||select.name||'Options')}
-  (select.closest('dialog[open]')||doc.body).append(menu);menu.hidden=false;paint();
+  (select.closest('dialog[open]')||doc.body).append(menu);menu.hidden=false;menu.inert=false;paint();
   if(typeof menu.showPopover==='function'){try{menu.showPopover()}catch{menu.removeAttribute('popover')}}else menu.removeAttribute('popover');place();highlight(active);
   observer=new win.MutationObserver(()=>{if(!current)return;if(current.matches(':disabled'))close();else paint()});observer.observe(select,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['disabled','hidden','label','selected']});
  }

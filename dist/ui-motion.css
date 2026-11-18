@@ -1,0 +1,160 @@
+/* Shared interaction timing, applied to the existing component states. */
+:root {
+  --gary-motion-open: 240ms;
+  --gary-motion-close: 180ms;
+  --gary-motion-chevron: 200ms;
+  --gary-motion-out: cubic-bezier(.2,.72,.28,1);
+  --gary-motion-in: cubic-bezier(.4,0,.65,1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --gary-motion-open: 0ms; --gary-motion-close: 0ms; --gary-motion-chevron: 0ms; }
+}
+
+:is(.visa-preferences-panel, .visa-public .mobile-nav, .gary-apps-menu-panel, .select-menu) {
+  --gary-panel-time: var(--gary-motion-open);
+  --gary-panel-ease: var(--gary-motion-out);
+  opacity: 1;
+  translate: 0 0;
+  animation: none;
+  transition-property: opacity, translate, display, overlay;
+  transition-duration: var(--gary-panel-time);
+  transition-timing-function: var(--gary-panel-ease);
+  transition-behavior: allow-discrete;
+}
+:is(.visa-preferences-panel, .visa-public .mobile-nav, .gary-apps-menu-panel, .select-menu)[hidden] { display: none; }
+:is(:is(.visa-preferences-panel, .visa-public .mobile-nav, .gary-apps-menu-panel, .select-menu)[hidden], .gary-apps-menu:not([open]) > .gary-apps-menu-panel) {
+  --gary-panel-time: var(--gary-motion-close);
+  --gary-panel-ease: var(--gary-motion-in);
+  opacity: 0;
+  translate: 0 var(--gary-panel-shift, -5px);
+  pointer-events: none;
+}
+@starting-style {
+  :is(.visa-preferences-panel, .visa-public .mobile-nav, .gary-apps-menu-panel, .select-menu) { opacity: 0; translate: 0 var(--gary-panel-shift, -5px); }
+}
+
+:is(.gary-apps-menu)::details-content {
+  transition: content-visibility var(--gary-motion-close) allow-discrete;
+}
+
+:is(.faq-list details, .gary-cms details, #staff-live-details, .chat-contact-details)::details-content {
+  opacity: 0;
+  transition: opacity var(--gary-motion-close) var(--gary-motion-in),
+    content-visibility var(--gary-motion-close) allow-discrete;
+}
+:is(.faq-list details, .gary-cms details, #staff-live-details, .chat-contact-details)[open]::details-content {
+  opacity: 1;
+  transition-duration: var(--gary-motion-open);
+  transition-timing-function: var(--gary-motion-out);
+}
+@supports (interpolate-size: allow-keywords) {
+  :is(.faq-list details, .gary-cms details, #staff-live-details, .chat-contact-details)::details-content {
+    interpolate-size: allow-keywords;
+    block-size: 0;
+    overflow: clip;
+    overflow-clip-margin: 6px;
+    transition: block-size var(--gary-motion-close) var(--gary-motion-in),
+      opacity var(--gary-motion-close) var(--gary-motion-in),
+      content-visibility var(--gary-motion-close) allow-discrete;
+  }
+  :is(.faq-list details, .gary-cms details, #staff-live-details, .chat-contact-details)[open]::details-content {
+    block-size: auto;
+    transition-duration: var(--gary-motion-open);
+    transition-timing-function: var(--gary-motion-out);
+  }
+}
+
+.gw-editor { --gary-layout-time: var(--gary-motion-open); }
+.gw-editor:is(.gw-resizing, .gw-mobile) { --gary-layout-time: 0ms; }
+:is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog) {
+  --gary-dialog-time: var(--gary-motion-close);
+  --gary-dialog-ease: var(--gary-motion-in);
+  opacity: 0;
+  translate: 0 7px;
+  animation: none;
+  transition-property: opacity, translate, display, overlay, left, top, width, height;
+  transition-duration: var(--gary-dialog-time), var(--gary-dialog-time), var(--gary-dialog-time), var(--gary-dialog-time),
+    var(--gary-layout-time, 0ms), var(--gary-layout-time, 0ms), var(--gary-layout-time, 0ms), var(--gary-layout-time, 0ms);
+  transition-timing-function: var(--gary-dialog-ease);
+  transition-behavior: allow-discrete;
+}
+:is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog)[open]:not([data-ui-exiting]) {
+  --gary-dialog-time: var(--gary-motion-open);
+  --gary-dialog-ease: var(--gary-motion-out);
+  opacity: 1;
+  translate: 0 0;
+}
+:is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog):is(:not([open]), [data-ui-exiting]) { pointer-events: none; }
+:is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog)::backdrop {
+  opacity: 0;
+  transition: opacity var(--gary-motion-close, 180ms) ease-in;
+}
+:is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog)[open]:not([data-ui-exiting])::backdrop {
+  opacity: 1;
+  transition: opacity var(--gary-motion-open, 240ms) ease-out;
+}
+@starting-style {
+  :is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog)[open]:not([data-ui-exiting]) { opacity: 0; translate: 0 7px; }
+  :is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog)[open]:not([data-ui-exiting])::backdrop { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(dialog.service-dialog, dialog.enquiry-dialog, dialog.request-dialog, dialog.case-dialog, dialog.cms-dialog)::backdrop { transition: none; }
+}
+
+.select-menu[data-side="above"] { --gary-panel-shift: 5px; }
+
+#workspace.visa-staff-workspace {
+  --gary-sidebar-time: var(--gary-motion-open);
+  --gary-sidebar-ease: var(--gary-motion-out);
+  transition: grid-template-columns var(--gary-sidebar-time) var(--gary-sidebar-ease);
+}
+#workspace.visa-sidebar-collapsed {
+  --gary-sidebar-time: var(--gary-motion-close);
+  --gary-sidebar-ease: var(--gary-motion-in);
+}
+#workspace[data-gary-resizing] { transition: none; }
+
+:is(.visa-nav-chevron, .gary-apps-chevron, .faq-list summary .icon) {
+  transition-duration: var(--gary-motion-chevron);
+  transition-timing-function: var(--gary-motion-out);
+}
+:is(.visa-nav-chevron, .gary-apps-chevron, .faq-list summary .icon) { transition-property: transform; }
+
+:is(.visa-nav-destinations, .visa-staff-sidebar .workspace-nav) {
+  --gary-section-time: var(--gary-motion-open);
+  --gary-section-ease: var(--gary-motion-out);
+  opacity: 1;
+  transition: opacity var(--gary-section-time) var(--gary-section-ease), display var(--gary-section-time) allow-discrete;
+}
+:is(.visa-nav-destinations, .visa-staff-sidebar .workspace-nav)[hidden] {
+  --gary-section-time: var(--gary-motion-close);
+  --gary-section-ease: var(--gary-motion-in);
+  opacity: 0;
+  pointer-events: none;
+}
+@starting-style {
+  :is(.visa-nav-destinations, .visa-staff-sidebar .workspace-nav):not([hidden]) { opacity: 0; }
+}
+@supports (interpolate-size: allow-keywords) {
+  .visa-nav-destinations {
+    interpolate-size: allow-keywords;
+    block-size: auto;
+    overflow: clip;
+    overflow-clip-margin: 6px;
+    transition: block-size var(--gary-section-time) var(--gary-section-ease),
+      opacity var(--gary-section-time) var(--gary-section-ease), display var(--gary-section-time) allow-discrete;
+  }
+  .visa-nav-destinations[hidden] { block-size: 0; }
+  @starting-style { .visa-nav-destinations:not([hidden]) { block-size: 0; } }
+}
+
+@media (max-width: 900px) {
+  .visa-staff-sidebar .workspace-nav { overscroll-behavior: contain; }
+  .visa-staff-workspace:not(.visa-sidebar-mobile-open) > .visa-staff-sidebar .workspace-nav {
+    --gary-section-time: var(--gary-motion-close);
+    --gary-section-ease: var(--gary-motion-in);
+    opacity: 0;
+    pointer-events: none;
+  }
+  #workspace.visa-staff-workspace { transition: none; }
+}

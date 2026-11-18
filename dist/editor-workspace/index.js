@@ -39,6 +39,7 @@ export function attachEditorWorkspace(element, options = {}) {
   doc.body.style.cursor=drag.cursor;doc.body.style.userSelect=drag.select;
   try{if(drag.target.hasPointerCapture?.(drag.pointerId))drag.target.releasePointerCapture(drag.pointerId);}catch{}
   drag=null;
+  element.classList.remove('gw-resizing');
  }
  function structure() {
   const header=options.header&&element.contains(options.header)?options.header:element.querySelector(':scope > header, .editor-drawer > header, header');
@@ -107,6 +108,7 @@ export function attachEditorWorkspace(element, options = {}) {
   if(!target||target.hidden||event.button!==0||mobile||preference.maximized)return;
   event.preventDefault();event.stopPropagation();stopDrag();target.focus({preventScroll:true});
   drag={x:event.clientX,y:event.clientY,start:{...box},edge:target.dataset.gwEdge,target,pointerId:event.pointerId,cursor:doc.body.style.cursor,select:doc.body.style.userSelect};
+  element.classList.add('gw-resizing');
   doc.body.style.cursor=win.getComputedStyle(target).cursor;doc.body.style.userSelect='none';
   try{target.setPointerCapture?.(event.pointerId);}catch{}
  }
