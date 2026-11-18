@@ -9,6 +9,7 @@ import {createStaffAccess} from './staff-access.js';
 import {workspaceUI} from './workspace-ui.js';
 import {mountPortalEditors} from './portal-editors.js';
 import {showActionToast} from './action-toast.js';
+import {createProfileAvatar} from './profile-avatar.js';
 
 const $=selector=>document.querySelector(selector),$$=selector=>[...document.querySelectorAll(selector)];
 const english={};
@@ -56,7 +57,8 @@ const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,can
 const cms=createAgencyCms({doc:document,db,isStaff:()=>cmsRole()!==null,getUser:()=>state.user,getLanguage:()=>language});
 const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
-const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,notify:toast});
+const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,notify:toast,onSaved:()=>schedulePermissionRefresh()});
+const profileAvatar=createProfileAvatar({db,doc:document,t,name:()=>state.profile?.full_name?.trim()||state.user?.email||'G',notify:toast});
 
 function translate(){
  document.documentElement.lang=language;editorWorkspaces.refresh();
@@ -120,21 +122,29 @@ function updateDocumentTitle(){
 }
 function setScreen(name){for(const id of ['auth-screen','workspace-loading','workspace-error','workspace'])$(`#${id}`).hidden=id!==name;$('#signout').hidden=!state.user;updateDocumentTitle()}
 function resetWorkspace(){
+ delete document.body.dataset.visaView;
+ profileAvatar.reset();
  delete document.body.dataset.role;crm.reset();inbox.reset();cms.reset();trash.reset();staffAccess.reset();rosterCache=null;state.generation++;state.user=null;state.role=null;state.access=null;state.profile=null;state.cases=[];state.customers=[];state.currentCase=null;state.caseData=null;state.caseId=null;state.loading=false;state.page=0;state.customerPage=0;state.total=0;state.customerTotal=0;
- $$('dialog[open]').forEach(closeDialog);$('#applications-list').replaceChildren();$('#customers-list').replaceChildren();$('#case-message-list').replaceChildren();$('#case-note-list').replaceChildren();$('#case-document-list').replaceChildren();$('#case-events').replaceChildren();$('#case-title').textContent='';$('#trash-case').hidden=true;$('#case-trash-hint').hidden=true;$('#case-assignee-field').hidden=true;$('#staff-no-access').hidden=true;$('#case-details').textContent='';$('#case-customer').replaceChildren();$('#profile-form').reset();$('#account-email').textContent='';$('#auth-password').value='';$('#user-display-name').textContent='';$('#profile-notice').textContent='';$('#message-form').reset();$('#note-form').reset();$('#request-form').reset();$('#document-form').reset();setScreen('auth-screen');renderAuth();
+ $$('dialog[open]').forEach(closeDialog);$('#applications-list').replaceChildren();$('#customers-list').replaceChildren();$('#case-message-list').replaceChildren();$('#case-note-list').replaceChildren();$('#case-document-list').replaceChildren();$('#case-events').replaceChildren();$('#case-title').textContent='';$('#trash-case').hidden=true;$('#case-trash-hint').hidden=true;$('#case-assignee-field').hidden=true;$('#staff-no-access').hidden=true;$('#case-details').textContent='';$('#case-customer').replaceChildren();$('#profile-form').reset();renderAccountIdentity();$('#auth-password').value='';$('#profile-notice').textContent='';$('#message-form').reset();$('#note-form').reset();$('#request-form').reset();$('#document-form').reset();setScreen('auth-screen');renderAuth();
 }
 async function signOut(){try{await inbox.goAway();const {error}=await db.auth.signOut({scope:'local'});if(error)throw error;resetWorkspace()}catch{toast('genericError','error')}}
 $('#signout').addEventListener('click',signOut);$('#error-signout').addEventListener('click',signOut);
-async function loadWorkspace(){
+async function loadWorkspace(requested=params.get('view')){
  if(state.loading)return;state.loading=true;const generation=++state.generation;setScreen('workspace-loading');
  try{
   const {data,error}=await db.auth.getUser();if(generation!==state.generation)return;if(error)throw error;if(!data.user){resetWorkspace();return}state.user=data.user;
-  const role=unwrap(await db.rpc('gary_my_role'));if(generation!==state.generation)return;if(!['customer','staff'].includes(role))throw new Error('genericError');state.role=role;
-  if(state.area==='staff'&&role!=='staff'){setScreen('auth-screen');feedback('#auth-notice','roleError',true);return}
-  if(role==='staff'){const access=unwrap(await db.rpc('gary_my_access'));if(generation!==state.generation)return;if(access?.member!==true)throw new Error('genericError');state.access={operations:['staff','manager','admin'].includes(access.operations)?access.operations:null,cms:['editor','publisher','admin'].includes(access.cms)?access.cms:null}}
-  const profile=await ensureProfile(data.user);if(generation!==state.generation)return;state.profile=profile;renderIdentity();renderProfile();const home=homeView();setView(home,false);
+  const access=unwrap(await db.rpc('gary_my_access'));if(generation!==state.generation)return;
+  if(typeof access?.member!=='boolean')throw new Error('genericError');
+  state.role=access.member?'staff':'customer';
+  state.access=access.member?{
+   operations:['staff','manager','admin'].includes(access.operations)?access.operations:null,
+   cms:['editor','publisher','admin'].includes(access.cms)?access.cms:null
+  }:null;
+  if(state.area==='staff'&&!access.member){setScreen('auth-screen');feedback('#auth-notice','roleError',true);return}
+  const profile=await ensureProfile(data.user);if(generation!==state.generation)return;
+  state.profile=profile;renderIdentity();void profileAvatar.load(data.user.id);renderProfile();const home=homeView();setView(home,false);
   if(home==='applications')await Promise.all([loadApplications(),loadStats()]);if(generation!==state.generation)return;setScreen('workspace');
-  const requested=params.get('view');if(staff()&&requested!==home&&['inbox','cms','trash','staff-access'].includes(requested)&&viewAllowed(requested))setView(requested);else if(home!=='applications')setView(home);
+  if(requested!==home&&['profile','customers','inbox','cms','trash','staff-access'].includes(requested)&&viewAllowed(requested))setView(requested);else if(home!=='applications')setView(home);
  }catch(error){if(generation===state.generation){setScreen('workspace-error');$('#signout').hidden=!state.user}}
  finally{if(generation===state.generation)state.loading=false}
 }
@@ -157,29 +167,67 @@ async function refreshPermissions(denied=false){
   if(identity.data?.user?.id!==id){resetWorkspace();await loadWorkspace();return}
   const next=unwrap(await permissionDeadline(db.rpc('gary_my_access')));if(generation!==state.generation)return;
   const changed=!!next?.member!==staff()||(next?.operations??null)!==(state.access?.operations??null)||(next?.cms??null)!==(state.access?.cms??null);
-  if(changed||denied||permissionDenied){resetWorkspace();await loadWorkspace();toast('permissionChanged','warning')}
+  if(changed||denied||permissionDenied){
+   const view=state.view;resetWorkspace();await loadWorkspace(view);toast('permissionChanged','warning');
+  }else if(state.profile){
+   state.user=identity.data.user;renderAccountIdentity();
+  }
  }catch(error){if(generation===state.generation&&(denied||permissionDenied||error?.code==='42501'||[401,403].includes(error?.status))){resetWorkspace();feedback('#auth-notice','permissionChanged',true)}}
  finally{permissionRefreshing=false;permissionDenied=false}
 }
 window.addEventListener('focus',()=>schedulePermissionRefresh());
 window.addEventListener('pageshow',()=>schedulePermissionRefresh());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')schedulePermissionRefresh()});
-window.addEventListener('gary:access-denied',()=>schedulePermissionRefresh(true));
+window.addEventListener('gary:access-denied',event=>schedulePermissionRefresh(!event.detail?.recheckOnly));
+
+function renderAccountIdentity(){
+ const name=state.user?(state.profile?.full_name?.trim()||t('account')):'';
+ const email=state.user?.email||'';
+ const accessRoles=state.user?[
+  accountRoleLabel('operations',operationsRole()),
+  accountRoleLabel('cms',cmsRole())
+ ]:[];
+ const roles=staff()?accessRoles:state.user?[t('customer')]:[];
+ $('#user-display-name').textContent=name;
+ $('#profile-account-name').textContent=name;
+ $('#user-signin-email').textContent=email;
+ $('#account-email').textContent=email;
+ profileAvatar.render();
+ for(const [id,labels] of [['#user-role-label',roles],['#profile-account-roles',accessRoles]]){
+  const container=$(id);
+  if(container.children.length===labels.length&&labels.every((role,i)=>container.children[i].textContent===role))continue;
+  container.replaceChildren(...labels.map(role=>element('span',{class:'account-role'},role)));
+ }
+ const profileButton=$('#sidebar-profile-button');
+ const label=[t('myProfile'),name,email,...roles].filter(Boolean).join(' · ');
+ profileButton.setAttribute('aria-label',label);
+ profileButton.title=label;
+}
+function accountRoleLabel(scope,role){
+ const label=t(role?`role_${scope}_${role}`:'noAccess');
+ if(role==='admin')return label;
+ return `${t(scope==='operations'?'operationsAccess':'cmsAccess')} · ${label}`;
+}
+$('#sidebar-profile-button').addEventListener('click',()=>{
+ setView('profile');
+ if(state.view==='profile')$('#profile-title').focus();
+});
 
 function renderIdentity(){
- document.body.dataset.role=state.role;$('#user-display-name').textContent=state.profile.full_name||state.user.email||t('account');$('#user-avatar').textContent=(state.profile.full_name||state.user.email||'G').slice(0,1).toUpperCase();$('#user-role-label').textContent=t(staff()?'staff':'customer');$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('[data-view=applications]').hidden=!viewAllowed('applications');$('#customers-nav').hidden=!operations();$('#inbox-nav').hidden=!operations();$('#cms-nav').hidden=!viewAllowed('cms');$('#trash-nav').hidden=!viewAllowed('trash');$('#staff-access-nav').hidden=!managesStaff();$('#staff-no-access').hidden=!staff()||operations()||cmsRole()!==null;$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?oversees()?'allApplications':'assignedApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?oversees()?'staffDashboardIntro':'assignedDashboardIntro':'dashboardIntro');
+ document.body.dataset.role=state.role;renderAccountIdentity();$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('[data-view=applications]').hidden=!viewAllowed('applications');$('#customers-nav').hidden=!operations();$('#inbox-nav').hidden=!operations();$('#cms-nav').hidden=!viewAllowed('cms');$('#trash-nav').hidden=!viewAllowed('trash');$('#staff-access-nav').hidden=!managesStaff();$('#staff-no-access').hidden=!staff()||operations()||cmsRole()!==null;$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?oversees()?'allApplications':'assignedApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?oversees()?'staffDashboardIntro':'assignedDashboardIntro':'dashboardIntro');
 }
 function setView(view,load=true){
  if(!viewAllowed(view))return;
  if(state.view==='cms'&&view!=='cms'){if(!cms.canLeave())return;cms.reset();}
  if(state.view==='inbox'&&view!=='inbox')inbox.leave();state.view=view;
+ document.body.dataset.visaView=view;
  updateDocumentTitle();
  for(const name of VIEWS)$(`#${name}-view`).hidden=name!==view;
  $$('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
- if(view==='staff-access'&&load)void staffAccess.enter();if(view==='trash'&&load)void trash.enter();if(view==='cms'&&load)void cms.enter();if(view==='profile')renderProfile();if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
+ if(view==='staff-access'&&load)void staffAccess.enter();if(view==='trash'&&load)void trash.enter();if(view==='cms'&&load)void cms.enter();if(view==='profile'){renderProfile();if(load)schedulePermissionRefresh()}if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
 }
 $$('[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
-function renderProfile(){if(!state.profile)return;for(const key of ['full_name','contact_email','phone','nationality','preferred_language'])$('#profile-form').elements.namedItem(key).value=state.profile[key]??'';$('#account-email').textContent=state.user.email??''}
+function renderProfile(){if(!state.profile)return;for(const key of ['full_name','contact_email','phone','nationality','preferred_language'])$('#profile-form').elements.namedItem(key).value=state.profile[key]??''}
 $('#profile-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;feedback('#profile-notice','');await busy(form,async()=>{try{const values=Object.fromEntries(new FormData(form));for(const key of Object.keys(values))values[key]=String(values[key]).trim();const data=unwrap(await db.from('gary_profiles').update(values).eq('id',state.user.id).select().single());state.profile=data;renderIdentity();toast('profileSaved')}catch(error){feedback('#profile-notice',errorKey(error),true)}})});
 
 async function loadStats(){const generation=state.generation;const base=()=>db.from('gary_applications').select('id',{count:'exact',head:true});const results=await Promise.all([base(),base().in('status',['submitted','in_review','processing']),base().eq('status','documents_needed'),base().eq('status','completed')]);if(generation!==state.generation)return;for(let index=0;index<results.length;index++){if(results[index].error)throw results[index].error;$('#stat-'+['total','active','attention','completed'][index]).textContent=String(results[index].count??0)}}

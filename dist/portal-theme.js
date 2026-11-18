@@ -1,4 +1,4 @@
-/* A staff host for the website's existing appearance preference. No auth state is written. */
+/* Staff workspaces and the signed-in profile share the website appearance preference. */
 const words = {
   en: { appearance: 'Appearance', light: 'Light', dark: 'Dark', system: 'System' },
   vi: { appearance: 'Giao diện', light: 'Sáng', dark: 'Tối', system: 'Hệ thống' }
@@ -14,11 +14,14 @@ export function mountPortalTheme(doc = document) {
     const role = doc.body.dataset.role;
     const staff = role ? role === 'staff' : selectedArea === 'staff';
     root.dataset.visaPortal = staff ? 'staff' : 'customer';
+    const profile = role === 'customer' && doc.body.dataset.visaView === 'profile';
+    const themed = staff || profile;
+    root.toggleAttribute('data-visa-profile', profile);
     // One resolved preference drives the host and all current/future overlays.
     // Retain the former sidebar attribute as a compatibility alias, never a second preference.
     root.dataset.visaStaffTheme = win.garyVisaPreferences?.resolvedTheme || root.dataset.visaTheme || 'light';
-    root.style.colorScheme = staff ? root.dataset.visaStaffTheme : 'light';
-    if (group) group.hidden = !staff;
+    root.style.colorScheme = themed ? root.dataset.visaStaffTheme : 'light';
+    if (group) group.hidden = !themed;
     if (control) {
       const t = words[root.lang === 'vi' ? 'vi' : 'en'];
       doc.querySelector('[data-portal-appearance-label]').textContent = t.appearance;
@@ -27,14 +30,14 @@ export function mountPortalTheme(doc = document) {
       control.value = win.garyVisaPreferences?.theme || 'system';
     }
     const meta = doc.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = staff && root.dataset.visaStaffTheme === 'dark' ? '#0D1924' : '#173954';
+    if (meta) meta.content = themed && root.dataset.visaStaffTheme === 'dark' ? '#0D1924' : '#173954';
   }
   const change = () => { win.setGaryVisaTheme?.(control.value); };
   control?.addEventListener('change', change);
   doc.addEventListener('gary:visual-preferences', render);
   doc.addEventListener('gary:language', render);
   const observer = new win.MutationObserver(render);
-  observer.observe(doc.body, { attributes: true, attributeFilter: ['data-role'] });
+  observer.observe(doc.body, { attributes: true, attributeFilter: ['data-role', 'data-visa-view'] });
   observer.observe(root, { attributes: true, attributeFilter: ['lang'] });
   const chooseArea = event => { const button = event.target.closest('[data-area]');if (button) { selectedArea = button.dataset.area;render(); } };
   doc.addEventListener('click', chooseArea);

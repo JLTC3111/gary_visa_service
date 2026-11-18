@@ -284,10 +284,28 @@ test('Team Access adds verified existing accounts with a lower role from each Ad
   for(const email of ['nobody@example.test','unverified@example.test','suspended@example.test','anonymous@example.test','removed@example.test'])await denied(()=>add(email,'staff',null),'P0002');
   await denied(()=>add('staff@example.test','manager',null),'23505');
   await denied(()=>add('admin@example.test','staff',null));
+  await assert.rejects(()=>add('outsider@example.test','staff',null),
+   error=>error.code==='42501'&&error.message==='AGENCY_CMS_REVIEW_REQUIRED');
+  await assert.rejects(()=>h.rpc('gary_set_operations_role',[uid.noAccess,'manager',null]),
+   error=>error.code==='P0002'&&error.message==='AGENCY_TARGET_INELIGIBLE');
+  await h.owner();
+  assert.equal(await h.count(`select 1 from gary_private.staff_members where user_id='${uid.outsider}'`),0,
+   'a failed add rolls the new membership back');
+  assert.deepEqual(await h.one('select role,active from gary_private.cms_members where user_id=$1',[uid.outsider]),
+   {role:'admin',active:true},'the Operations request does not modify the historical CMS row');
+  await h.q('update gary_private.cms_members set active=false where user_id=$1',[uid.outsider]);
+  await h.as('admin');
   assert.deepEqual(await add('outsider@example.test','staff',null),{user_id:uid.outsider,operations_role:'staff',cms_role:null});
 
   await h.as('cmsAdmin');
   assert.deepEqual(await add('cmscandidate@example.test',null,'publisher'),{user_id:extra.cmsCandidate,operations_role:null,cms_role:'publisher'});
+  await assert.rejects(()=>h.rpc('gary_set_cms_role',[uid.outsider,'publisher',null]),
+   error=>error.code==='42501'&&error.message==='AGENCY_PROTECTED_ROLE');
+  await assert.rejects(()=>h.rpc('gary_set_cms_role',[uid.noAccess,'editor',null]),
+   error=>error.code==='P0002'&&error.message==='AGENCY_TARGET_INELIGIBLE');
+  await denied(()=>h.rpc('gary_set_cms_role',[uid.cmsAdmin,'publisher','admin']));
+  await denied(()=>h.rpc('gary_set_operations_role',[uid.admin,'manager','admin']));
+
   for(const [operations,cms] of [['staff',null],['staff','editor']])await denied(()=>add('dualcandidate@example.test',operations,cms));
   await denied(()=>add('dualcandidate@example.test',null,'admin'));
   await denied(()=>add('candidate@example.test',null,'editor'),'23505');
@@ -316,5 +334,32 @@ test('Team Access adds verified existing accounts with a lower role from each Ad
   ],'every addition records who added the member and which roles were granted');
   assert.deepEqual(await h.one('select role,active from gary_private.cms_members where user_id=$1',[uid.outsider]),{role:'admin',active:false});
   assert.deepEqual((await h.q('select * from auth.users order by id')).rows,accounts,'accounts, confirmations and suspensions are never changed');
+ }finally{await h.db.close()}
+});
+
+test('Visa profile pictures are readable by their owner and authorized Team Access admins and writable only by the avatar service',async()=>{
+ const h=await setup({teamAccess:true});
+ const bucket='gary-visa-avatars',path=who=>`${uid[who]}/avatar`;
+ const visible=async()=>(await h.q('select name from storage.objects where bucket_id=$1 order by name',[bucket])).rows.map(row=>row.name);
+ try{
+  await h.owner();await h.db.exec(await sql('migrations/20261118154222_visa_profile_avatars.sql'));
+  assert.deepEqual(await h.one('select public,file_size_limit::int,allowed_mime_types from storage.buckets where id=$1',[bucket]),{
+   public:false,file_size_limit:5*1024*1024,allowed_mime_types:['image/jpeg','image/png','image/webp']
+  });
+  for(const who of ['customer','staff','staff2'])await h.q('insert into storage.objects(bucket_id,name) values($1,$2)',[bucket,path(who)]);
+  await h.q("update auth.users set deleted_at=now() where id=$1",[uid.staff2]);
+  for(const [who,expected] of [[null,[]],['customer',[path('customer')]],['staff',[path('staff')]],['admin',[path('staff')]],['cmsAdmin',[path('staff')]],['editor',[]]]){
+   await h.as(who);
+   assert.deepEqual(await visible(),expected,String(who));
+  }
+  for(const who of ['customer','staff','admin',null]){
+   await h.as(who);
+   await denied(()=>h.q('insert into storage.objects(bucket_id,name) values($1,$2)',[bucket,path('customer2')]));
+   const args=[bucket,path('customer'),path('staff')];
+   assert.deepEqual((await h.q('update storage.objects set name=$2 where bucket_id=$1 and name=$3 returning name',args)).rows,[]);
+   assert.deepEqual((await h.q('delete from storage.objects where bucket_id=$1 and name in($2,$3) returning name',args)).rows,[]);
+  }
+  await h.owner();assert.deepEqual(await visible(),[path('customer'),path('staff'),path('staff2')]);
+  await h.as('customer');assert.equal(await h.count("select 1 from storage.objects where bucket_id='gary-documents'"),1);
  }finally{await h.db.close()}
 });

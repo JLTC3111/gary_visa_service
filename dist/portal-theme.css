@@ -1,12 +1,12 @@
 /* Staff semantic palette. Component declarations retain their exact light/public
    colors as fallbacks; this one palette also reaches top-layer dialogs/popovers. */
-html[data-visa-portal=staff]{
+html:is([data-visa-portal=staff],[data-visa-profile]){
  --ink:var(--vp-text,#173954);--ink-dark:var(--vp-text,#112e45);
  --teal:var(--vp-accent,#347b82);--paper:var(--vp-soft,#f7f8f4);
  --white:var(--vp-surface,#fff);--muted:var(--vp-muted,#65747c);--line:var(--vp-line,#dce2e1);
  --shadow:0 18px 60px var(--vp-shadow-color,#17395414);
 }
-html[data-visa-portal=staff][data-visa-theme=dark]{
+html:is([data-visa-portal=staff],[data-visa-profile])[data-visa-theme=dark]{
  color-scheme:dark;
  --vp-page:#0D1924;--vp-surface:#142838;--vp-raised:#1E3545;
  --vp-soft:#1B3443;--vp-hover:#274554;--vp-control:#142838;
@@ -22,38 +22,38 @@ html[data-visa-portal=staff][data-visa-theme=dark]{
  --vp-scrollbar:#587487;--vp-scrollbar-track:#142838;
 }
 /* Base primitives consume the same semantic interface as the workspace CSS. */
-html[data-visa-portal=staff] .portal-body button.text-link{appearance:none;border:0;background:transparent;box-shadow:none;color:var(--vp-accent,#22645e)}
-html[data-visa-portal=staff] .portal-body ::selection{background:var(--vp-button,#d8ebc5);color:var(--vp-on-brand,#173954)}
-html[data-visa-portal=staff] .portal-body .language-control button{opacity:1;color:var(--vp-muted,#65747c)}
-html[data-visa-portal=staff] .portal-body .language-control button[aria-pressed=true]{color:var(--ink)}
-html[data-visa-portal=staff] .portal-body{color:var(--ink);background:var(--vp-page,#f5f7f5)}
-html[data-visa-portal=staff] .portal-body .button:not(.button-outline):not(.button-secondary):not(.button-danger):not(.button-destructive):not(#edit-contact){background:var(--vp-button,#173954);color:var(--vp-on-brand,#fff);border-color:var(--vp-button,#173954)}
-html[data-visa-portal=staff] .portal-body .button:not(.button-outline):not(.button-secondary):not(.button-danger):not(.button-destructive):not(#edit-contact):hover{background:var(--vp-button-hover,#245271);border-color:var(--vp-button-hover,#245271)}
-html[data-visa-portal=staff] .portal-body .button-danger,.portal-body .button-destructive{background:var(--vp-danger,#a4382e);color:var(--vp-on-brand,#fff);border-color:var(--vp-danger,#a4382e)}
-html[data-visa-portal=staff] .portal-body .button-danger:hover,.portal-body .button-destructive:hover{background:var(--vp-danger,#82281f);border-color:var(--vp-danger,#82281f)}
-html[data-visa-portal=staff] .portal-body dialog{background:var(--vp-surface,#fff);color:var(--ink);border-color:var(--line)}
-html[data-visa-portal=staff] .portal-body dialog::backdrop{background:var(--vp-backdrop,#10283eaa)}
-html[data-visa-portal=staff] .portal-body .gw-editor{--gw-surface:var(--vp-surface,#fff);--gw-ink:var(--ink);--gw-line:var(--line);--gw-accent:var(--teal)}
-html[data-visa-portal=staff] .portal-body .icon-button{background:var(--vp-surface,transparent);color:var(--ink);border-color:var(--line)}
-html[data-visa-portal=staff] .portal-body .icon-button:hover{background:var(--vp-hover,#e6eff2);color:var(--teal)}
-html[data-visa-portal=staff] .portal-body .skip-link,html[data-visa-portal=staff] .portal-body .portal-toast{background:var(--vp-button,#173954);color:var(--vp-on-brand,#fff)}
-html[data-visa-portal=staff] .portal-body .cms-table-scroll,html[data-visa-portal=staff] .portal-body .cms-media-grid article{background:var(--vp-surface,transparent)}
-html[data-visa-portal=staff] .portal-body .gary-cms{--cms-surface:var(--vp-surface,#fff);--cms-soft:var(--vp-soft,#f2f6f5)}
-html[data-visa-portal=staff] .portal-body .gary-apps-menu{
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body button.text-link{appearance:none;border:0;background:transparent;box-shadow:none;color:var(--vp-accent,#22645e)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::selection{background:var(--vp-button,#d8ebc5);color:var(--vp-on-brand,#173954)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .language-control button{opacity:1;color:var(--vp-muted,#65747c)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .language-control button[aria-pressed=true]{color:var(--ink)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body{color:var(--ink);background:var(--vp-page,#f5f7f5)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .button:not(.button-outline):not(.button-secondary):not(.button-danger):not(.button-destructive):not(#edit-contact){background:var(--vp-button,#173954);color:var(--vp-on-brand,#fff);border-color:var(--vp-button,#173954)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .button:not(.button-outline):not(.button-secondary):not(.button-danger):not(.button-destructive):not(#edit-contact):hover{background:var(--vp-button-hover,#245271);border-color:var(--vp-button-hover,#245271)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .button-danger,.portal-body .button-destructive{background:var(--vp-danger,#a4382e);color:var(--vp-on-brand,#fff);border-color:var(--vp-danger,#a4382e)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .button-danger:hover,.portal-body .button-destructive:hover{background:var(--vp-danger,#82281f);border-color:var(--vp-danger,#82281f)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body dialog{background:var(--vp-surface,#fff);color:var(--ink);border-color:var(--line)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body dialog::backdrop{background:var(--vp-backdrop,#10283eaa)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .gw-editor{--gw-surface:var(--vp-surface,#fff);--gw-ink:var(--ink);--gw-line:var(--line);--gw-accent:var(--teal)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .icon-button{background:var(--vp-surface,transparent);color:var(--ink);border-color:var(--line)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .icon-button:hover{background:var(--vp-hover,#e6eff2);color:var(--teal)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .skip-link,html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-toast{background:var(--vp-button,#173954);color:var(--vp-on-brand,#fff)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .cms-table-scroll,html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .cms-media-grid article{background:var(--vp-surface,transparent)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .gary-cms{--cms-surface:var(--vp-surface,#fff);--cms-soft:var(--vp-soft,#f2f6f5)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .gary-apps-menu{
  --gary-app-ink:var(--ink);--gary-app-muted:var(--muted);--gary-app-line:var(--line);
  --gary-app-surface:var(--vp-surface,#fff);--gary-app-raised:var(--vp-raised,#edf2f5);--gary-app-hover:var(--vp-hover,#f3f6f7);
  --gary-app-control-border:var(--line);--gary-app-action:var(--teal);--gary-app-focus:var(--vp-focus,#ac5b31);
  --gary-platform-home:var(--vp-accent,#2f5940);--gary-platform-jobs:var(--vp-accent,#244a6a);--gary-platform-visa:var(--vp-accent,#8b442d);
 }
-html[data-visa-portal=staff] .portal-body,html[data-visa-portal=staff] .portal-body *{scrollbar-width:thin;scrollbar-color:var(--vp-scrollbar,#a3b7be) var(--vp-scrollbar-track,transparent)}
-html[data-visa-portal=staff] .portal-body ::-webkit-scrollbar{width:9px;height:9px}
-html[data-visa-portal=staff] .portal-body ::-webkit-scrollbar-track{background:var(--vp-scrollbar-track,transparent)}
-html[data-visa-portal=staff] .portal-body ::-webkit-scrollbar-thumb{background:var(--vp-scrollbar,#a3b7be);border:2px solid var(--vp-scrollbar-track,#fff);border-radius:9px}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body,html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body *{scrollbar-width:thin;scrollbar-color:var(--vp-scrollbar,#a3b7be) var(--vp-scrollbar-track,transparent)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::-webkit-scrollbar{width:9px;height:9px}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::-webkit-scrollbar-track{background:var(--vp-scrollbar-track,transparent)}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::-webkit-scrollbar-thumb{background:var(--vp-scrollbar,#a3b7be);border:2px solid var(--vp-scrollbar-track,#fff);border-radius:9px}
 .portal-appearance{display:flex;align-items:center;min-width:0}
 .portal-appearance[hidden]{display:none}
 .portal-appearance select{min-height:40px;max-width:130px;padding:8px 32px 8px 10px;font-size:12px}
 @media(max-width:649px){.portal-appearance select{max-width:112px;min-height:44px;font-size:13px}}
-@media(prefers-reduced-motion:reduce){html[data-visa-portal=staff] .portal-body .loading-mark{animation:none}}
+@media(prefers-reduced-motion:reduce){html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .loading-mark{animation:none}}
 
 .action-toast {
   position: fixed; inset: auto 12px calc(84px + env(safe-area-inset-bottom)) 12px; z-index: 100;

@@ -69,6 +69,23 @@ test('customer appearance and access remain separate from the staff presentation
  }finally{h.close();}
 });
 
+test('a signed-in customer profile can use Light, Dark and System while keeping its photo controls',async()=>{
+ const h=harness({theme:'dark',role:'customer'});try{
+  const input=h.d.getElementById('profile-avatar-file');
+  h.d.body.dataset.visaView='profile';await settle();
+  assert.equal(h.d.documentElement.dataset.visaPortal,'customer');
+  assert.equal(h.d.documentElement.hasAttribute('data-visa-profile'),true);
+  assert.equal(h.d.querySelector('.portal-appearance').hidden,false);
+  assert.equal(h.d.documentElement.style.colorScheme,'dark');
+  change(h,'light');assert.equal(h.d.documentElement.style.colorScheme,'light');
+  change(h,'system');assert.equal(h.d.getElementById('portal-theme').value,'system');
+  assert.equal(h.d.getElementById('profile-avatar-file'),input);
+  h.d.body.dataset.visaView='applications';await settle();
+  assert.equal(h.d.documentElement.hasAttribute('data-visa-profile'),false);
+  assert.equal(h.d.querySelector('.portal-appearance').hidden,true);
+ }finally{h.close()}
+});
+
 function luminance(c){const rgb=[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;}
 function contrast(a,b){return(Math.max(luminance(a),luminance(b))+.05)/(Math.min(luminance(a),luminance(b))+.05);}
 test('semantic palette gives AA text/status contrast and visible form borders across staff surfaces',async()=>{

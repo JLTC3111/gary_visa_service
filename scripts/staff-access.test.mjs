@@ -15,9 +15,9 @@ const directory=(operationsAdmin,cmsAdmin)=>[
  {user_id:staff,display_name:'Chi Staff',email:'chi@example.test',operations_role:'staff',cms_role:null,self:false,account:'active',manage_operations:operationsAdmin,manage_cms:cmsAdmin},
  {user_id:editor,display_name:'',email:'dung@example.test',operations_role:null,cms_role:'editor',self:false,account:'unavailable',manage_operations:operationsAdmin,manage_cms:cmsAdmin}
 ];
-function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null}={}){
+function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage}={}){
  const dom=new JSDOM(html,{url:'http://localhost:4173/portal.html?area=staff',pretendToBeVisual:true}),doc=dom.window.document,calls=[],notices=[],members=directory(operationsAdmin,cmsAdmin);let allowed=true;
- const db={rpc:async(name,args)=>{
+ const db={storage,rpc:async(name,args)=>{
   calls.push({name,args});if(name==='gary_staff_access_list')return {data:{members:structuredClone(members),operations_role:operationsAdmin?'admin':null,cms_role:cmsAdmin?'admin':null},error:null};
   const custom=respond(name,args);if(custom)return custom;
   if(name==='gary_add_staff_member'){const user_id=`10000000-0000-4000-8000-00000000001${members.length}`;members.push({user_id,display_name:'',email:args.p_email,operations_role:args.p_operations_role,cms_role:args.p_cms_role,self:false,account:'active',manage_operations:operationsAdmin,manage_cms:cmsAdmin});return {data:{user_id},error:null}}
@@ -32,6 +32,30 @@ function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null}={}){
  return {dom,doc,calls,notices,controller,row,choose,form,control,add,revoke(){allowed=false},rpcs:name=>calls.filter(call=>call.name===name)};
 }
 const statusOf=(h,name)=>h.row(name).querySelector('.staff-access-status').textContent;
+
+test('Team Access signs eligible Visa staff pictures and keeps the role selectors and initials stable',async()=>{
+ let resolve,paths;
+ const photos=new Promise(r=>{resolve=r});
+ const h=harness({storage:{from(bucket){
+  assert.equal(bucket,'gary-visa-avatars');
+  return {createSignedUrls(names,ttl){paths=names;assert.equal(ttl,600);return photos}};
+ }}});
+ try{
+  await h.controller.enter();
+  const row=h.row('Chi Staff'),select=row.querySelector('select'),avatar=row.querySelector('[data-staff-avatar]');
+  assert.equal(avatar.textContent,'CS');
+  assert.ok(paths.includes(`${staff}/avatar`));
+  assert.equal(paths.includes(`${editor}/avatar`),false);
+  select.focus();
+  resolve({data:[{path:`${staff}/avatar`,signedUrl:'https://storage.example.test/staff-photo'},{path:`${editor}/avatar`,signedUrl:'https://storage.example.test/unavailable'}]});
+  await flush();
+  assert.equal(avatar.querySelector('img').src,'https://storage.example.test/staff-photo');
+  assert.equal(h.doc.activeElement,select);
+  assert.equal(h.row('dung@example.test').querySelector('img'),null);
+  avatar.querySelector('img').dispatchEvent(new h.dom.window.Event('error'));
+  assert.equal(avatar.textContent,'CS');
+ }finally{h.dom.window.close()}
+});
 
 test('Team Access shows staff management beside role permissions and protections with separate role selectors and No Access',async()=>{
  const h=harness();
@@ -90,7 +114,7 @@ test('Team Access adds verified existing accounts by email with roles from the A
   assert.deepEqual(h.notices,['staffAdded']);assert.deepEqual([email.value,operations.value,feedback()],['','','']);assert.equal(h.doc.activeElement,email);
   assert.equal(statusOf(h,'new@example.test'),'Active','the directory reloads with the new member');
 
-  for(const [address,message] of [['known@example.test',/already on the Gary Visa team/],['ghost@example.test',/No verified account/],['broken@example.test',/could not be added/]]){await h.add(address,{operations:'staff'});assert.match(feedback(),message)}
+  for(const [address,message] of [['known@example.test',/already on the Gary Visa team/],['ghost@example.test',/No eligible, verified account/],['broken@example.test',/could not be added/]]){await h.add(address,{operations:'staff'});assert.match(feedback(),message)}
   assert.equal(email.hasAttribute('aria-invalid'),false,'an unexpected failure is not blamed on the email');
   await h.add('ghost@example.test',{operations:'staff'});assert.equal(email.getAttribute('aria-invalid'),'true');
   email.dispatchEvent(new h.dom.window.Event('input',{bubbles:true}));assert.deepEqual([feedback(),email.hasAttribute('aria-invalid')],['',false],'editing clears the error');
@@ -111,7 +135,7 @@ test('CMS Admins manage CMS roles only, labels follow Vietnamese, and revoked ma
   const cms=chi.querySelector('select[data-staff-scope=cms]');assert.deepEqual([...cms.options].map(option=>option.value),['','editor','publisher']);
   assert.deepEqual([h.control('operations').disabled,h.doc.querySelector('#staff-access-add-operations-hint').hidden,h.control('cms').disabled,[...h.control('cms').options].map(option=>option.value)],[true,false,false,['','editor','publisher']],'CMS Admins add members with CMS roles only');
   await h.choose(cms,'editor');assert.deepEqual(h.rpcs('gary_set_cms_role').map(call=>call.args),[{p_user_id:staff,p_role:'editor',p_expected_role:null}]);
-  await h.choose(h.row('Chi Staff').querySelector('select[data-staff-scope=cms]'),'publisher');assert.match(h.doc.querySelector('#staff-access-notice').textContent,/cannot make that change/);
+  await h.choose(h.row('Chi Staff').querySelector('select[data-staff-scope=cms]'),'publisher');assert.match(h.doc.querySelector('#staff-access-notice').textContent,/Only a CMS Admin can assign CMS roles/);
   await h.add('writer@example.test',{operations:'staff',cms:'publisher'});assert.deepEqual(h.rpcs('gary_add_staff_member').map(call=>call.args),[{p_email:'writer@example.test',p_operations_role:null,p_cms_role:'publisher'}]);
   await h.add('');assert.match(h.doc.querySelector('#staff-access-add-feedback').textContent,/signs in with/);
   h.doc.documentElement.lang='vi';h.controller.render();
@@ -121,5 +145,24 @@ test('CMS Admins manage CMS roles only, labels follow Vietnamese, and revoked ma
   h.revoke();const sent=h.calls.length;await h.choose(h.row('Chi Staff').querySelector('select[data-staff-scope=cms]'),'');await h.add('late@example.test',{cms:'editor'});assert.equal(h.calls.length,sent,'UI changes stop as soon as management access is gone');
   h.controller.reset();assert.equal(h.doc.querySelector('#staff-access-list').children.length,0);assert.equal(h.doc.querySelector('#staff-access-notice').textContent,'');
   assert.deepEqual([h.control('email').value,h.doc.querySelector('#staff-access-add-feedback').textContent,h.control('cms').disabled,h.form.querySelector('button[type=submit]').disabled],['','',true,true],'signing out clears and locks the add form');
+ }finally{h.dom.window.close()}
+});
+
+
+test('Team Access explains a missing migration and protected roles in both languages',async()=>{
+ const h=harness({respond:(name,args)=>name==='gary_add_staff_member'?
+  {data:null,error:{code:'PGRST202',message:'Could not find gary_add_staff_member'}}:
+  args?.p_role==='manager'?{data:null,error:{code:'42501',message:'AGENCY_PROTECTED_ROLE'}}:null});
+ try{
+  await h.controller.enter();
+  await h.add('new@example.test',{operations:'staff'});
+  assert.equal(h.doc.querySelector('#staff-access-add-feedback').textContent,portalCopy.en.staffAccessMigrationRequired);
+  assert.equal(h.control('email').hasAttribute('aria-invalid'),false);
+  assert.equal(h.control('email').value,'new@example.test');
+  h.doc.documentElement.lang='vi';
+  h.controller.render();
+  assert.equal(h.doc.querySelector('#staff-access-add-feedback').textContent,portalCopy.vi.staffAccessMigrationRequired);
+  await h.choose(h.row('Chi Staff').querySelector('select[data-staff-scope=operations]'),'manager');
+  assert.equal(h.doc.querySelector('#staff-access-notice').textContent,portalCopy.vi.staffAdminProtected);
  }finally{h.dom.window.close()}
 });
