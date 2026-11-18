@@ -24,7 +24,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(enabled)return;enabled=true;workspace.classList.add('visa-staff-workspace');sidebar.classList.add('visa-staff-sidebar');
   heading=doc.createElement('div');heading.className='visa-sidebar-heading';if(label)heading.append(label);
   toggle=doc.createElement('button');toggle.type='button';toggle.className='visa-sidebar-toggle';toggle.dataset.visaSidebarToggle='';toggle.setAttribute('aria-controls','visa-staff-navigation');heading.append(toggle);sidebar.prepend(heading);
-  nav.id='visa-staff-navigation';
+  nav.id='visa-staff-navigation';nav.tabIndex=0;
   for(const group of groups){
    const section=doc.createElement('section');section.className='visa-nav-group';section.dataset.visaNavGroup=group.id;
    const control=doc.createElement('button');control.type='button';control.className='visa-nav-group-toggle';control.dataset.visaGroupToggle=group.id;control.setAttribute('aria-controls',`visa-nav-${group.id}`);
@@ -39,7 +39,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(!enabled)return;stopDrag();enabled=false;
   for(const button of buttons){nav.append(button);for(const [name,value]of oldAttributes.get(button))if(value===null)button.removeAttribute(name);else button.setAttribute(name,value);}
   for(const group of nav.querySelectorAll('.visa-nav-group'))group.remove();if(label)sidebar.insertBefore(label,nav);heading?.remove();handle?.remove();
-  nav.inert=false;nav.removeAttribute('id');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed','visa-sidebar-mobile-open');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');mobileExpanded=false;
+  nav.inert=false;nav.removeAttribute('id');nav.removeAttribute('tabindex');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed','visa-sidebar-mobile-open');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');mobileExpanded=false;
  }
  function refresh({revealActive=false}={}){
   if(disposed)return;if(!isStaff()){disable();return;}enable();

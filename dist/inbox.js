@@ -2,7 +2,7 @@ import {workspaceUI} from './workspace-ui.js';
 import {mergeMessages,chatErrorKey} from './chat-data.js';
 import {createLiveRoom,createSupportWatch,liveTimeLeft,isChatSetupError} from './live-chat.js';
 
-export function createInbox({db,doc,t,isStaff,canAssign=isStaff,canGoOnline=isStaff,getUser,getRoster,openContact}){
+export function createInbox({db,doc,t,isStaff,canAssign=isStaff,canGoOnline=isStaff,getUser,getRoster,openContact,notify=()=>{}}){
  const {$,el,button,notice,date,run,staffOptions,take}=workspaceUI(doc,t),win=doc.defaultView;
  const s={rows:[],total:0,page:0,current:null,messages:[],more:false,roster:[],active:false,generation:0,request:0,openRequest:0,threadRequest:0,channel:null,drafts:new Map(),pending:new Map(),sending:false,rendered:'',available:false,wantsOnline:false,availabilityBusy:false,globalConnected:false,connectionStatus:'CONNECTING',connectionError:null,live:null,visitorUntil:0,typingUntil:0};
  let pollTimer,searchTimer,refreshTimer,typingTimer,visitorTimer,room,watch,feedbackKey='',availabilityQueue=Promise.resolve();
@@ -86,7 +86,7 @@ export function createInbox({db,doc,t,isStaff,canAssign=isStaff,canGoOnline=isSt
  $('#inbox-reply').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();if(!s.sending)$('#inbox-reply-form').requestSubmit()}});
  $('#staff-live-toggle').addEventListener('click',async()=>{if(!isStaff()||!canGoOnline()||!s.active||s.availabilityBusy)return;s.wantsOnline=!s.wantsOnline;s.availabilityBusy=true;renderAvailability();try{if(s.wantsOnline&&!s.globalConnected)watch?.retry();await pulse(s.wantsOnline)}finally{s.availabilityBusy=false;renderAvailability()}});
  $('#staff-live-retry').addEventListener('click',()=>watch?.retry());
- async function update(values){const id=s.current?.id,generation=s.generation;if(!isStaff()||!id)return;try{const chat=take(await db.from('gary_chat_conversations').update(values).eq('id',id).select().single());if(generation!==s.generation||s.current?.id!==id||!isStaff())return;s.current=chat;renderThread();feedback('chatStatusSaved');await loadQueue()}catch{if(generation===s.generation)feedback('genericError',true)}}
+ async function update(values){const id=s.current?.id,generation=s.generation;if(!isStaff()||!id)return;try{const chat=take(await db.from('gary_chat_conversations').update(values).eq('id',id).select().single());if(generation!==s.generation||s.current?.id!==id||!isStaff())return;s.current=chat;renderThread();feedback('');notify('chatStatusSaved');await loadQueue()}catch{if(generation===s.generation)feedback('genericError',true)}}
  $('#inbox-resolve').addEventListener('click',()=>{if(s.current)update({status:s.current.status==='open'?'resolved':'open'})});
  $('#inbox-assignee').addEventListener('change',async()=>{const select=$('#inbox-assignee');if(!canAssign())return;select.disabled=true;try{await update({assigned_staff_id:select.value||null})}finally{select.disabled=!canAssign()}});
  $('#inbox-contact').addEventListener('click',()=>{if(s.current)openContact(s.current.contact_id)});

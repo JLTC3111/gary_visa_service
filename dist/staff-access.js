@@ -72,7 +72,7 @@ export function createStaffAccess({db,doc,t,canManage,notify=()=>{}}){
    take(await db.rpc(scope==='operations'?'gary_set_operations_role':'gary_set_cms_role',{p_user_id:member.user_id,p_role:next,p_expected_role:previous}));
    if(generation===state.generation)notify('staffRoleSaved');
   }catch(error){if(generation===state.generation)notice(error?.code==='40001'?'staffRoleConflict':error?.code==='42501'?'permissionChanged':'staffRoleError',true)}
-  finally{if(generation===state.generation){state.busy='';await load();doc.getElementById(focus)?.focus()}}
+  finally{if(generation===state.generation){state.busy='';await load();if(generation===state.generation)doc.getElementById(focus)?.focus({preventScroll:true})}}
  }
  async function add(event){
   event.preventDefault();
@@ -86,7 +86,7 @@ export function createStaffAccess({db,doc,t,canManage,notify=()=>{}}){
    take(await db.rpc('gary_add_staff_member',{p_email:address,p_operations_role:roles.operations,p_cms_role:roles.cms}));
    if(generation===state.generation){form.reset();notify('staffAdded')}
   }catch(error){if(generation===state.generation){const key=addErrors[error?.code]||'staffAddError';addNotice(key,['staffAddUnavailable','staffAddExists','staffAddInvalid'].includes(key))}}
-  finally{if(generation===state.generation){state.adding=false;await load();email.focus()}}
+  finally{if(generation===state.generation){state.adding=false;await load();if(generation===state.generation)email.focus({preventScroll:true})}}
  }
  $('#staff-access-list').addEventListener('change',event=>{const select=event.target.closest?.('select[data-staff-scope]');if(select)void change(select)});
  $('#refresh-staff-access').addEventListener('click',()=>{notice('');void load()});

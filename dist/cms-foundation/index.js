@@ -1,4 +1,5 @@
 import { attachEditorWorkspace } from '../editor-workspace/index.js';
+import { showActionToast } from '../action-toast.js';
 import { CMS_VERSION, LOCALES, emptyEntry, fieldsFor, getValue, setValue, safeMediaUrl, validateEntry, contentSeoFindings } from './content.js';
 import { cmsText, validationText } from './copy.js';
 import { localizeFinding } from './seo-findings.js';
@@ -38,6 +39,9 @@ export function mountCms(root, options) {
     const target = root.querySelector('[data-cms-notice]');
     if (target) { target.textContent = text; target.setAttribute('role', noticeKind); }
     options.onNotice?.(text);
+  }
+  function confirmAction(message) {
+    if (!disposed) showActionToast(root.ownerDocument, message, {language});
   }
   function canLeave() { return !dirty() || root.ownerDocument.defaultView.confirm(t('discard')); }
   function shell() {
@@ -87,13 +91,18 @@ export function mountCms(root, options) {
   function editor() {
     const dialog = root.querySelector('.cms-dialog');
     if (!dialog || !draft) return;
+    const scrollTop = dialog.querySelector('[data-gw-body]')?.scrollTop || 0;
+    const expanded = [...dialog.querySelectorAll('details')].map(details => details.open);
     const extraFields = fieldsFor(collection());
     dialog.innerHTML = `<header><div><p class="cms-eyebrow">${escape(label(collection().label))}</p><h2 id="${id}-editor-heading">${escape(draft.id ? t('edit') : t('add'))}</h2></div>${button('close', t('close'))}</header><form data-cms-editor novalidate><div class="cms-editor-body gw-editor-body" data-gw-body><div class="cms-editor-meta">${field('slug', t('slug'))}<p><span class="cms-badge cms-badge-${escape(draft.status)}">${t(draft.status)}</span> · <span data-cms-dirty>${t('clean')}</span></p></div><p class="cms-hint">${t('snapshot')}</p><div class="cms-language-columns">${LOCALES.map(locale => `<section lang="${locale}" aria-label="${locale === 'en' ? 'English' : 'Tiếng Việt'}"><h3>${locale === 'en' ? 'English' : 'Tiếng Việt'}</h3>${field(`title_${locale}`, t('title'), 'text', { locale })}${field(`summary_${locale}`, t('summary'), 'textarea', { locale })}${field(`body_${locale}`, t('body'), 'textarea', { locale })}${extraFields.filter(item => item.locale === locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}<details><summary>${t('seo')}</summary>${field(`seo_title_${locale}`, t('seoTitle'), 'text', { locale })}${field(`seo_description_${locale}`, t('seoDescription'), 'textarea', { locale })}</details></section>`).join('')}</div>${extraFields.filter(item => !item.locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}<details class="cms-seo"><summary>${t('seo')}</summary><p class="cms-hint">${t('advisory')}</p><div data-cms-checks></div></details><details class="cms-preview"><summary>${t('preview')}</summary><div class="cms-language-columns" data-cms-preview></div></details><details data-cms-revisions><summary>${t('revision')}</summary><div data-cms-history><p>${t('loadingRevisions')}</p></div></details><p class="cms-dialog-notice" data-editor-notice role="status" aria-live="polite"></p></div><footer class="cms-editor-actions gw-editor-actions" data-gw-actions>${capabilities.edit ? `<button type="submit" class="cms-primary"${disabled(busy)}>${t('save')}</button>${button('review', t('submit'), '', !draft.id)}` : ''}${capabilities.publish ? `${button('publish', t('publish'), '', !draft.id || draft.status !== 'review')}${button('archive', t('archive'), '', !draft.id || draft.status === 'archived')}` : ''}${capabilities.delete && adapter.remove ? button('delete', t('delete'), 'class="cms-danger"') : ''}${button('close', t('cancel'))}</footer></form>`;
     if (!editorWorkspace) editorWorkspace = attachEditorWorkspace(dialog, {key: `${options.appId || 'content'}:cms:${kind}`, language: () => language});
     editorWorkspace.refresh();
+    dialog.querySelectorAll('details').forEach((details, index) => { if (expanded[index]) details.open = true; });
+    dialog.querySelector('[data-gw-body]').scrollTop = scrollTop;
     updateEditorChecks(); renderHistory();
+    const opening = !dialog.open;
     if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); } else dialog.setAttribute('open', '');
-    dialog.querySelector('input')?.focus();
+    if (opening) dialog.querySelector('input')?.focus({preventScroll: true});
   }
   function updateEditorChecks() {
     if (!draft) return;
@@ -128,7 +137,7 @@ export function mountCms(root, options) {
       const control = [...root.querySelectorAll('[data-field]')].find(item => item.dataset.field === issue.field);
       control?.setAttribute('aria-invalid', 'true');
     }
-    if (issues.length) { editorNotice(t('invalid')); root.querySelector('[aria-invalid="true"]')?.focus(); }
+    if (issues.length) { editorNotice(t('invalid')); root.querySelector('[aria-invalid="true"]')?.focus({preventScroll: true}); }
     return issues.length > 0;
   }
   async function mutate(operation, success) {
@@ -141,8 +150,8 @@ export function mountCms(root, options) {
       if (disposed) return;
       if (!next?.id || !Number.isFinite(Number(next.version))) throw new Error('Invalid content response');
       draft = structuredClone(next); draft.data ||= {}; baseline = JSON.stringify(draft);
-      announce(success); busy = false; editor(); editorNotice(success);
-      if (adapter.revisions) { const selected = draft.id; const result = await adapter.revisions(selected); if (draft?.id === selected) { revisions = Array.isArray(result) ? result : result.records || []; renderHistory(); } }
+      announce(''); busy = false; editor(); confirmAction(success);
+      if (adapter.revisions) { const selected = draft.id; try { const result = await adapter.revisions(selected); if (!disposed && draft?.id === selected) { revisions = Array.isArray(result) ? result : result.records || []; renderHistory(); } } catch { /* A history read cannot undo a committed save. */ } }
     } catch (error) { if (!disposed) { editorNotice(errorText(error)); options.onNotice?.(errorText(error)); } }
     finally { if (!disposed) { busy = false; for (const [control, wasDisabled] of controls) if (control.isConnected) control.disabled = wasDisabled; } }
   }
@@ -153,7 +162,7 @@ export function mountCms(root, options) {
   function restoreEditorFocus() {
     const index = records.findIndex(record => record.id === editorReturnId);
     const target = index >= 0 ? root.querySelector(`[data-action="edit"][data-index="${index}"]`) : root.querySelector('[data-action="new"]');
-    (target || root.querySelector('[data-action="refresh"]'))?.focus();
+    (target || root.querySelector('[data-action="refresh"]'))?.focus({preventScroll: true});
   }
   async function closeEditorDialog() {
     const dialog = root.querySelector('.cms-dialog');
@@ -175,7 +184,9 @@ export function mountCms(root, options) {
         await adapter.remove(selected.id, {expectedVersion: selected.version});
         if (disposed) return;
         if (draft?.id === selected.id) { draft = null; baseline = ''; await closeEditorDialog(); }
-        await refresh(); announce(t('deleted'));
+        announce('');
+        await refresh();
+        confirmAction(t('deleted'));
       } catch (error) { if (!disposed) { announce(errorText(error), true); if (draft) editorNotice(errorText(error)); } }
       finally { if (!disposed) { busy = false; if (draft) editor(); else renderWorkspace(); } }
       return;
@@ -220,7 +231,7 @@ export function mountCms(root, options) {
       if (!file || file.size <= 0 || file.size > mediaPolicy.maxBytes || !mediaPolicy.mimeTypes.includes(file.type)) { announce(t('invalid') + ' ' + `${Math.round(mediaPolicy.maxBytes / 1024 / 1024)} MB`, true); return; }
       if (file.type.startsWith('image/') && (!form.elements.alt_en.value.trim() || !form.elements.alt_vi.value.trim())) { announce(t('altHint'), true); return; }
       busy = true; form.querySelector('button').disabled = true;
-      try { await adapter.uploadMedia(file, { alt_en: form.elements.alt_en.value.trim(), alt_vi: form.elements.alt_vi.value.trim() }); announce(t('mediaSaved')); }
+      try { await adapter.uploadMedia(file, { alt_en: form.elements.alt_en.value.trim(), alt_vi: form.elements.alt_vi.value.trim() }); announce(''); confirmAction(t('mediaSaved')); }
       catch (error) { announce(errorText(error), true); }
       finally { busy = false; await refresh(); }
     }
