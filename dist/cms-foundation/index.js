@@ -183,10 +183,12 @@ export function mountCms(root, options) {
       try {
         await adapter.remove(selected.id, {expectedVersion: selected.version});
         if (disposed) return;
-        if (draft?.id === selected.id) { draft = null; baseline = ''; await closeEditorDialog(); }
+        let closing;
+        if (draft?.id === selected.id) { draft = null; baseline = ''; closing = closeEditorDialog(); }
         announce('');
-        await refresh();
         confirmAction(t('deleted'));
+        await closing;
+        await refresh();
       } catch (error) { if (!disposed) { announce(errorText(error), true); if (draft) editorNotice(errorText(error)); } }
       finally { if (!disposed) { busy = false; if (draft) editor(); else renderWorkspace(); } }
       return;

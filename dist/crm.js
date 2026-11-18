@@ -1,4 +1,7 @@
 import {workspaceUI} from './workspace-ui.js';
+import {clearCounterValues,setCounterValues} from './action-toast.js';
+
+const statIds=['all','leads','due','mine'].map(key=>`crm-stat-${key}`);
 
 export function createCRM({db,doc,t,isStaff,canAssign=isStaff,canTrash=isStaff,getUser,getRoster,showDialog,closeDialog,notify,openApplication,openChat}){
  const {$,el,button,notice,date,run,staffOptions,take}=workspaceUI(doc,t);
@@ -35,9 +38,9 @@ export function createCRM({db,doc,t,isStaff,canAssign=isStaff,canTrash=isStaff,g
   if(!isStaff())return;const generation=s.generation;
   const base=()=>db.from('gary_crm_contacts').select('id',{count:'exact',head:true}).neq('stage','archived');
   const results=await Promise.all([base(),base().eq('stage','lead'),base().lte('follow_up_at',new Date().toISOString()),base().eq('assigned_staff_id',getUser().id)]);
-  results.forEach(take);if(generation!==s.generation||!isStaff())return;s.stats=results.map(result=>result.count??0);renderStats();
+  results.forEach(take);if(generation!==s.generation||!isStaff())return;s.stats=Object.fromEntries(results.map((result,i)=>[statIds[i],result.count]));renderStats();
  }
- function renderStats(){if(s.stats)['all','leads','due','mine'].forEach((key,i)=>{$(`#crm-stat-${key}`).textContent=String(s.stats[i])})}
+ function renderStats(){if(s.stats)setCounterValues(doc,s.stats,doc.documentElement.lang)}
  function render(){
   if(!isStaff())return;renderStats();
   const filterCount=[$('#customer-search').value.trim(),$('#contact-stage-filter').value,$('#contact-owner-filter').value,$('#contact-due-filter').value].filter(Boolean).length;
@@ -109,7 +112,7 @@ export function createCRM({db,doc,t,isStaff,canAssign=isStaff,canTrash=isStaff,g
   for(const key of ['interested_service','assigned_staff_id'])values[key]||=null;
   values.tags=tags;values.follow_up_at=form.elements.follow_up_at.value?new Date(form.elements.follow_up_at.value).toISOString():null;notice('#contact-edit-feedback','');
   await run(form,async()=>{let contact;try{contact=take(await(editing?db.from('gary_crm_contacts').update(values).eq('id',editing):db.from('gary_crm_contacts').insert(values)).select().single())}catch{if(generation===s.generation)notice('#contact-edit-feedback','genericError',true);return}
-   if(generation!==s.generation||!isStaff())return;closeDialog($('#contact-edit-dialog'));if(!editing)s.page=0;await enter();if(generation!==s.generation||!isStaff())return;if(editing&&$('#contact-dialog').open){try{await refreshDetail(contact.id)}catch{notice('#contact-feedback','noteLoadError',true)}}else await openContact(contact.id);if(generation===s.generation)notify('contactSaved');
+   if(generation!==s.generation||!isStaff())return;closeDialog($('#contact-edit-dialog'));notify('contactSaved');if(!editing)s.page=0;await enter();if(generation!==s.generation||!isStaff())return;if(editing&&$('#contact-dialog').open){try{await refreshDetail(contact.id)}catch{notice('#contact-feedback','noteLoadError',true)}}else await openContact(contact.id);
   });
  });
  $('#contact-note-form').addEventListener('submit',async event=>{
@@ -122,6 +125,6 @@ export function createCRM({db,doc,t,isStaff,canAssign=isStaff,canTrash=isStaff,g
  $('#customer-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(filter,250)});
  for(const id of ['contact-search-by','contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).addEventListener('change',filter);
  $('#refresh-contacts').addEventListener('click',enter);$('#customer-previous').addEventListener('click',()=>{if(s.page){s.page--;load()}});$('#customer-next').addEventListener('click',()=>{if((s.page+1)*20<s.total){s.page++;load()}});
- function reset(){$('#trash-contact').hidden=true;clearFilters.hidden=true;filterSummary.hidden=true;filterSummary.textContent='';tableHeading.hidden=true;s.generation++;s.request++;s.detailRequest++;s.editRequest++;clearTimeout(searchTimer);Object.assign(s,{rows:[],total:0,page:0,stats:null,contact:null,notes:[],events:[],applications:[],chats:[],roster:[],editing:null});for(const id of ['customers-list','contact-summary','contact-notes','contact-events','contact-applications','contact-chats'])$(`#${id}`).replaceChildren();$('#contact-form').reset();$('#contact-note-form').reset();$('#customer-search').value='';for(const id of ['contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).value='';$('#contact-title').textContent='';$('#contact-identity').textContent='';['all','leads','due','mine'].forEach(key=>{$(`#crm-stat-${key}`).textContent='—'});for(const id of ['crm-notice','contact-feedback','contact-edit-feedback'])notice(`#${id}`,'')}
+ function reset(){clearCounterValues(doc,statIds);$('#trash-contact').hidden=true;clearFilters.hidden=true;filterSummary.hidden=true;filterSummary.textContent='';tableHeading.hidden=true;s.generation++;s.request++;s.detailRequest++;s.editRequest++;clearTimeout(searchTimer);Object.assign(s,{rows:[],total:0,page:0,stats:null,contact:null,notes:[],events:[],applications:[],chats:[],roster:[],editing:null});for(const id of ['customers-list','contact-summary','contact-notes','contact-events','contact-applications','contact-chats'])$(`#${id}`).replaceChildren();$('#contact-form').reset();$('#contact-note-form').reset();$('#customer-search').value='';for(const id of ['contact-stage-filter','contact-owner-filter','contact-due-filter'])$(`#${id}`).value='';$('#contact-title').textContent='';$('#contact-identity').textContent='';['all','leads','due','mine'].forEach(key=>{$(`#crm-stat-${key}`).textContent='—'});for(const id of ['crm-notice','contact-feedback','contact-edit-feedback'])notice(`#${id}`,'')}
  return {enter,render,reset,openContact};
 }

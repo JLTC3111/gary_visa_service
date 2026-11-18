@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {JSDOM} from 'jsdom';
+import {bindFeedbackDom} from './feedback-test-dom.mjs';
+
 import {createCRM} from '../dist/crm.js';
 import {mountPortalEditors} from '../dist/portal-editors.js';
 import {createInbox} from '../dist/inbox.js';
@@ -14,6 +16,7 @@ async function until(predicate,message){const deadline=Date.now()+1800;while(!pr
 const submit=(win,id)=>win.document.querySelector(id).dispatchEvent(new win.Event('submit',{cancelable:true}));
 async function page(file='portal.html'){
  const dom=new JSDOM(await readFile(new URL(`../dist/${file}`,import.meta.url),'utf8'),{url:`http://localhost:4173/${file}`,pretendToBeVisual:true});
+  bindFeedbackDom(dom.window);
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false};if(file==='portal.html')mountPortalEditors(dom.window.document);return dom;
 }
 function mockDatabase(tables){

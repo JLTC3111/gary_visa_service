@@ -54,31 +54,3 @@ html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::-webkit-scr
 .portal-appearance select{min-height:40px;max-width:130px;padding:8px 32px 8px 10px;font-size:12px}
 @media(max-width:649px){.portal-appearance select{max-width:112px;min-height:44px;font-size:13px}}
 @media(prefers-reduced-motion:reduce){html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .loading-mark{animation:none}}
-
-.action-toast {
-  position: fixed; inset: auto 12px calc(84px + env(safe-area-inset-bottom)) 12px; z-index: 100;
-  box-sizing: border-box; width: min(440px, calc(100% - 24px)); max-height: 50dvh; overflow: auto; margin: 0 auto;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center;
-  padding: 10px 12px 10px 16px; border: 1px solid var(--toast-accent); border-radius: 12px;
-  background: var(--toast-surface); color: var(--toast-ink); box-shadow: 0 8px 28px #0003;
-  font-size: 14px; line-height: 1.45; text-align: start; overflow-wrap: anywhere;
-  animation: action-toast-in 200ms ease-out;
-}
-.action-toast [data-success-heading], .action-toast [data-success-title] { display: block; font-weight: 650; }
-.action-toast [data-success-link]:not([hidden]) { display: inline-block; margin-top: 4px; color: inherit; text-decoration: underline; }
-.action-toast [data-success-close] {
-  min-height: 44px; padding: 6px 10px; border: 1px solid currentColor; border-radius: 8px;
-  background: transparent; color: inherit; font: inherit; cursor: pointer;
-}
-.action-toast :focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-.action-toast :hover:is(button, a) { text-decoration: underline; }
-@keyframes action-toast-in { from { opacity: 0; translate: 0 5px; } }
-@media (prefers-reduced-motion: reduce) { .action-toast { animation: none; } }
-
-.action-toast {
-  --toast-accent: var(--vp-success, #316447);
-  --toast-surface: var(--vp-success-soft, #e6f1dc);
-  --toast-ink: var(--ink, #173954);
-}
-.action-toast[data-tone="warning"] { --toast-accent: var(--vp-warning, #755417); --toast-surface: var(--vp-warning-soft, #fff4db); }
-.action-toast[data-tone="error"] { --toast-accent: var(--vp-danger, #a4382e); --toast-surface: var(--vp-danger-soft, #ffe9e7); }

@@ -1,0 +1,80 @@
+.action-toast-host {
+  position: fixed;
+  inset: auto 16px calc(84px + env(safe-area-inset-bottom)) 16px;
+  z-index: 100;
+  display: grid;
+  gap: 8px;
+  width: min(460px, calc(100% - 32px));
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  pointer-events: none;
+}
+
+.action-toast-host:empty,
+.action-toast-host[hidden] { display: none; }
+
+.action-toast {
+  --toast-accent: var(--vp-success, #316447);
+  --toast-surface: var(--vp-success-soft, #e6f1dc);
+  --toast-ink: var(--ink, #173954);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--toast-accent);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--toast-surface);
+  color: var(--toast-ink);
+  box-shadow: 0 8px 24px #0003;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  pointer-events: auto;
+  touch-action: pan-x;
+  transform: translateY(var(--toast-offset, 0px));
+  transition: transform 180ms cubic-bezier(.19, .95, .33, 1.2);
+  animation: action-toast-in 150ms ease-out;
+}
+
+.action-toast[data-swiping] { transition: none; user-select: none; }
+.action-toast[data-tone="warning"] { --toast-accent: var(--vp-warning, #755417); --toast-surface: var(--vp-warning-soft, #fff4db); }
+.action-toast[data-tone="error"] { --toast-accent: var(--vp-danger, #a4382e); --toast-surface: var(--vp-danger-soft, #ffe9e7); }
+.action-toast[data-tone="info"] { --toast-accent: var(--vp-info, #2a577a); --toast-surface: var(--vp-info-soft, #e9f1fa); }
+.action-toast-mark { flex: none; width: 1em; color: var(--toast-accent); font-weight: 750; text-align: center; }
+.action-toast-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.action-toast [data-success-heading],
+.action-toast [data-success-title] { display: block; font-weight: 650; }
+.action-toast a { display: inline-block; margin-top: 4px; color: inherit; text-decoration: underline; }
+.action-toast button {
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.action-toast :focus-visible, .action-toast:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+.action-toast :hover:is(button, a) { text-decoration: underline; }
+.action-toast-fuse {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--toast-accent);
+  transform-origin: left;
+  animation: action-toast-burn var(--toast-duration) linear forwards;
+  pointer-events: none;
+}
+.action-toast-fuse[data-paused] { animation-play-state: paused; }
+@keyframes action-toast-in { from { opacity: 0.76; translate: 0 5px; } }
+@keyframes action-toast-burn { to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .action-toast { animation: none; transition: none; transform: none; }
+  .action-toast-fuse { animation: none; }
+}

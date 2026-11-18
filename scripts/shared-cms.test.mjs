@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import {bindFeedbackDom} from './feedback-test-dom.mjs';
+
 import { mountCms } from '../dist/cms-foundation/index.js';
 
 const record = {id: 'one', kind: 'article', slug: 'guide', title_en: 'English guide', title_vi: 'Cẩm nang tiếng Việt', summary_en: 'A useful guide to a clear next step.', summary_vi: 'Cẩm nang hữu ích cho bước tiếp theo.', body_en: 'The English body', body_vi: 'Nội dung tiếng Việt', data: {}, status: 'draft', version: 1};
 const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve)); };
 function harness(overrides = {}, language = 'en') {
   const dom = new JSDOM('<main id="root"></main>', {url: 'https://example.test/portal.html'}), root = dom.window.document.querySelector('main');
+  bindFeedbackDom(dom.window);
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   dom.window.confirm = () => true;

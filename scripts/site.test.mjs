@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {build} from 'esbuild';
 import {JSDOM} from 'jsdom';
+import {bindFeedbackDom} from './feedback-test-dom.mjs';
+
 import {portalCopy} from '../dist/portal-copy.js';
 import {createCRM} from '../dist/crm.js';
 import {mountPortalEditors} from '../dist/portal-editors.js';
@@ -11,12 +13,13 @@ import {createInbox} from '../dist/inbox.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
 import {createTrash} from '../dist/trash.js';
 import {createStaffAccess} from '../dist/staff-access.js';
+import {createProfileAvatar} from '../dist/profile-avatar.js';
 import {workspaceUI} from '../dist/workspace-ui.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function flush(){for(let i=0;i<8;i++)await tick()}
 function environment(html,url='http://localhost:4173/'){
  const dom=new JSDOM(html,{url,runScripts:'outside-only',pretendToBeVisual:true});const {window}=dom;
- window.matchMedia=()=>({matches:false,addEventListener(){}});window.HTMLElement.prototype.scrollIntoView=function(){};
+ window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});window.HTMLElement.prototype.scrollIntoView=function(){};
  window.HTMLDialogElement.prototype.showModal=function(){this.open=true};window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new window.Event('close'))};return dom;
 }
 test('Public site filters, translates, recommends services and safely prepares enquiries',async()=>{
@@ -35,6 +38,8 @@ test('Public site filters, translates, recommends services and safely prepares e
 
 async function portalEnvironment(role='customer',url='http://localhost:4173/portal.html',cmsFactory=createAgencyCms,access=role==='staff'?{member:true,operations:'admin',cms:'admin'}:{member:false,operations:null,cms:null}){
  const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const dom=environment(html,url);mountStaffSidebar(dom.window.document);const w=dom.window;const calls=[];const profile={id:'customer-id',full_name:'Alex Customer',contact_email:'alex@example.test',phone:'',nationality:'',preferred_language:'en'};
+ bindFeedbackDom(w);
+ w.createProfileAvatar=createProfileAvatar;
  const application={id:'12345678-0000-4000-8000-000000000001',customer_id:'customer-id',service:'visa',subject:'A real service request',details:'Customer plans',status:'submitted',created_at:'2026-10-20T10:00:00Z',updated_at:'2026-10-20T10:00:00Z',assigned_staff_id:null};
  class Query{
   constructor(table){this.table=table;this.operation='select';this.singleRow=false;this.options={}}
@@ -43,7 +48,7 @@ async function portalEnvironment(role='customer',url='http://localhost:4173/port
   then(resolve,reject){let data=[];if(this.table==='gary_applications')data=this.singleRow?{...application,...this.values}:application.deleted_at?[]:[application];if(this.table==='gary_profiles')data=this.singleRow?profile:[profile];if(this.table==='gary_application_events')data=[{id:'event-1',status:'submitted',created_at:application.created_at}];return Promise.resolve({data:this.options.head?null:data,error:null,count:this.table==='gary_applications'?(application.deleted_at?0:1):0}).then(resolve,reject)}
  }
  const auth={getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>{},getUser:async()=>({data:{user:{id:'customer-id',email:'alex@example.test',user_metadata:{full_name:'Alex Customer'}}},error:null}),signInWithPassword:async values=>{calls.push({operation:'signin',values});return {data:{session:{}},error:null}},signUp:async values=>{calls.push({operation:'signup',values});return {data:{session:null},error:null}},signOut:async()=>({error:null})};
- w.__backend={db:{auth,rpc:async(name,args)=>{if(['gary_trash_record','gary_restore_record','gary_list_trash'].includes(name)){calls.push({operation:'rpc',name,args});if(name==='gary_trash_record'&&args.p_kind==='case')application.deleted_at='2026-11-16T06:00:00Z';return {data:name==='gary_list_trash'?{records:[],total:0}:{id:args.p_id,kind:args.p_kind},error:null}}if(name==='gary_my_access'||name==='gary_staff_access_list'){calls.push({operation:'rpc',name,args});return {data:name==='gary_my_access'?access:{members:[]},error:null}}return {data:name==='gary_staff_directory'?[]:role,error:null}},from:table=>new Query(table)},unwrap:result=>{if(result.error)throw result.error;return result.data},ensureProfile:async()=>profile,EDITABLE_STATUSES:['submitted','documents_needed'],validateDocument:()=>{},documentPath:()=>'',authRedirect:()=>url,config:{supabaseUrl:'https://example.supabase.co'},portalCopy,createCRM,createInbox,createAgencyCms:cmsFactory,createTrash,createStaffAccess,workspaceUI,mountPortalEditors};
+ w.__backend={db:{auth,storage:{from:()=>({})},rpc:async(name,args)=>{if(['gary_trash_record','gary_restore_record','gary_list_trash'].includes(name)){calls.push({operation:'rpc',name,args});if(name==='gary_trash_record'&&args.p_kind==='case')application.deleted_at='2026-11-16T06:00:00Z';return {data:name==='gary_list_trash'?{records:[],total:0}:{id:args.p_id,kind:args.p_kind},error:null}}if(name==='gary_my_access'||name==='gary_staff_access_list'){calls.push({operation:'rpc',name,args});return {data:name==='gary_my_access'?access:{members:[]},error:null}}return {data:name==='gary_staff_directory'?[]:role,error:null}},from:table=>new Query(table)},unwrap:result=>{if(result.error)throw result.error;return result.data},ensureProfile:async()=>profile,EDITABLE_STATUSES:['submitted','documents_needed'],validateDocument:()=>{},documentPath:()=>'',authRedirect:()=>url,config:{supabaseUrl:'https://example.supabase.co'},portalCopy,createCRM,createInbox,createAgencyCms:cmsFactory,createTrash,createStaffAccess,workspaceUI,mountPortalEditors};
  let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox,createAgencyCms,createTrash,createStaffAccess,workspaceUI,mountPortalEditors}=globalThis.__backend;${source}\n})()`);
  return {dom,w,doc:w.document,calls,application};
 }
