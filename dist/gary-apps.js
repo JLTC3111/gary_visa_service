@@ -1,4 +1,4 @@
-import { connectGaryApps } from './gary-apps-client.js';
+// Security: use the reviewed, locally shipped menu; never execute a remote Home release.
 import { enhanceGaryApps } from './gary-apps-brand.js';
 
 const currentApp = 'visa';
@@ -200,38 +200,17 @@ function applyCopy() {
   }
 }
 
-const connections = [], branding = [];
+const branding = [];
 const language = () => document.documentElement.lang === 'vi' ? 'vi' : 'en';
 for (const slot of [...document.querySelectorAll('[data-gary-apps]')]) {
   const variant = slot.getAttribute('data-gary-apps');
   const menu = render(variant);
-  const remote = document.createElement('div');
-  remote.className = 'gary-apps-remote';
-  remote.hidden = true;
-  slot.append(menu, remote);
+  slot.append(menu);
   branding.push(enhanceGaryApps(slot, language));
   bind(menu);
-  let ready = false;
-  const connection = connectGaryApps(remote, {
-    kind: 'menu', currentApp, language: language(),
-    className: variant === 'header' ? 'gary-apps-menu--header' : '',
-  }, {
-    isBusy: () => menu.open || menu.contains(document.activeElement),
-    onReady() {
-      ready = true;
-      menu.hidden = true;
-      remote.hidden = false;
-    },
-    onError() {
-      // Failed refreshes keep the last working shared release visible.
-      if (!ready) { remote.hidden = true; menu.hidden = false; }
-    },
-  });
-  connections.push(connection);
 }
 applyCopy();
 document.addEventListener('gary:language', () => {
   applyCopy();
   for (const controller of branding) controller.refresh();
-  for (const connection of connections) connection.update({ language: language() });
 });

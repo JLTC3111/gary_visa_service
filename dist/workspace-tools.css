@@ -47,18 +47,31 @@
 @media(max-width:649px){.crm-detail-actions{justify-content:flex-start;width:100%}.trash-record{align-items:flex-start;gap:12px;padding:14px}.trash-record h2{font-size:15px}.trash-record .trash-restore{min-height:44px;padding:9px 12px}}
 .crm-table-heading,.relationship-badge{font-size:13px}
 
-/* Staff management: directory beside a permissions guide, following Gary Home's team layout. */
+/* Team Access: staff management beside role permissions and protections, following Gary Home's team layout. */
 .staff-access-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(270px,.88fr);gap:24px;align-items:start}
+.staff-access-main{display:grid;gap:24px;min-width:0}
 .staff-access-heading{padding:22px 24px 4px}
 .staff-access-heading h2,.staff-access-guide h2{font-size:18px;line-height:1.3;margin:0 0 6px;color:var(--vp-text,var(--ink))}
 .staff-access-heading p,.staff-access-guide p{margin:0;font-size:13px;line-height:1.6;color:var(--vp-muted,#526978)}
+.staff-access-add-panel{padding:22px 24px 24px}
+.staff-access-add-panel .staff-access-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:0 0 18px}
+.staff-access-add-panel .staff-access-heading>.icon{width:22px;height:22px;flex-shrink:0;color:var(--vp-accent,var(--teal))}
+.staff-access-add .form-row{gap:16px}
+.staff-access-add .form-field{margin-bottom:16px}
+.staff-access-add .form-field label{font-size:13px;font-weight:600;color:var(--vp-text,var(--ink))}
+.staff-access-add .form-field input,.staff-access-add .form-field select{font-size:14px;min-height:46px}
+.staff-access-add .form-feedback{margin:0}.staff-access-add .form-feedback:not(:empty){margin-bottom:14px}
+.staff-access-add-actions{display:flex;justify-content:flex-end}
 .staff-access-member{display:flex;align-items:center;gap:13px;padding:18px 24px;border-top:1px solid var(--vp-line,var(--line))}
 .staff-access-avatar{width:40px;height:40px}
 .staff-access-details{display:grid;gap:2px;flex:1;min-width:0}
 .staff-access-details strong,.staff-access-details small{overflow-wrap:anywhere}
 .staff-access-details strong{font-size:14px;color:var(--vp-text,var(--ink))}
 .staff-access-details small{font-size:12px;color:var(--vp-muted,#526978)}
-.staff-access-details .relationship-badge{margin-top:4px}
+.staff-access-tags{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+.staff-access-status{display:inline-flex;align-items:center;width:fit-content;border-radius:30px;padding:4px 9px;font-size:12px;font-weight:600;line-height:1.4;background:var(--vp-neutral-soft,#eef2f3);color:var(--vp-muted,#526978)}
+.staff-access-status.is-active{background:var(--vp-success-soft,#e6f1dc);color:var(--vp-success,#38612d)}
+.staff-access-status.is-unavailable{background:var(--vp-warning-soft,#fff4db);color:var(--vp-warning,#755417)}
 .staff-access-controls{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:12px;flex:0 1 340px;min-width:0}
 .staff-access-field{display:grid;gap:5px;align-content:start;min-width:0}
 .staff-access-field label,.staff-access-label{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--vp-muted,#526978)}
@@ -68,7 +81,8 @@
 .staff-access-guide{padding:24px;position:sticky;top:24px}
 .staff-access-guide>.icon{width:24px;height:24px;margin-bottom:12px;color:var(--vp-accent,var(--teal))}
 .staff-access-guide h3{margin:20px 0 4px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--vp-text,var(--ink))}
-.staff-access-guide .workspace-hint{margin:18px 0 0}
+.staff-access-protections{display:grid;gap:8px;margin:8px 0 0;padding-left:18px}
+.staff-access-protections li{font-size:13px;line-height:1.5;color:var(--vp-muted,#526978)}
 .staff-access-roles{display:grid;gap:3px;margin:0}
 .staff-access-roles dt{margin-top:8px;font-size:13px;font-weight:600;color:var(--vp-text,var(--ink))}
 .staff-access-roles dd{margin:0;font-size:13px;line-height:1.5;color:var(--vp-muted,#526978)}
@@ -77,5 +91,5 @@
 .staff-no-access p{margin:4px 0 0}
 .case-assignee-field{margin-top:12px}
 @media(max-width:1199px){.staff-access-grid{grid-template-columns:1fr}.staff-access-guide{position:static}}
-@media(max-width:700px){.staff-access-member{flex-wrap:wrap;padding:16px}.staff-access-controls{flex-basis:100%;grid-template-columns:1fr 1fr}}
-@media(max-width:480px){.staff-access-controls{grid-template-columns:1fr}}
+@media(max-width:700px){.staff-access-member{flex-wrap:wrap;padding:16px}.staff-access-controls{flex-basis:100%;grid-template-columns:1fr 1fr}.staff-access-add-panel{padding:18px 16px 20px}.staff-access-add .form-field input,.staff-access-add .form-field select{font-size:16px}}
+@media(max-width:480px){.staff-access-controls{grid-template-columns:1fr}.staff-access-add .form-row{grid-template-columns:1fr;gap:0}.staff-access-add-actions .button{width:100%}}

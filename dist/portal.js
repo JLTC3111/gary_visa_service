@@ -37,7 +37,7 @@ const badge=status=>element('span',{class:`status-badge status-${status}`},t(`st
 let toastTimer,searchTimer,customerSearchTimer;
 function toast(key){$('#toast').textContent=t(key);$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('#toast').hidden=true},5500)}
 function feedback(target,key,error=false){const node=$(target);node.textContent=key?t(key):'';node.classList.toggle('error',error)}
-function errorKey(error){if(['documentType','documentSize','roleError','weakPassword'].includes(error?.message))return error.message;if(error?.message==='AGENCY_ASSIGNEE_INVALID')return'assigneeUnavailable';if(error?.code==='invalid_credentials')return'invalidSignin';if(error?.code==='email_not_confirmed')return'confirmEmail';if(error?.code==='weak_password')return'weakPassword';if(error?.code?.includes('rate_limit'))return'rateLimited';if(error?.code==='42501')return'permissionChanged';return'genericError'}
+function errorKey(error){if(['documentType','documentSize','roleError','weakPassword'].includes(error?.message))return error.message;if(error?.message==='AGENCY_ASSIGNEE_INVALID')return'assigneeUnavailable';if(error?.code==='invalid_credentials')return'invalidSignin';if(error?.code==='email_not_confirmed')return'confirmEmail';if(error?.code==='weak_password')return'weakPassword';if(error?.code?.includes('rate_limit'))return'rateLimited';if(error?.code==='42501'){schedulePermissionRefresh(true);return'permissionChanged'};return'genericError'}
 async function busy(form,callback){const buttons=[...form.querySelectorAll('button[type=submit]')];buttons.forEach(button=>{button.disabled=true;button.setAttribute('aria-busy','true')});try{return await callback()}finally{buttons.forEach(button=>{button.disabled=false;button.removeAttribute('aria-busy')})}}
 function showDialog(node){if(!node.open){node.showModal();document.body.classList.add('dialog-open')}}
 function closeDialog(node){node.close();if(!document.querySelector('dialog[open]'))document.body.classList.remove('dialog-open')}
@@ -109,7 +109,7 @@ $('#auth-form').addEventListener('submit',async event=>{
 });
 
 function updateDocumentTitle(){
- const copy=language==='vi'?{customer:'Cổng khách hàng',staff:'Cổng nhân viên',signin:'Đăng nhập khách hàng',staffSignin:'Đăng nhập nhân viên',signup:'Tạo tài khoản khách hàng',reset:'Đặt lại mật khẩu',recovery:'Đặt mật khẩu mới',applications:'Hồ sơ',profile:'Hồ sơ cá nhân',customers:'Quan hệ khách hàng',inbox:'Hộp thư chat trực tiếp',cms:'Quản lý nội dung',trash:'Thùng rác','staff-access':'Quản lý nhân viên',error:'Không thể tải không gian làm việc'}:{customer:'Customer Portal',staff:'Staff Portal',signin:'Customer Sign In',staffSignin:'Staff Sign In',signup:'Create Customer Account',reset:'Reset Password',recovery:'Set New Password',applications:'Applications',profile:'My Profile',customers:'Customer Relationships',inbox:'Live Chat Inbox',cms:'Content Management',trash:'Trash','staff-access':'Staff Management',error:'Workspace Unavailable'};
+ const copy=language==='vi'?{customer:'Cổng khách hàng',staff:'Cổng nhân viên',signin:'Đăng nhập khách hàng',staffSignin:'Đăng nhập nhân viên',signup:'Tạo tài khoản khách hàng',reset:'Đặt lại mật khẩu',recovery:'Đặt mật khẩu mới',applications:'Hồ sơ',profile:'Hồ sơ cá nhân',customers:'Quan hệ khách hàng',inbox:'Hộp thư chat trực tiếp',cms:'Quản lý nội dung',trash:'Thùng rác','staff-access':'Quyền truy cập đội ngũ',error:'Không thể tải không gian làm việc'}:{customer:'Customer Portal',staff:'Staff Portal',signin:'Customer Sign In',staffSignin:'Staff Sign In',signup:'Create Customer Account',reset:'Reset Password',recovery:'Set New Password',applications:'Applications',profile:'My Profile',customers:'Customer Relationships',inbox:'Live Chat Inbox',cms:'Content Management',trash:'Trash','staff-access':'Team Access',error:'Workspace Unavailable'};
  let title;
  if(!$('#workspace').hidden)title=`${copy[state.view]} | ${copy[staff()?'staff':'customer']}`;
  else if(!$('#auth-screen').hidden)title=copy[state.mode==='signin'&&state.area==='staff'?'staffSignin':state.mode];
@@ -138,6 +138,33 @@ async function loadWorkspace(){
  finally{if(generation===state.generation)state.loading=false}
 }
 $('#retry-workspace').addEventListener('click',()=>loadWorkspace());
+// Refresh permissions without remounting an unchanged editor. Never run SDK calls
+// synchronously inside an Auth callback; coalesce focus/token/denial events.
+function permissionDeadline(promise){let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('permission_timeout')),10000)})]).finally(()=>clearTimeout(timer))}
+let permissionRefreshTimer,permissionRefreshing=false,permissionDenied=false;
+function schedulePermissionRefresh(denied=false){
+ if(!state.user||state.recovery)return;permissionDenied ||= denied;if(permissionRefreshing)return;
+ clearTimeout(permissionRefreshTimer);
+ permissionRefreshTimer=setTimeout(()=>{const force=permissionDenied;permissionDenied=false;void refreshPermissions(force)},0);
+}
+async function refreshPermissions(denied=false){
+ if(permissionRefreshing||state.loading||!state.user||state.recovery)return;
+ permissionRefreshing=true;const generation=state.generation,id=state.user.id;
+ try{
+  const identity=await permissionDeadline(db.auth.getUser());if(generation!==state.generation)return;
+  if(identity.error){if([401,403].includes(identity.error.status)||['AuthSessionMissingError','AuthInvalidJwtError'].includes(identity.error.name)||['session_not_found','user_banned','user_not_found','bad_jwt'].includes(identity.error.code))resetWorkspace();else if(denied||permissionDenied){resetWorkspace();feedback('#auth-notice','permissionChanged',true)}return}
+  if(identity.data?.user?.id!==id){resetWorkspace();await loadWorkspace();return}
+  const next=unwrap(await permissionDeadline(db.rpc('gary_my_access')));if(generation!==state.generation)return;
+  const changed=!!next?.member!==staff()||(next?.operations??null)!==(state.access?.operations??null)||(next?.cms??null)!==(state.access?.cms??null);
+  if(changed||denied||permissionDenied){resetWorkspace();await loadWorkspace();toast('permissionChanged')}
+ }catch(error){if(generation===state.generation&&(denied||permissionDenied||error?.code==='42501'||[401,403].includes(error?.status))){resetWorkspace();feedback('#auth-notice','permissionChanged',true)}}
+ finally{permissionRefreshing=false;permissionDenied=false}
+}
+window.addEventListener('focus',()=>schedulePermissionRefresh());
+window.addEventListener('pageshow',()=>schedulePermissionRefresh());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')schedulePermissionRefresh()});
+window.addEventListener('gary:access-denied',()=>schedulePermissionRefresh(true));
+
 function renderIdentity(){
  document.body.dataset.role=state.role;$('#user-display-name').textContent=state.profile.full_name||state.user.email||t('account');$('#user-avatar').textContent=(state.profile.full_name||state.user.email||'G').slice(0,1).toUpperCase();$('#user-role-label').textContent=t(staff()?'staff':'customer');$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('[data-view=applications]').hidden=!viewAllowed('applications');$('#customers-nav').hidden=!operations();$('#inbox-nav').hidden=!operations();$('#cms-nav').hidden=!viewAllowed('cms');$('#trash-nav').hidden=!viewAllowed('trash');$('#staff-access-nav').hidden=!managesStaff();$('#staff-no-access').hidden=!staff()||operations()||cmsRole()!==null;$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?oversees()?'allApplications':'assignedApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?oversees()?'staffDashboardIntro':'assignedDashboardIntro':'dashboardIntro');
 }
@@ -223,6 +250,6 @@ translate();
 db.auth.onAuthStateChange((event,session)=>{
  if(event==='SIGNED_OUT'){resetWorkspace();return}
  if(event==='PASSWORD_RECOVERY'){state.recovery=true;state.user=session?.user??null;state.mode='recovery';setScreen('auth-screen');renderAuth();return}
- if(event==='SIGNED_IN'&&session&&!state.recovery&&!state.profile)queueMicrotask(()=>loadWorkspace());
+ if(['SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED'].includes(event)&&session&&!state.recovery){if(!state.profile)queueMicrotask(()=>loadWorkspace());else schedulePermissionRefresh()}
 });
 try{const {data,error}=await db.auth.getSession();if(error)throw error;if(data.session){state.user=data.session.user;if(state.recovery){state.mode='recovery';setScreen('auth-screen');renderAuth()}else await loadWorkspace()}else{setScreen('auth-screen');if(new URLSearchParams(location.hash.slice(1)).has('error'))feedback('#auth-notice','linkExpired',true)}}catch{setScreen('auth-screen');feedback('#auth-notice','genericError',true)}

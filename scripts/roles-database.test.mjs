@@ -9,14 +9,15 @@ const uid={customer:id(1),customer2:id(2),staff:id(3),staff2:id(4),manager:id(5)
 const legacyMembers=['staff','staff2','manager','admin','admin2','editor','publisher','cmsAdmin','noAccess'];
 const operationsRoles={staff:'staff',staff2:'staff',manager:'manager',admin:'admin',admin2:'admin',editor:null,publisher:null,cmsAdmin:null,noAccess:null};
 const migrations=['20261022180819_gary_customer_staff_portal.sql','20261023040329_crm_and_site_chat.sql','20261023044012_live_staff_chat.sql','20261116043114_agency_cms_foundation.sql','20261116095518_agency_recoverable_deletion.sql'];
+const teamAccessMigrations=['20261117202944_staff_auth_eligibility.sql','20261118034500_visa_team_access.sql'];
 const sql=name=>readFile(new URL(`../supabase/${name}`,import.meta.url),'utf8');
 const denied=(fn,code='42501')=>assert.rejects(fn,error=>error.code===code);
 
-async function setup({assignRoles=true}={}){
+async function setup({assignRoles=true,teamAccess=false}={}){
  const db=new PGlite();
  const q=(text,params=[])=>db.query(text,params),one=async(text,params)=>(await q(text,params)).rows[0];
  const count=async(text,params)=>Number((await one(`select count(*) n from (${text}) counted`,params)).n);
- const as=async who=>{await db.exec('reset role');await q("select set_config('request.jwt.claim.sub',$1,false)",[who?uid[who]:'']);await db.exec(`set role ${who?'authenticated':'anon'}`)};
+ const as=async who=>{await db.exec('reset role');await q("select set_config('request.jwt.claim.sub',$1,false)",[who?uid[who]??who:'']);await db.exec(`set role ${who?'authenticated':'anon'}`)};
  const owner=async()=>{await db.exec('reset role');await q("select set_config('request.jwt.claim.sub','',false)")};
  const rpc=async(name,params=[])=>(await one(`select public.${name}(${params.map((_,i)=>`$${i+1}`).join(',')}) result`,params)).result;
  await db.exec(`create role anon;create role authenticated;create schema auth;create schema storage;create schema realtime;
@@ -56,6 +57,11 @@ async function setup({assignRoles=true}={}){
  await q("insert into public.gary_staff_notes(application_id,body) values($1,'Assigned note'),($2,'Other note')",[assigned.id,other.id]);
  await owner();await db.exec(await sql('migrations/20261117190000_visa_operations_cms_roles.sql'));
  if(assignRoles)for(const [name,role] of Object.entries(operationsRoles))await q('update gary_private.staff_members set operations_role=$1 where user_id=$2',[role,uid[name]]);
+ if(teamAccess){
+  // Supabase Auth columns read by staff identity eligibility; every fixture starts confirmed.
+  await db.exec('alter table auth.users add column email_confirmed_at timestamptz default now(),add column deleted_at timestamptz,add column is_anonymous boolean not null default false,add column banned_until timestamptz');
+  for(const name of teamAccessMigrations)await db.exec(await sql(`migrations/${name}`));
+ }
  return {db,q,one,count,as,owner,rpc,ids:{assigned:assigned.id,queued:queued.id,other:other.id,contact,otherContact,guest,customerChat}};
 }
 
@@ -75,7 +81,7 @@ test('upgrade keeps records, makes legacy members Operations Admins, and guards 
   await h.as('newcomer');assert.deepEqual(await h.rpc('gary_my_access'),{member:true,operations:null,cms:null},'members added after the upgrade start with No Access');
   assert.equal(await h.count('select 1 from public.gary_applications'),0);
 
-  await h.owner();const script=await sql('set-visa-roles.sql');
+  await h.owner();const script=(await sql('set-visa-roles.sql')).replaceAll('skycastle3@protonmail.com','REPLACE_WITH_STAFF_EMAIL');
   await assert.rejects(()=>h.db.exec(script),/Nothing changed: replace REPLACE_WITH_STAFF_EMAIL/,'the unedited owner script changes nobody');await h.db.exec('rollback');
   await assert.rejects(()=>h.db.exec(script.replace("'REPLACE_WITH_STAFF_EMAIL'","'nobody@example.test'")),/nobody@example\.test is not a Gary Visa staff member/);await h.db.exec('rollback');
   await h.db.exec('begin;alter table gary_private.access_events rename to access_events_hidden');
@@ -249,5 +255,66 @@ test('Staff Management is Visa-only and protects self, peer Admins and the Admin
   await denied(()=>h.rpc('gary_staff_access_list'));await denied(()=>h.rpc('gary_set_operations_role',[uid.customer,'admin',null]));await denied(()=>h.rpc('gary_set_cms_role',[uid.customer,'admin',null]));
   await denied(()=>h.q('select * from gary_private.access_events'));await denied(()=>h.q("update gary_private.staff_members set operations_role='admin'"));
   await h.as(null);await denied(()=>h.rpc('gary_my_access'));await denied(()=>h.rpc('gary_staff_access_list'));
+ }finally{await h.db.close()}
+});
+
+test('Team Access adds verified existing accounts with a lower role from each Admin’s own area only',async()=>{
+ const h=await setup({teamAccess:true});
+ const extra={candidate:id(20),cmsCandidate:id(21),dualCandidate:id(22),unverified:id(23),suspended:id(24),anonymous:id(25),removed:id(26)};
+ const add=(...args)=>h.rpc('gary_add_staff_member',args),access=async who=>{await h.as(who);return h.rpc('gary_my_access')};
+ try{
+  await h.owner();
+  for(const [name,value] of Object.entries(extra))await h.q('insert into auth.users(id,email) values($1,$2)',[value,`${name.toLowerCase()}@example.test`]);
+  await h.q('update auth.users set email_confirmed_at=null where id=$1',[extra.unverified]);
+  for(const user of [extra.suspended,uid.noAccess,uid.admin2])await h.q("update auth.users set banned_until=now()+interval '1 day' where id=$1",[user]);
+  await h.q('update auth.users set is_anonymous=true where id=$1',[extra.anonymous]);
+  await h.q('update auth.users set deleted_at=now() where id=$1',[extra.removed]);
+  const accounts=(await h.q('select * from auth.users order by id')).rows;
+
+  await h.as('admin');
+  const list=await h.rpc('gary_staff_access_list'),row=user=>list.members.find(member=>member.user_id===user);
+  assert.deepEqual(Object.keys(row(uid.staff)).sort(),['account','cms_role','display_name','email','manage_cms','manage_operations','operations_role','self','user_id']);
+  assert.deepEqual([row(uid.staff).account,row(uid.noAccess).account,row(uid.admin2).account],['active','unavailable','unavailable'],'suspended members are listed as unable to sign in');
+  assert.equal(list.members.some(member=>Object.values(extra).includes(member.user_id)),false,'accounts are listed only once added');
+
+  assert.deepEqual(await add(' Candidate@Example.TEST ','manager',null),{user_id:extra.candidate,operations_role:'manager',cms_role:null});
+  for(const [operations,cms] of [[null,'editor'],['staff','editor']])await denied(()=>add('cmscandidate@example.test',operations,cms));
+  await denied(()=>add('cmscandidate@example.test','admin',null));
+  for(const [email,operations,cms] of [['cmscandidate@example.test',null,null],['cmscandidate@example.test','owner',null],['not-an-email','staff',null]])await denied(()=>add(email,operations,cms),'22023');
+  for(const email of ['nobody@example.test','unverified@example.test','suspended@example.test','anonymous@example.test','removed@example.test'])await denied(()=>add(email,'staff',null),'P0002');
+  await denied(()=>add('staff@example.test','manager',null),'23505');
+  await denied(()=>add('admin@example.test','staff',null));
+  assert.deepEqual(await add('outsider@example.test','staff',null),{user_id:uid.outsider,operations_role:'staff',cms_role:null});
+
+  await h.as('cmsAdmin');
+  assert.deepEqual(await add('cmscandidate@example.test',null,'publisher'),{user_id:extra.cmsCandidate,operations_role:null,cms_role:'publisher'});
+  for(const [operations,cms] of [['staff',null],['staff','editor']])await denied(()=>add('dualcandidate@example.test',operations,cms));
+  await denied(()=>add('dualcandidate@example.test',null,'admin'));
+  await denied(()=>add('candidate@example.test',null,'editor'),'23505');
+
+  for(const who of ['admin2','manager','staff','publisher','editor','noAccess','customer',extra.candidate]){await h.as(who);await denied(()=>add('dualcandidate@example.test','staff',null))}
+  await h.as('admin2');await denied(()=>h.rpc('gary_staff_access_list'),'42501');
+  await h.as(null);await denied(()=>add('dualcandidate@example.test','staff',null));
+  await h.owner();await h.q("insert into gary_private.cms_members(user_id,role) values($1,'admin')",[uid.admin]);
+  await h.as('admin');assert.deepEqual(await add('dualcandidate@example.test','staff','editor'),{user_id:extra.dualCandidate,operations_role:'staff',cms_role:'editor'},'an Admin of both areas assigns both');
+
+  assert.deepEqual(await access(extra.candidate),{member:true,operations:'manager',cms:null});
+  assert.equal(await h.count('select 1 from public.gary_applications'),3,'a new Manager oversees every case');
+  assert.deepEqual(await access(extra.cmsCandidate),{member:true,operations:null,cms:'publisher'});
+  assert.equal(await h.count('select 1 from public.gary_applications'),0,'a CMS role never implies Operations access');
+  assert.deepEqual(await access('outsider'),{member:true,operations:'staff',cms:null},'membership never revives a CMS role the adding Admin did not choose');
+  assert.equal((await h.rpc('gary_cms_capabilities')).read,false);
+  assert.deepEqual(await access(extra.dualCandidate),{member:true,operations:'staff',cms:'editor'});
+
+  await h.owner();
+  const event=(member,scope,to,actor)=>({member_id:member,scope,from_role:null,to_role:to,actor_id:uid[actor]});
+  assert.deepEqual((await h.q("select member_id,scope,from_role,to_role,actor_id from gary_private.access_events where source='portal' order by member_id,scope")).rows,[
+   event(uid.outsider,'membership','member','admin'),event(uid.outsider,'operations','staff','admin'),
+   event(extra.candidate,'membership','member','admin'),event(extra.candidate,'operations','manager','admin'),
+   event(extra.cmsCandidate,'cms','publisher','cmsAdmin'),event(extra.cmsCandidate,'membership','member','cmsAdmin'),
+   event(extra.dualCandidate,'cms','editor','admin'),event(extra.dualCandidate,'membership','member','admin'),event(extra.dualCandidate,'operations','staff','admin')
+  ],'every addition records who added the member and which roles were granted');
+  assert.deepEqual(await h.one('select role,active from gary_private.cms_members where user_id=$1',[uid.outsider]),{role:'admin',active:false});
+  assert.deepEqual((await h.q('select * from auth.users order by id')).rows,accounts,'accounts, confirmations and suspensions are never changed');
  }finally{await h.db.close()}
 });
