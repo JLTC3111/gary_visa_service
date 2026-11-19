@@ -6,7 +6,7 @@ import {loadPublishedCms,renderPublicCms,renderServiceCms,cmsCopyOverrides} from
 import {createAgencyCmsAdapter} from '../dist/cms.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
 const fixture=async()=>new JSDOM(await readFile(new URL('../dist/index.html',import.meta.url),'utf8'),{url:'https://visa.example/'});
-const entry=(kind,slug,extra={})=>({id:slug,kind,slug,title_en:'English '+slug,title_vi:'Tiếng Việt '+slug,summary_en:'English summary',summary_vi:'Tóm tắt tiếng Việt',body_en:'English body',body_vi:'Nội dung tiếng Việt',data:{},...extra});
+const entry=(kind,slug,extra={})=>({id:slug,kind,slug,title_en:'English '+slug,title_vi:'Tiếng Việt '+slug,summary_en:'English summary',summary_vi:'Tóm tắt tiếng Việt',body_en:'English body',body_vi:'Nội dung tiếng Việt',published_at:'2026-01-08T09:00:00Z',data:{},...extra});
 const landing=['hero','services','process','about','faq','contact'].map(slot=>entry('landing',slot,{data:{slot,accent_en:'Second line',accent_vi:'Dòng thứ hai',third_line_en:'Third line',third_line_vi:'Dòng thứ ba'}}));
 test('published content replaces public services, eligibility/documents, process, FAQ, articles and landing copy in both languages safely',async()=>{
  const dom=await fixture(),doc=dom.window.document;
@@ -23,9 +23,9 @@ test('published content replaces public services, eligibility/documents, process
 });
 test('public loader reads snapshots only and surfaces missing/unavailable backend without attempting writes',async()=>{
  const calls=[];let page=0;
- const db={from(table){calls.push(table);assert.equal(table,'gary_cms_public');return {select(){return this},order(){return this},async range(from,to){page++;assert.equal(from,(page-1)*200);return {data:page===1?Array.from({length:200},(_,i)=>({entry_id:'id-'+i,kind:'faq',slug:'question-'+i,content:{title_en:'Question'}})):[{entry_id:'final',kind:'faq',slug:'last',content:{title_en:'Last'}}],error:null}}}}};
+ const db={from(table){calls.push(table);assert.equal(table,'gary_cms_public');return {select(){return this},lte(){return this},order(){return this},async range(from,to){page++;assert.equal(from,(page-1)*200);return {data:page===1?Array.from({length:200},(_,i)=>({entry_id:'id-'+i,kind:'faq',slug:'question-'+i,content:{title_en:'Question'}})):[{entry_id:'final',kind:'faq',slug:'last',content:{title_en:'Last'}}],error:null}}}}};
  const entries=await loadPublishedCms(db);assert.equal(entries.length,201);assert.equal(entries[200].id,'final');assert.equal(calls.length,2);
- const failure={from(){return {select(){return this},order(){return this},async range(){return {error:{code:'42P01'}}}}}};await assert.rejects(()=>loadPublishedCms(failure),e=>e.code==='42P01');
+ const failure={from(){return {select(){return this},lte(){return this},order(){return this},async range(){return {error:{code:'42P01'}}}}}};await assert.rejects(()=>loadPublishedCms(failure),e=>e.code==='42P01');
 });
 test('published landing SEO synchronizes declared page, Open Graph and Twitter metadata in both languages',async()=>{
  const dom=await fixture(),doc=dom.window.document;

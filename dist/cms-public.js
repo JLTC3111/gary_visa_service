@@ -1,11 +1,16 @@
 // Published Agency snapshots only. Render text, never authored HTML.
+import {renderLatestArticles} from './cms-articles.js';
+
 const copy=(entry,key,language)=>String(entry?.[`${key}_${language}`]??'');
 const lines=value=>Array.isArray(value)?value:String(value??'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
 const el=(doc,tag,text,attrs={})=>{const node=doc.createElement(tag);if(text)node.textContent=text;for(const [key,value]of Object.entries(attrs))node.setAttribute(key,value);return node};
 const items=(entries,kind)=>entries.filter(e=>e.kind===kind).sort((a,b)=>(Number(a.data?.position)||0)-(Number(b.data?.position)||0)||a.slug.localeCompare(b.slug));
-export async function loadPublishedCms(db){
- const result=[];const batch=200;for(let page=0;page<100;page++){
-  const response=await db.from('gary_cms_public').select('entry_id,kind,slug,content,published_at').order('entry_id').range(page*batch,(page+1)*batch-1);
+export async function loadPublishedCms(db,{kind,slug}={}){
+ const result=[];const batch=200,now=new Date().toISOString();for(let page=0;page<100;page++){
+  let query=db.from('gary_cms_public').select('entry_id,kind,slug,content,published_at').lte('published_at',now).order('entry_id');
+  if(kind)query=query.eq('kind',kind);
+  if(slug)query=query.eq('slug',slug);
+  const response=await query.range(page*batch,(page+1)*batch-1);
   if(response.error)throw response.error;const records=response.data??[];result.push(...records.map(row=>({...row.content,id:row.entry_id,kind:row.kind,slug:row.slug,published_at:row.published_at})));if(records.length<batch)return result;
  }
  throw new Error('CMS_PUBLIC_FEED_TOO_LARGE');
@@ -38,9 +43,7 @@ export function renderPublicCms({doc,entries,language='en'}){
  const faq=doc.querySelector('.faq-list');if(faq){const rows=items(entries,'faq');faq.replaceChildren(...rows.map((entry,index)=>{const node=el(doc,'details');if(index===0)node.open=true;node.append(el(doc,'summary',copy(entry,'title',language)),el(doc,'p',copy(entry,'body',language)));return node}));doc.querySelector('#faq').hidden=!rows.length||!activeSlot('faq')}
  const process=doc.querySelector('.process-grid');if(process){const rows=items(entries,'process');process.replaceChildren(...rows.map((entry,index)=>{const node=el(doc,'li');node.append(el(doc,'div',String(index+1).padStart(2,'0'),{class:'step-top'}),el(doc,'h3',copy(entry,'title',language)),el(doc,'p',copy(entry,'body',language)),el(doc,'span',entry.data?.[`label_${language}`]||'',{class:'step-label'}));return node}));doc.querySelector('#process').hidden=!rows.length||!activeSlot('process')}
  const overrides=cmsCopyOverrides(entries)[language];for(const node of doc.querySelectorAll('[data-i18n]')){const key=node.dataset.i18n;if(Object.hasOwn(overrides,key))node.textContent=overrides[key]}
- let articles=doc.querySelector('#cms-articles');if(!articles){articles=el(doc,'section','',{id:'cms-articles',class:'section cms-public-articles'});doc.querySelector('#faq')?.before(articles)}
- const rows=items(entries,'article');articles.hidden=!rows.length;articles.replaceChildren();
- if(rows.length){const inner=el(doc,'div','',{class:'container'});inner.append(el(doc,'h2',t('Guides & updates','Hướng dẫn & cập nhật')));for(const entry of rows){const detail=el(doc,'details','',{id:`article-${entry.slug}`,class:'cms-public-article'});detail.append(el(doc,'summary',copy(entry,'title',language)),el(doc,'p',copy(entry,'summary',language)));for(const text of copy(entry,'body',language).split(/\n\s*\n/))if(text.trim())detail.append(el(doc,'p',text));if(entry.data?.source_url&&/^https:\/\//.test(entry.data.source_url))detail.append(el(doc,'a',t('Reference source','Nguồn tham khảo'),{href:entry.data.source_url,target:'_blank',rel:'noopener noreferrer'}));inner.append(detail)}articles.append(inner)}
+ renderLatestArticles(doc,entries,language);
  const hero=entries.find(e=>e.kind==='landing'&&e.data?.slot==='hero');
  if(hero){
   const title=copy(hero,'seo_title',language).trim(),description=copy(hero,'seo_description',language).trim();
