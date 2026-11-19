@@ -11,6 +11,7 @@
   --action-amber-hover: #b45309;
   --action-neutral-ink: #334155;
   --action-neutral-border: #64748b;
+  --action-neutral-hover: #e2e8f0;
   --action-cancel-hover: #d43737;
   --action-danger-tint: #fef2f2;
   --action-danger-ink: #991b1b;
@@ -27,6 +28,7 @@ html[data-visa-staff-theme="dark"]:is([data-visa-portal="staff"], [data-visa-pro
   --action-archive-border: #d68f49;
   --action-neutral-ink: #e2e8f0;
   --action-neutral-border: #94a3b8;
+  --action-neutral-hover: #334155;
   --action-danger-tint: #432326;
   --action-danger-ink: #fecaca;
   --action-danger-border: #f87171;
@@ -46,11 +48,16 @@ html[data-visa-staff-theme="dark"]:is([data-visa-portal="staff"], [data-visa-pro
   --action-border: var(--action-archive-border);
   --action-hover: var(--action-amber-hover);
 }
-[data-button-variant="cancel"] {
+:is([data-button-variant="edit"], [data-button-variant="view"], [data-button-variant="cancel"]) {
   --action-fill: transparent;
   --action-ink: var(--action-neutral-ink);
   --action-border: var(--action-neutral-border);
-  --action-hover: var(--action-cancel-hover);
+}
+[data-button-variant="cancel"] { --action-hover: var(--action-cancel-hover); }
+[data-button-variant="edit"] { --action-hover: var(--action-blue); }
+[data-button-variant="view"] {
+  --action-hover: var(--action-neutral-hover);
+  --action-hover-ink: var(--action-neutral-ink);
 }
 [data-button-variant="danger"] {
   --action-fill: var(--action-danger-tint);
@@ -68,39 +75,72 @@ html[data-visa-staff-theme="dark"]:is([data-visa-portal="staff"], [data-visa-pro
 }
 
 @layer action-buttons {
-  /* Keep these paint properties atomic even when a control has a legacy class. */
+  /* Semantic controls reserve their borders and hit area in every state. */
   [data-button-variant] {
-    background: var(--action-fill) !important;
-    border-color: var(--action-border, var(--action-fill)) !important;
-    color: var(--action-ink, var(--action-white)) !important;
-    transition: none !important;
+    --action-hit-size: 40px;
+    --action-padding-inline: .75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .375rem;
+    box-sizing: border-box;
+    min-block-size: var(--action-hit-size) !important;
+    min-inline-size: var(--action-hit-size) !important;
+    padding: .4375rem var(--action-padding-inline) !important;
+    border: 1px solid var(--action-state-fill, var(--action-border, var(--action-fill))) !important;
+    border-radius: 6px !important;
+    background: var(--action-state-fill, var(--action-fill)) !important;
+    color: var(--action-state-ink, var(--action-ink, var(--action-white))) !important;
+    touch-action: manipulation;
+    transform: none !important;
+    translate: none !important;
+    transition: box-shadow 150ms ease !important;
   }
-  /* These fills have white ink in both states, so the color transition stays readable. */
-  :is([data-button-variant="save"], [data-button-variant="publish"], [data-button-variant="confirm"],
-      [data-button-variant="save-draft"], [data-button-variant="danger-primary"], [data-button-variant="restore"]) {
-    transition: background-color 150ms ease, border-color 150ms ease !important;
+  [data-button-variant]:is(.button:not(.button-small), .gw-editor-actions *) {
+    --action-hit-size: 44px;
+    --action-padding-inline: 1rem;
   }
-  [data-button-variant="cancel"] {
-    border-style: solid !important;
-    border-width: 1px !important;
+  @media (pointer: coarse) {
+    [data-button-variant] { --action-hit-size: 44px; }
   }
+  [data-button-variant][data-button-size="icon"] {
+    inline-size: var(--action-hit-size) !important;
+    padding: 0 !important;
+  }
+  [data-button-variant][hidden] { display: none !important; }
   [data-button-variant] :where(span, svg, .icon) { color: inherit !important; }
-  [data-button-variant]:is(:hover, :active):not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
-    background: var(--action-hover) !important;
-    border-color: var(--action-hover) !important;
-    color: var(--action-white) !important;
+  [data-button-variant] svg { flex-shrink: 0; }
+
+  /* Only interpolate fills that keep the same readable foreground. */
+  :is([data-button-variant="save"], [data-button-variant="publish"], [data-button-variant="confirm"],
+      [data-button-variant="save-draft"], [data-button-variant="danger-primary"], [data-button-variant="restore"],
+      [data-button-variant="view"]) {
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease !important;
+  }
+  @media (hover: hover) {
+    [data-button-variant]:hover:not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
+      --action-state-fill: var(--action-hover);
+      --action-state-ink: var(--action-hover-ink, var(--action-white));
+    }
+  }
+  [data-button-variant]:is(:focus-visible, :active):not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
+    --action-state-fill: var(--action-hover);
+    --action-state-ink: var(--action-hover-ink, var(--action-white));
+  }
+  [data-button-variant]:active:not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
+    box-shadow: inset 0 2px 4px rgb(0 0 0 / .24) !important;
   }
   [data-button-variant]:focus-visible {
     outline: 2px solid var(--vp-focus, var(--teal, #22645e)) !important;
-    outline-offset: 3px !important;
+    outline-offset: 2px !important;
   }
   [data-button-variant]:is(:disabled, [aria-disabled="true"]) {
     cursor: not-allowed !important;
     opacity: .65 !important;
-    transform: none !important;
   }
   [data-button-variant][aria-busy="true"] { cursor: progress !important; }
   @media (prefers-reduced-motion: reduce) {
-    [data-button-variant] { transition: none !important; transform: none !important; }
+    [data-button-variant] { transition: none !important; }
+    [data-button-variant][aria-busy="true"] .spin { animation: none !important; }
   }
 }
