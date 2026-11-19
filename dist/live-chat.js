@@ -60,11 +60,12 @@ export function createLiveRoom({client,doc,id,token=null,staff=false,onChange,on
  return {typing,stopTyping,close,refresh};
 }
 
-export function createSupportWatch({client,doc,onHealth,onQueue=()=>{},onConnection=()=>{}}){
+export function createSupportWatch({client,doc,onHealth,onQueue=()=>{},onConnection=()=>{},readHealth=()=>client.rpc('gary_live_chat_health'),onHealthError=()=>{}}){
  const win=doc.defaultView;let closed=false,timer,expiryTimer,reading=false,again=false;
  async function refresh(){
   if(closed)return;if(reading){again=true;return}reading=true;
-  try{const result=await client.rpc('gary_live_chat_health');if(closed)return;if(result.error)throw result.error;onHealth(result.data);win.clearTimeout(expiryTimer);if(result.data?.available_until){const delay=new Date(result.data.available_until)-new Date(result.data.server_time);expiryTimer=win.setTimeout(()=>refresh().catch(()=>{}),Math.max(1000,Math.min(46000,delay+200)))}}
+  try{const result=await readHealth();if(closed)return;if(result.error)throw result.error;onHealth(result.data);win.clearTimeout(expiryTimer);if(result.data?.available_until){const delay=new Date(result.data.available_until)-new Date(result.data.server_time);expiryTimer=win.setTimeout(()=>refresh().catch(()=>{}),Math.max(1000,Math.min(46000,delay+200)))}}
+  catch(error){if(!closed)onHealthError(error);throw error}
   finally{reading=false;if(again&&!closed){again=false;refresh().catch(()=>{})}}
  }
  function schedule(){win.clearTimeout(timer);timer=win.setTimeout(()=>refresh().catch(()=>{}),60)}

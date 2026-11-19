@@ -78,6 +78,7 @@ test('On-site guest chat stays on the page, restores its tab session and preserv
  const widget=createChatWidget({client,doc,profileFor:async()=>{}});
  try{
   await widget.ready;$('#chat-launcher').click();assert.equal($('#site-chat').hidden,false);$('#chat-name').value='Alex';$('#chat-email').value='alex@example.test';$('#chat-first-message').value='A visa question <img src=x onerror=alert(1)>';submit(w,'#chat-start-form');await flush();
+  assert.match($('#chat-notice').textContent,/Message sent to Gary Agency/);
   const opening=calls.find(call=>call.name==='gary_open_chat');assert.match(opening.args.p_token,/^[a-f0-9]{64}$/);assert.equal($('#chat-thread-view').hidden,false);assert.equal($('#chat-messages img'),null);assert.match($('#chat-messages').textContent,/visa question/);assert.equal(w.location.search,'');const saved=w.sessionStorage.getItem('gary-site-chat-v1');assert.equal(saved.includes('alex@example.test'),false);assert.equal(saved.includes('visa question'),false);
   $('#chat-reply').value='Here is more detail';submit(w,'#chat-reply-form');await flush();assert.equal($('#chat-reply').value,'Here is more detail');assert.match($('#chat-notice').textContent,/draft is kept/);submit(w,'#chat-reply-form');await flush();const sends=calls.filter(call=>call.name==='gary_send_chat_message');assert.equal(sends[0].args.p_client_message_id,sends[1].args.p_client_message_id);assert.equal($('#chat-reply').value,'');
   $('#chat-close').click();messages.push({id:randomUUID(),sender_type:'staff',body:'Hello Alex, we can help.',created_at:new Date().toISOString()});await widget.read();assert.equal($('#chat-unread').hidden,false);$('#chat-launcher').click();assert.equal($('#chat-unread').hidden,true);assert.match($('#chat-messages').textContent,/we can help/);
@@ -90,11 +91,93 @@ test('On-site guest chat stays on the page, restores its tab session and preserv
 test('Signing out clears an authenticated chat and its local capability',async()=>{
  const dom=await page('portal.html'),doc=dom.window.document,id=randomUUID(),owner=randomUUID();let user={id:owner,email:'customer@example.test',user_metadata:{full_name:'Customer'}},authChanged;
  dom.window.sessionStorage.setItem('gary-site-chat-v1',JSON.stringify({owner,id,token:'e'.repeat(64)}));
- const client={auth:{getSession:async()=>({data:{session:user?{user}:null},error:null}),getUser:async()=>({data:{user},error:null}),onAuthStateChange:callback=>{authChanged=callback;return {data:{subscription:{unsubscribe(){}}}}}},rpc:async name=>({data:name==='gary_my_role'?'customer':name==='gary_live_chat_health'?{version:2,ready:true,server_time:new Date().toISOString(),available_until:null}:{conversation:{id,status:'open'},messages:[{id:randomUUID(),body:'Private customer conversation',sender_type:'customer',created_at:new Date().toISOString()}],has_more:false},error:null})};
+ const client={auth:{getSession:async()=>({data:{session:user?{user}:null},error:null}),getUser:async()=>({data:{user},error:null}),onAuthStateChange:callback=>{authChanged=callback;return {data:{subscription:{unsubscribe(){}}}}}},rpc:async name=>({data:name==='gary_my_access'?{member:false,operations:null,cms:null}:name==='gary_live_chat_health'?{version:2,ready:true,server_time:new Date().toISOString(),available_until:null}:{conversation:{id,status:'open'},messages:[{id:randomUUID(),body:'Private customer conversation',sender_type:'customer',created_at:new Date().toISOString()}],has_more:false},error:null})};
  try{
   const widget=createChatWidget({client,doc,profileFor:async()=>{}});await widget.ready;assert.match(doc.querySelector('#chat-messages').textContent,/Private customer/);
   user=null;authChanged('SIGNED_OUT',null);await flush();assert.equal(doc.querySelector('#chat-messages').textContent,'');assert.equal(dom.window.sessionStorage.getItem('gary-site-chat-v1'),null);assert.equal(doc.querySelector('#chat-name').value,'');assert.equal(doc.querySelector('#chat-start-view').hidden,false);
  }finally{dom.window.close()}
+});
+
+test('Public messaging behaves the same at narrow and wide widths during a presence outage',async()=>{
+ for(const width of [375,1440]){
+  const dom=await page('index.html'),w=dom.window,doc=w.document,$=selector=>doc.querySelector(selector),conversation={id:randomUUID(),status:'open'};
+  Object.defineProperty(w,'innerWidth',{value:width});let messages=[],writes=0;
+  const client={auth:{getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>({})},rpc:async(name,args)=>{
+   if(name==='gary_live_chat_health')return new Promise(()=>{});
+   if(name==='gary_read_chat')return {error:{message:'Unable to read replies'}};
+   if(name==='gary_open_chat'){writes++;messages=[{id:randomUUID(),client_message_id:args.p_client_message_id,sender_type:'visitor',body:args.p_message,created_at:new Date().toISOString()}]}
+   return {data:{conversation,messages,has_more:false},error:null};
+  }};
+  try{
+   const widget=createChatWidget({client,doc,requestTimeout:30});await widget.ready;
+   assert.equal($('#chat-launcher').getAttribute('aria-label'),'Message our team');$('#chat-launcher').click();
+   assert.equal($('#chat-heading').textContent,'Message Gary Agency');assert.equal($('#chat-live-status').textContent,'Replies here when available');
+   assert.equal($('#chat-start').disabled,false);$('#chat-first-message').value='A message without Realtime';submit(w,'#chat-start-form');
+   await until(()=>$('#chat-notice').textContent.startsWith('Message sent to Gary Agency'),'the durable message must not wait for presence');
+   await until(()=>$('#chat-thread-status').textContent.startsWith('Replies may be delayed'),'a reply refresh failure should be visible without erasing the delivery receipt');
+   assert.equal(writes,1);assert.match($('#chat-messages').textContent,/A message without Realtime/);
+   doc.documentElement.lang='vi';doc.dispatchEvent(new w.CustomEvent('gary:language'));
+   assert.equal($('#chat-launcher').getAttribute('aria-label'),'Nhắn tin cho đội ngũ');assert.equal($('#chat-heading').textContent,'Nhắn tin cho Gary Agency');
+   assert.match($('#chat-notice').textContent,/Đã gửi tin nhắn cho Gary Agency/);
+  }finally{w.dispatchEvent(new w.Event('pagehide'));w.close()}
+ }
+});
+
+test('Confirmed staff see scoped inbox controls and never a customer connection spinner',async()=>{
+ for(const [width,operations] of [[375,'staff'],[1440,'staff'],[1440,null]]){
+  const dom=await page('index.html'),w=dom.window,doc=w.document,$=selector=>doc.querySelector(selector),user={id:randomUUID()},calls=[];
+  Object.defineProperty(w,'innerWidth',{value:width});
+  const client={auth:{getSession:async()=>({data:{session:{user}},error:null}),getUser:async()=>({data:{user},error:null}),onAuthStateChange:()=>({})},rpc:async name=>{
+   calls.push(name);return {data:{member:true,operations,cms:'publisher'},error:null};
+  }};
+  try{
+   await createChatWidget({client,doc}).ready;$('#chat-launcher').click();
+   assert.equal($('#chat-start-view').hidden,true);assert.equal($('#chat-live-availability').hidden,true);assert.equal($('#chat-live-status').textContent,'');
+   assert.equal($('#chat-launcher').getAttribute('aria-label'),operations?'Staff inbox':'Staff messaging');
+   assert.equal($('#chat-footer').hidden,true);assert.equal(doc.activeElement,$('#chat-staff-link'));
+   assert.equal(new URL($('#chat-staff-link').href).searchParams.get('view'),operations?'inbox':null);
+   $('#chat-first-message').value='No customer send for staff';submit(w,'#chat-start-form');await flush();
+   assert.deepEqual(calls,['gary_my_access']);
+   $('#site-chat').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+   assert.equal(doc.activeElement,$('#chat-launcher'));assert.equal($('#chat-launcher').getAttribute('aria-expanded'),'false');
+  }finally{w.close()}
+ }
+});
+
+test('A stalled session check times out and retries without discarding a draft',async()=>{
+ const dom=await page('index.html'),w=dom.window,doc=w.document,$=selector=>doc.querySelector(selector);
+ let stalled=true;const calls=[];
+ const client={auth:{getSession:()=>stalled?new Promise(()=>{}):Promise.resolve({data:{session:null},error:null}),onAuthStateChange:()=>({})},rpc:async name=>{
+  calls.push(name);return {data:{version:2,ready:true,server_time:new Date().toISOString(),available_until:null},error:null};
+ }};
+ try{
+  const widget=createChatWidget({client,doc,requestTimeout:20});$('#chat-launcher').click();$('#chat-first-message').value='Keep this draft';await widget.ready;
+  assert.equal($('#chat-live-status').textContent,'Session check unavailable');assert.deepEqual(calls,[]);
+  assert.match($('#chat-notice').textContent,/draft is kept/);
+  stalled=false;$('#chat-refresh').click();await until(()=>$('#chat-live-status').textContent==='Team away','manual retry should resolve the session');
+  assert.equal($('#chat-first-message').value,'Keep this draft');assert.equal($('#chat-start').disabled,false);
+ }finally{w.dispatchEvent(new w.Event('pagehide'));w.close()}
+});
+
+test('A recovered first message keeps any newer unsent draft and reuses its original request ID',async()=>{
+ const dom=await page('index.html'),w=dom.window,doc=w.document,$=selector=>doc.querySelector(selector),conversation={id:randomUUID(),status:'open'};
+ const opened=[];let message;
+ const client={auth:{getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>({})},rpc:async(name,args)=>{
+  if(name==='gary_live_chat_health')return {data:{version:2,ready:true,server_time:new Date().toISOString(),available_until:null},error:null};
+  if(name==='gary_open_chat'){
+   opened.push(args);
+   if(!message){message={id:randomUUID(),sender_type:'visitor',client_message_id:args.p_client_message_id,body:args.p_message,created_at:new Date().toISOString()};return {error:{message:'Response lost'}}}
+  }
+  return {data:{conversation,messages:[message],has_more:false},error:null};
+ }};
+ try{
+  await createChatWidget({client,doc}).ready;$('#chat-launcher').click();$('#chat-first-message').value='Original message';submit(w,'#chat-start-form');await flush();
+  assert.match($('#chat-notice').textContent,/couldn’t confirm delivery/);assert.equal($('#chat-first-message').value,'Original message');
+  $('#chat-first-message').value='A different draft';submit(w,'#chat-start-form');await flush();
+  assert.equal(opened[0].p_client_message_id,opened[1].p_client_message_id);assert.equal(opened[0].p_token,opened[1].p_token);
+  assert.match($('#chat-messages').textContent,/Original message/);assert.equal($('#chat-reply').value,'A different draft');
+  assert.match($('#chat-notice').textContent,/Review your draft before sending it/);
+ }finally{w.dispatchEvent(new w.Event('pagehide'));w.close()}
 });
 
 function realtimeBus(){
@@ -131,22 +214,35 @@ test('Live staff chat delivers both directions, typing, seen receipts and reconn
  }}}
  const widget=createChatWidget({client:client(false),doc:v,profileFor:async()=>{}}),inbox=createInbox({db:client(true),doc:p,t:key=>portalCopy.en[key]||key,isStaff:()=>true,getUser:()=>({id:staffId}),getRoster:async()=>[],openContact:()=>{}});
  try{
-  await widget.ready;await inbox.enter();await until(()=>!p.querySelector('#staff-live-toggle').disabled,'staff should be connected');p.querySelector('#staff-live-toggle').click();await until(()=>v.querySelector('#chat-live-status').textContent.includes('Team online'),'availability should reach the visitor live');
+  await widget.ready;await inbox.enter();await until(()=>!p.querySelector('#staff-live-toggle').disabled,'staff should be connected');
+  await until(()=>v.querySelector('#chat-live-status').textContent==='Team away','staff starts away');
+  v.querySelector('#chat-launcher').click();v.querySelector('#chat-first-message').value='Hello, can you help with a visa?';submit(visitor.window,'#chat-start-form');
+  await until(()=>v.querySelector('#chat-notice').textContent.includes('Message sent to Gary Agency'),'visitor should receive a delivery confirmation');
+  await until(()=>p.querySelector('#inbox-list button'),'new message should reach the staff queue while staff is away');p.querySelector('#inbox-list button').click();
+  await until(()=>p.querySelector('#inbox-messages').textContent.includes('help with a visa'),'staff can read the stored message');
+  p.querySelector('#staff-live-toggle').click();await until(()=>v.querySelector('#chat-live-status').textContent==='Staff online','a confirmed heartbeat should reach the visitor');
   Object.defineProperty(p,'hidden',{configurable:true,value:true});p.dispatchEvent(new staffPage.window.Event('visibilitychange'));await flush();assert.equal(state.available,true,'switching to the visitor window does not mark staff away');Object.defineProperty(p,'hidden',{configurable:true,value:false});
-  v.querySelector('#chat-launcher').click();v.querySelector('#chat-first-message').value='Hello, is someone available?';submit(visitor.window,'#chat-start-form');await until(()=>p.querySelector('#inbox-list button'),'new visitor should appear in the staff queue without refresh');p.querySelector('#inbox-list button').click();await until(()=>p.querySelector('#inbox-messages').textContent.includes('is someone available'),'visitor message should reach staff');
   await until(()=>v.querySelector('#chat-messages').textContent.includes('Seen'),'staff read should become a seen receipt');
   p.querySelector('#inbox-reply').value='We are here';p.querySelector('#inbox-reply').dispatchEvent(new staffPage.window.Event('input'));await until(()=>!v.querySelector('#chat-typing').hidden,'visitor should see live staff typing');submit(staffPage.window,'#inbox-reply-form');await until(()=>v.querySelector('#chat-messages').textContent.includes('We are here'),'staff reply should arrive without polling or refresh');
   v.querySelector('#chat-reply').value='Thank you';v.querySelector('#chat-reply').dispatchEvent(new visitor.window.Event('input'));await until(()=>!p.querySelector('#inbox-typing').hidden,'staff should see live visitor typing');submit(visitor.window,'#chat-reply-form');await until(()=>p.querySelector('#inbox-messages').textContent.includes('Thank you'),'visitor reply should arrive live');
   bus.emit(`gary-chat:${conversationId}`,'changed',{body:'Forged staff reply',staff_typing_until:'2099-01-01'});await new Promise(resolve=>setTimeout(resolve,80));assert.equal(v.querySelector('#chat-messages').textContent.includes('Forged staff reply'),false,'notification payloads cannot inject chat content');
-  bus.disconnect(`gary-chat:${conversationId}`);assert.match(v.querySelector('#chat-live-status').textContent,/Reconnecting/);messages.push({id:randomUUID(),sender_type:'staff',body:'A reply during reconnection',created_at:new Date().toISOString()});bus.reconnect(`gary-chat:${conversationId}`);await until(()=>v.querySelector('#chat-messages').textContent.includes('during reconnection'),'reconnect should recover missed history immediately');
+  bus.disconnect(`gary-chat:${conversationId}`);assert.equal(v.querySelector('#chat-live-status').textContent,'Replies here when available');messages.push({id:randomUUID(),sender_type:'staff',body:'A reply during reconnection',created_at:new Date().toISOString()});bus.reconnect(`gary-chat:${conversationId}`);await until(()=>v.querySelector('#chat-messages').textContent.includes('during reconnection'),'reconnect should recover missed history immediately');
   p.querySelector('#staff-live-toggle').click();await until(()=>v.querySelector('#chat-live-status').textContent==='Team away','going away should update the visitor status');
  }finally{inbox.reset();visitor.window.dispatchEvent(new visitor.window.Event('pagehide'));visitor.window.close();staffPage.window.close()}
 });
 
-test('Missing live-chat setup is detected before the visitor can send',async()=>{
+test('Unavailable messaging preserves the draft and offers an alternate contact',async()=>{
  const dom=await page('index.html'),doc=dom.window.document;let writes=0;
  const client={auth:{getSession:async()=>({data:{session:null},error:null}),onAuthStateChange:()=>({})},rpc:async name=>{if(name==='gary_live_chat_health')return {error:{code:'PGRST202'}};writes++;return {error:{code:'PGRST202'}}}};
- try{const widget=createChatWidget({client,doc});await widget.ready;assert.equal(doc.querySelector('#chat-start').disabled,true);assert.equal(doc.querySelector('#chat-live-status').textContent,'Chat unavailable');assert.match(doc.querySelector('#chat-notice').textContent,/not available on this website yet/);assert.equal(writes,0)}finally{dom.window.close()}
+ try{
+  const widget=createChatWidget({client,doc});await widget.ready;
+  assert.equal(doc.querySelector('#chat-start').disabled,false,'presence errors must not disable durable messages');
+  doc.querySelector('#chat-launcher').click();doc.querySelector('#chat-first-message').value='Keep this question';submit(dom.window,'#chat-start-form');await flush();
+  assert.equal(writes,1);assert.equal(doc.querySelector('#chat-start').disabled,true);
+  assert.equal(doc.querySelector('#chat-live-status').textContent,'Messaging unavailable');
+  assert.match(doc.querySelector('#chat-notice').textContent,/contact our team by phone or on Zalo/);
+  assert.equal(doc.querySelector('#chat-first-message').value,'Keep this question');
+ }finally{dom.window.close()}
 });
 
 test('Portal and widget share a socket channel and wait for teardown before rejoining',async()=>{
