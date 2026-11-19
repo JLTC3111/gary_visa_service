@@ -15,7 +15,7 @@ export function createTrash({db,doc,t,isStaff,kinds=()=>['case','contact','cms']
   $('#trash-previous').disabled=state.busy||state.page===0;$('#trash-next').disabled=state.busy||end>=state.total;
   if(!state.rows.length){list.replaceChildren(el('div',{class:'empty-state'},[el('h3',{},t(state.busy?'trashLoading':state.failed?'trashUnavailable':'trashEmpty')),el('p',{},t(state.failed?'trashLoadError':'trashIntro'))]));return}
   list.replaceChildren(...state.rows.map(record=>{
-   const restore=button(t('restoreRecord'),()=>void restoreRecord(record),'pagination-button trash-restore');restore.disabled=state.busy;
+   const restore=button(t('restoreRecord'),()=>void restoreRecord(record),'pagination-button trash-restore');restore.dataset.buttonVariant='restore';restore.disabled=state.busy;
    return el('article',{class:'trash-record'},[
     el('div',{class:'trash-record-identity'},[el('span',{class:'relationship-badge'},kindLabel(record.kind)),el('h2',{},record.title||t('unnamedCustomer')),el('p',{},`${t('deletedAt')}: ${date(record.deleted_at)}`)]),restore
    ]);

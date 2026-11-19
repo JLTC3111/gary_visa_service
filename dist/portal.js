@@ -68,7 +68,7 @@ function translate(){
  $$('[data-language]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.language===language)));
  try{localStorage.setItem('gary-language',language)}catch{}
  document.dispatchEvent(new CustomEvent('gary:language',{detail:{language}}));renderAuth();if(state.user&&state.profile){renderIdentity();renderApplications();setCounterValues(document,caseStats,language);crm.render();inbox.render();cms.translate();trash.render();staffAccess.render();if(state.currentCase&&state.caseData)renderCase();}
- $('#request-dialog-title').textContent=t(state.editingId?'editTitle':'newApplication');$('#request-submit>span').textContent=t(state.editingId?'saveChanges':'submitApplication');
+ $('#request-dialog-title').textContent=t(state.editingId?'editTitle':'newApplication');$('#request-submit>span').textContent=t(state.editingId?'saveChanges':'submitApplication');$('#request-submit').dataset.buttonVariant=state.editingId?'save':'confirm';
  $('#toggle-password').textContent=t($('#auth-password').type==='password'?'show':'hide');
 }
 $$('[data-language]').forEach(button=>button.addEventListener('click',()=>{language=button.dataset.language;translate()}));
@@ -79,6 +79,7 @@ function renderAuth(){
  $$('[data-area]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.area===state.area)));
  const keys=isRecovery?['recoveryEyebrow','recoveryTitle','recoveryIntro','recoveryButton']:isReset?['resetEyebrow','resetTitle','resetIntro','resetButton']:isSignup?['signupEyebrow','signupTitle','signupIntro','signupButton']:state.area==='staff'?['staffWelcome','staffSigninTitle','staffSigninIntro','signin']:['welcomeBack','signinTitle','signinIntro','signin'];
  ['#auth-eyebrow','#auth-title','#auth-description','#auth-submit-label'].forEach((selector,index)=>{$(selector).textContent=t(keys[index])});
+ if(isRecovery)$('#auth-submit').dataset.buttonVariant='save';else delete $('#auth-submit').dataset.buttonVariant;
  $('#signup-name-field').hidden=!isSignup;$('#auth-name').required=isSignup;
  $('#auth-email').closest('.form-field').hidden=isRecovery;$('#auth-email').required=!isRecovery;
  $('#password-field').hidden=isReset;$('#auth-password').required=!isReset;$('#auth-password').minLength=isSignup||isRecovery?12:1;$('#auth-password').autocomplete=isSignup||isRecovery?'new-password':'current-password';

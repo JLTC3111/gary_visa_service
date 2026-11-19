@@ -29,7 +29,7 @@ export function mountPortalEditors(doc, {language = () => doc.documentElement.la
    if (node.nodeType === 1 && (node.matches('button[type="submit"]') || node.classList.contains('form-feedback'))) actions.append(node);
    else body.append(node);
   }
-  const cancel=doc.createElement('button');cancel.type='button';cancel.className='button button-secondary';cancel.addEventListener('click',()=>header.querySelector('.dialog-close')?.click());actions.append(cancel);cancellations.push(cancel);
+  const cancel=doc.createElement('button');cancel.type='button';cancel.className='button button-secondary';cancel.dataset.buttonVariant='cancel';cancel.addEventListener('click',()=>header.querySelector('.dialog-close')?.click());actions.append(cancel);cancellations.push(cancel);
   form.classList.add('gw-editor-form'); form.append(body, actions);
   dialog.dataset.portalEditor = 'form';
   controllers.push(attachEditorWorkspace(dialog, {key,language,header,body,actions}));

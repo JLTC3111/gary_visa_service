@@ -47,6 +47,8 @@ test('publish blocks incomplete Vietnamese fields before requesting a transition
 });
 test('successful saves send the expected version and reset only after persisted response', async () => {
   const h = harness(); await h.controller.ready; h.root.querySelector('[data-action=edit]').click(); await settle();
+  assert.equal(h.root.querySelector('[data-cms-editor] button[type=submit]').dataset.buttonVariant, 'save-draft');
+  assert.equal(h.root.querySelector('[data-cms-editor] [data-action=close]').dataset.buttonVariant, 'cancel');
   h.input('[name=title_en]', 'An updated English guide'); h.root.querySelector('form').dispatchEvent(new h.dom.window.Event('submit', {bubbles: true, cancelable: true})); await settle();
   const save = h.calls.find(call => call[0] === 'save'); assert.equal(save[2].expectedVersion, 1); assert.equal(save[1].title_en, 'An updated English guide');
   assert.equal(h.controller.isDirty(), false); assert.equal(h.root.querySelector('[name=title_en]').value, 'An updated English guide'); h.close();

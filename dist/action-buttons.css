@@ -1,0 +1,106 @@
+/* Semantic action colors take precedence over generic button themes. */
+:root {
+  --action-white: #fff;
+  --action-green: #168642;
+  --action-green-hover: #15803d;
+  --action-blue: #2563eb;
+  --action-blue-hover: #1d4ed8;
+  --action-archive-tint: #fff7ed;
+  --action-archive-ink: #92400e;
+  --action-archive-border: #b45309;
+  --action-amber-hover: #b45309;
+  --action-neutral-ink: #334155;
+  --action-neutral-border: #64748b;
+  --action-cancel-hover: #d43737;
+  --action-danger-tint: #fef2f2;
+  --action-danger-ink: #991b1b;
+  --action-danger-border: #b91c1c;
+  --action-red: #b91c1c;
+  --action-red-hover: #991b1b;
+  --action-teal: #0f766e;
+  --action-teal-hover: #115e59;
+}
+html[data-visa-theme="dark"]:not([data-visa-portal]),
+html[data-visa-staff-theme="dark"]:is([data-visa-portal="staff"], [data-visa-profile]) {
+  --action-archive-tint: #392819;
+  --action-archive-ink: #fed7aa;
+  --action-archive-border: #d68f49;
+  --action-neutral-ink: #e2e8f0;
+  --action-neutral-border: #94a3b8;
+  --action-danger-tint: #432326;
+  --action-danger-ink: #fecaca;
+  --action-danger-border: #f87171;
+}
+
+:is([data-button-variant="save"], [data-button-variant="publish"], [data-button-variant="confirm"]) {
+  --action-fill: var(--action-green);
+  --action-hover: var(--action-green-hover);
+}
+[data-button-variant="save-draft"] {
+  --action-fill: var(--action-blue);
+  --action-hover: var(--action-blue-hover);
+}
+[data-button-variant="archive"] {
+  --action-fill: var(--action-archive-tint);
+  --action-ink: var(--action-archive-ink);
+  --action-border: var(--action-archive-border);
+  --action-hover: var(--action-amber-hover);
+}
+[data-button-variant="cancel"] {
+  --action-fill: transparent;
+  --action-ink: var(--action-neutral-ink);
+  --action-border: var(--action-neutral-border);
+  --action-hover: var(--action-cancel-hover);
+}
+[data-button-variant="danger"] {
+  --action-fill: var(--action-danger-tint);
+  --action-ink: var(--action-danger-ink);
+  --action-border: var(--action-danger-border);
+  --action-hover: var(--action-red);
+}
+[data-button-variant="danger-primary"] {
+  --action-fill: var(--action-red);
+  --action-hover: var(--action-red-hover);
+}
+[data-button-variant="restore"] {
+  --action-fill: var(--action-teal);
+  --action-hover: var(--action-teal-hover);
+}
+
+@layer action-buttons {
+  /* Keep these paint properties atomic even when a control has a legacy class. */
+  [data-button-variant] {
+    background: var(--action-fill) !important;
+    border-color: var(--action-border, var(--action-fill)) !important;
+    color: var(--action-ink, var(--action-white)) !important;
+    transition: none !important;
+  }
+  /* These fills have white ink in both states, so the color transition stays readable. */
+  :is([data-button-variant="save"], [data-button-variant="publish"], [data-button-variant="confirm"],
+      [data-button-variant="save-draft"], [data-button-variant="danger-primary"], [data-button-variant="restore"]) {
+    transition: background-color 150ms ease, border-color 150ms ease !important;
+  }
+  [data-button-variant="cancel"] {
+    border-style: solid !important;
+    border-width: 1px !important;
+  }
+  [data-button-variant] :where(span, svg, .icon) { color: inherit !important; }
+  [data-button-variant]:is(:hover, :active):not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
+    background: var(--action-hover) !important;
+    border-color: var(--action-hover) !important;
+    color: var(--action-white) !important;
+  }
+  [data-button-variant]:focus-visible {
+    outline: 2px solid var(--vp-focus, var(--teal, #22645e)) !important;
+    outline-offset: 3px !important;
+  }
+  [data-button-variant]:is(:disabled, [aria-disabled="true"]) {
+    cursor: not-allowed !important;
+    opacity: .65 !important;
+    transform: none !important;
+  }
+  [data-button-variant][aria-busy="true"] { cursor: progress !important; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-button-variant] { transition: none !important; transform: none !important; }
+  }
+}
