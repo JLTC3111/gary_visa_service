@@ -3,9 +3,11 @@
   inset: auto 16px calc(84px + env(safe-area-inset-bottom)) 16px;
   z-index: 100;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
   gap: 6px;
-  width: min(360px, calc(100% - 32px));
-  max-width: none;
+  width: min(580px, calc(100vw - 32px));
+  max-width: calc(100% - 32px);
   margin: 0 auto;
   padding: 0;
   border: 0;
@@ -32,6 +34,10 @@
   --toast-accent: var(--toast-success-icon);
   position: relative;
   display: flex;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
@@ -68,11 +74,12 @@ html:is([data-visa-theme="dark"], [data-visa-staff-theme="dark"]) .action-toast 
 .action-toast[data-tone="error"] { --toast-accent: var(--toast-error-icon); }
 .action-toast[data-tone="info"] { --toast-accent: var(--toast-info-icon); }
 .action-toast-mark { flex: none; width: 1em; color: var(--toast-accent); font-weight: 750; text-align: center; }
-.action-toast-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.action-toast-content { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .action-toast [data-success-heading],
 .action-toast [data-success-title] { display: block; font-weight: 650; }
 .action-toast a { display: inline-block; margin-top: 4px; color: inherit; text-decoration: underline; }
 .action-toast button {
+  flex-shrink: 0;
   min-height: 44px;
   padding: 4px 8px;
   border: 1px solid var(--toast-line);
