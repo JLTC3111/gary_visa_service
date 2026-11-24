@@ -12,6 +12,13 @@ export function setValue(record, key, value) {
 export function emptyEntry(kind) {
   return { kind, slug: '', title_en: '', title_vi: '', summary_en: '', summary_vi: '', body_en: '', body_vi: '', seo_title_en: '', seo_title_vi: '', seo_description_en: '', seo_description_vi: '', data: {}, status: 'draft', version: 0 };
 }
+/** A title-derived URL name. The application adapter resolves uniqueness on save. */
+export function titleSlug(record) {
+  const titles = [record.title_en, record.title_vi].map(value => String(value || '').trim());
+  if (!titles.some(Boolean)) return '';
+  const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 150).replace(/-$/g, '');
+  return titles.map(normalize).find(Boolean) || normalize(String(record.kind || 'content')) || 'content';
+}
 export function fieldsFor(collection) {
   return (collection.fields || []).flatMap(field => field.bilingual
     ? LOCALES.map(locale => ({ ...field, key: `data.${field.key}_${locale}`, locale, bilingual: false }))
@@ -25,7 +32,9 @@ export function safeMediaUrl(value) {
 export function validateEntry(record, collection, publish = false) {
   const issues = [];
   const issue = (code, field, params = {}) => issues.push({ code, field, params, severity: 'critical' });
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.slug || '') || record.slug.length > 180) issue('cms-slug', 'slug', { slug: record.slug || '' });
+  const automatic = collection.automaticSlug && !record.id;
+  const slug = automatic ? titleSlug(record) : record.slug || '';
+  if ((!automatic || slug) && (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 180)) issue('cms-slug', 'slug', { slug });
   if (!String(record.title_en || '').trim() && !String(record.title_vi || '').trim()) issue('cms-title-missing', 'title_en', { language: 'en / vi' });
   for (const locale of LOCALES) {
     if (publish) {

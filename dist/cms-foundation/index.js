@@ -1,6 +1,6 @@
 import { attachEditorWorkspace } from '../editor-workspace/index.js';
 import { showActionToast } from '../action-toast.js';
-import { CMS_VERSION, LOCALES, emptyEntry, fieldsFor, getValue, setValue, safeMediaUrl, validateEntry, contentSeoFindings } from './content.js';
+import { CMS_VERSION, LOCALES, emptyEntry, titleSlug, fieldsFor, getValue, setValue, safeMediaUrl, validateEntry, contentSeoFindings } from './content.js';
 import { cmsText, validationText } from './copy.js';
 import { localizeFinding } from './seo-findings.js';
 export { CMS_VERSION, validateEntry, contentSeoFindings, safeMediaUrl } from './content.js';
@@ -21,6 +21,8 @@ export function mountCms(root, options) {
   const t = key => cmsText(key, language);
   const label = value => typeof value === 'object' ? value?.[language] || value?.en || '' : value || '';
   const collection = () => options.collections.find(item => item.kind === kind);
+  const syncAutomaticSlug = () => { if (draft && collection().automaticSlug && !draft.id) draft.slug = titleSlug(draft); };
+  const publicPath = () => { const path = collection().publicPath; return typeof path === 'function' ? path(language) : path || ''; };
   const dirty = () => !!draft && JSON.stringify(draft) !== baseline;
   const date = value => { try { return value ? new Intl.DateTimeFormat(language === 'vi' ? 'vi-VN' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'; } catch { return '—'; } };
   const disabled = value => value ? ' disabled' : '';
@@ -114,7 +116,7 @@ export function mountCms(root, options) {
     const scrollTop = dialog.querySelector('[data-gw-body]')?.scrollTop || 0;
     const expanded = [...dialog.querySelectorAll('details')].map(details => details.open);
     const extraFields = fieldsFor(collection());
-    dialog.innerHTML = `<header><div><p class="cms-eyebrow">${escape(label(collection().label))}</p><h2 id="${id}-editor-heading">${escape(draft.id ? t(capabilities.edit ? 'edit' : 'viewEntry') : t('add'))}</h2></div>${button('close', t('close'))}</header><form data-cms-editor novalidate><div class="cms-editor-body gw-editor-body" data-gw-body><div class="cms-editor-meta">${field('slug', t('slug'))}<p><span class="cms-badge cms-badge-${escape(draft.status)}">${t(draft.status)}</span> · <span data-cms-dirty>${t('clean')}</span></p></div><p class="cms-hint">${t('snapshot')}</p>${collection().lockPublishedSlug && draft.published_at ? `<p class="cms-hint">${t('publishedAddress')}</p>` : ''}<div class="cms-language-columns">${LOCALES.map(locale => `<section lang="${locale}" aria-label="${locale === 'en' ? 'English' : 'Tiếng Việt'}"><h3>${locale === 'en' ? 'English' : 'Tiếng Việt'}</h3>${field(`title_${locale}`, t('title'), 'text', { locale })}${field(`summary_${locale}`, t('summary'), 'textarea', { locale })}${field(`body_${locale}`, t('body'), 'textarea', { locale })}${extraFields.filter(item => item.locale === locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}<details><summary>${t('seo')}</summary>${field(`seo_title_${locale}`, t('seoTitle'), 'text', { locale })}${field(`seo_description_${locale}`, t('seoDescription'), 'textarea', { locale })}</details></section>`).join('')}</div>${extraFields.filter(item => !item.locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}${collection().cover ? '<section class="cms-cover" data-cms-cover></section>' : ''}<details class="cms-seo"><summary>${t('seo')}</summary><p class="cms-hint">${t('advisory')}</p><div data-cms-checks></div></details><details class="cms-preview"><summary>${t('preview')}</summary><div class="cms-language-columns" data-cms-preview></div></details><details data-cms-revisions><summary>${t('revision')}</summary><div data-cms-history><p>${t('loadingRevisions')}</p></div></details><p class="cms-dialog-notice" data-editor-notice role="status" aria-live="polite"></p></div><footer class="cms-editor-actions gw-editor-actions" data-gw-actions>${capabilities.edit ? `<button type="submit" class="cms-primary" data-button-variant="save-draft"${disabled(busy)}>${t('save')}</button>${button('review', t('submit'), '', !draft.id)}` : ''}${capabilities.publish ? `${button('publish', t('publish'), '', !draft.id || draft.status !== 'review')}${button('archive', t('archive'), '', !draft.id || draft.status === 'archived')}` : ''}${capabilities.delete && adapter.remove ? button('delete', t('delete'), 'class="cms-danger"') : ''}${button('close', t('cancel'), 'data-button-variant="cancel" ')}</footer></form>`;
+    dialog.innerHTML = `<header><div><p class="cms-eyebrow">${escape(label(collection().label))}</p><h2 id="${id}-editor-heading">${escape(draft.id ? t(capabilities.edit ? 'edit' : 'viewEntry') : t('add'))}</h2></div>${button('close', t('close'))}</header><form data-cms-editor novalidate><div class="cms-editor-body gw-editor-body" data-gw-body><div class="cms-editor-meta">${collection().automaticSlug ? '<p class="cms-hint" data-cms-auto-url></p>' : field('slug', t('slug'))}<p><span class="cms-badge cms-badge-${escape(draft.status)}">${t(draft.status)}</span> · <span data-cms-dirty>${t('clean')}</span></p></div><p class="cms-hint">${t('snapshot')}</p>${collection().lockPublishedSlug && draft.published_at ? `<p class="cms-hint">${t('publishedAddress')}</p>` : ''}<div class="cms-language-columns">${LOCALES.map(locale => `<section lang="${locale}" aria-label="${locale === 'en' ? 'English' : 'Tiếng Việt'}"><h3>${locale === 'en' ? 'English' : 'Tiếng Việt'}</h3>${field(`title_${locale}`, t('title'), 'text', { locale })}${field(`summary_${locale}`, t('summary'), 'textarea', { locale })}${field(`body_${locale}`, t('body'), 'textarea', { locale })}${extraFields.filter(item => item.locale === locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}<details><summary>${t('seo')}</summary>${field(`seo_title_${locale}`, t('seoTitle'), 'text', { locale })}${field(`seo_description_${locale}`, t('seoDescription'), 'textarea', { locale })}</details></section>`).join('')}</div>${extraFields.filter(item => !item.locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}${collection().cover ? '<section class="cms-cover" data-cms-cover></section>' : ''}<details class="cms-seo"><summary>${t('seo')}</summary><p class="cms-hint">${t('advisory')}</p><div data-cms-checks></div></details><details class="cms-preview"><summary>${t('preview')}</summary><div class="cms-language-columns" data-cms-preview></div></details><details data-cms-revisions><summary>${t('revision')}</summary><div data-cms-history><p>${t('loadingRevisions')}</p></div></details><p class="cms-dialog-notice" data-editor-notice role="status" aria-live="polite"></p></div><footer class="cms-editor-actions gw-editor-actions" data-gw-actions>${capabilities.edit ? `<button type="submit" class="cms-primary" data-button-variant="save-draft"${disabled(busy)}>${t('save')}</button>${button('review', t('submit'), '', !draft.id)}` : ''}${capabilities.publish ? `${button('publish', t('publish'), '', !draft.id || draft.status !== 'review')}${button('archive', t('archive'), '', !draft.id || draft.status === 'archived')}` : ''}${capabilities.delete && adapter.remove ? button('delete', t('delete'), 'class="cms-danger"') : ''}${button('close', t('cancel'), 'data-button-variant="cancel" ')}</footer></form>`;
     if (!editorWorkspace) editorWorkspace = attachEditorWorkspace(dialog, {key: `${options.appId || 'content'}:cms:${kind}`, language: () => language});
     editorWorkspace.refresh();
     renderCover();
@@ -127,6 +129,9 @@ export function mountCms(root, options) {
   }
   function updateEditorChecks() {
     if (!draft) return;
+    syncAutomaticSlug();
+    const automaticUrl = root.querySelector('[data-cms-auto-url]');
+    if (automaticUrl) automaticUrl.textContent = draft.slug && publicPath() ? `${t('automaticUrl')}: ${publicPath()}${draft.slug}` : t('automaticUrlPending');
     const target = root.querySelector('[data-cms-checks]');
     if (target) target.innerHTML = contentSeoFindings(draft, collection()).map(finding => { const translated = localizeFinding(finding, language); return `<article class="cms-finding cms-${finding.severity}"><strong>${escape(t(finding.severity))}: ${escape(translated.title)}</strong><p>${escape(translated.recommendation || translated.explanation)}</p></article>`; }).join('');
     const preview = root.querySelector('[data-cms-preview]');
@@ -151,7 +156,7 @@ export function mountCms(root, options) {
     if (!region || !draft) return;
     if (!region.querySelector('[data-cover-preview]')) {
       const upload = capabilities.edit && capabilities.media && mediaPolicy.publicImages && adapter.uploadMedia ?
-        `<details><summary>${t('uploadCover')}</summary><fieldset data-cms-cover-upload><p class="cms-hint">${t('onlyPublicImages')}</p><label class="cms-field"><span>${t('file')}</span><input type="file" name="file" accept="${escape(mediaPolicy.mimeTypes.join(','))}"></label>${mediaFields()}${publicAgreement()}${button('upload-cover', t('upload'))}</fieldset></details>` : '';
+        `<details><summary>${t('uploadCover')}</summary><fieldset data-cms-cover-upload><p class="cms-hint">${t('onlyPublicImages')}</p><label class="cms-field"><span>${t('file')}</span><input type="file" name="file" accept="${escape(mediaPolicy.mimeTypes.join(','))}"></label>${mediaFields()}${button('upload-cover', t('upload'))}</fieldset></details>` : '';
       const controls = capabilities.edit ? `<label class="cms-field"><span>${t('chooseCover')}</span><select data-cover-select></select></label>${button('remove-cover', t('removeCover'))}<p class="cms-hint">${t('coverHint')}</p>` : '';
       region.innerHTML = `<h3>${t('cover')}</h3><div data-cover-preview></div>${controls}${upload}`;
     }
@@ -247,25 +252,20 @@ export function mountCms(root, options) {
   }
   function renderMedia(target) {
     const policyText = `${mediaPolicy.mimeTypes.map(type => type.split('/')[1].toUpperCase()).join(', ')} · ${Math.round(mediaPolicy.maxBytes / 1024 / 1024)} MB`;
-    const confirmation = mediaPolicy.publicImages ? publicAgreement() : '';
     const heading = mediaPolicy.publicImages ? 'publicImages' : 'media';
-    const upload = capabilities.media && adapter.uploadMedia ? `<form data-cms-upload><p>${escape(policyText)}</p><label class="cms-field"><span>${t('file')}</span><input type="file" name="file" accept="${escape(mediaPolicy.mimeTypes.join(','))}" required></label>${mediaFields()}<p class="cms-hint">${t('altHint')}</p>${confirmation}${mediaSubmit('upload')}</form>` : '';
+    const upload = capabilities.media && adapter.uploadMedia ? `<form data-cms-upload><p>${escape(policyText)}</p><label class="cms-field"><span>${t('file')}</span><input type="file" name="file" accept="${escape(mediaPolicy.mimeTypes.join(','))}" required></label>${mediaFields()}<p class="cms-hint">${t('altHint')}</p>${mediaSubmit('upload')}</form>` : '';
     target.innerHTML = `<div class="cms-toolbar"><h3>${t(heading)}</h3>${button('refresh', t('refresh'))}</div>${mediaPolicy.publicImages ? `<p class="cms-hint">${t('onlyPublicImages')}</p>` : ''}${upload}<div class="cms-media-grid">${media.length ? media.map(mediaCard).join('') : `<p>${t(busy ? 'loading' : loadFailed ? 'unavailable' : 'mediaEmpty')}</p>`}</div>`;
-  }
-  function publicAgreement() {
-    return `<label class="cms-media-consent"><input type="checkbox" name="public_approval" required> <span>${t('publicConfirmation')}</span></label>`;
   }
   function readMediaFields(form) {
     return Object.fromEntries(['alt_en','alt_vi','caption_en','caption_vi'].map(key => [key, form.elements[key]?.value.trim() || '']));
   }
   function readMediaUpload(form) {
     const file = form.elements.file.files?.[0];
-    const metadata = {...readMediaFields(form), publicConfirmed: form.elements.public_approval?.checked};
+    const metadata = {...readMediaFields(form), publicConfirmed: Boolean(mediaPolicy.publicImages)};
     if (!file || file.size <= 0 || file.size > mediaPolicy.maxBytes || !mediaPolicy.mimeTypes.includes(file.type)) {
       return {error: `${t('invalid')} ${Math.round(mediaPolicy.maxBytes / 1024 / 1024)} MB`};
     }
     if (file.type.startsWith('image/') && (!metadata.alt_en || !metadata.alt_vi)) return {error: t('altHint')};
-    if (mediaPolicy.publicImages && !metadata.publicConfirmed) return {error: t('publicConfirmation')};
     return {file, metadata};
   }
   async function uploadCover() {
@@ -285,7 +285,6 @@ export function mountCms(root, options) {
       setCover(item.url);
       if (form.isConnected) {
         form.elements.file.value = '';
-        form.elements.public_approval.checked = false;
         const details = form.closest('details');
         details.open = false;
         details.querySelector('summary').focus();
@@ -367,6 +366,7 @@ export function mountCms(root, options) {
       if (!draft?.id || !(action === 'review' ? capabilities.edit : capabilities.publish)) return;
       if (dirty()) { editorNotice(t('saveFirst')); return; }
       if (action === 'publish' && draft.status !== 'review') { editorNotice(t('reviewFirst')); return; }
+      syncAutomaticSlug();
       if (['publish', 'review'].includes(action) && showIssues(validateEntry(draft, collection(), true))) return;
       if (action !== 'review' && !root.ownerDocument.defaultView.confirm(t(action === 'publish' ? 'publishConfirm' : 'archiveConfirm'))) return;
       return mutate(() => adapter.transition(draft.id, action === 'publish' ? 'published' : action === 'archive' ? 'archived' : 'review', { expectedVersion: draft.version }), t('transitioned'));
@@ -392,6 +392,7 @@ export function mountCms(root, options) {
   async function onSubmit(event) {
     if (event.target.matches('[data-cms-editor]')) {
       event.preventDefault(); event.stopPropagation();
+      syncAutomaticSlug();
       if (!draft || !capabilities.edit || showIssues(validateEntry(draft, collection()))) return;
       const payload = structuredClone(draft); return mutate(() => adapter.save(payload, { expectedVersion: draft.version }), t('saved'));
     }

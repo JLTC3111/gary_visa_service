@@ -42,6 +42,12 @@
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-nav-services" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+    <symbol id="i-nav-process" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/></symbol>
+    <symbol id="i-nav-about" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-nav-news" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8Z"/></symbol>
+    <symbol id="i-nav-faq" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></symbol>
+    <symbol id="i-nav-contact" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z"/></symbol>
@@ -67,10 +73,10 @@
         </div>
         <div class="visa-account-menu" id="public-account-menu"><a class="portal-link" href="./portal.html" data-i18n="portal">Sign in</a></div>
 
-        <button type="button" class="icon-button button-utility menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav" aria-label="Open menu" data-i18n-aria="openMenu"><svg class="icon"><use href="#i-menu"/></svg></button>
+        <button type="button" class="icon-button button-utility menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav" aria-label="Open menu" data-i18n-aria="openMenu"><svg class="icon menu-glyph" viewBox="0 0 24 24" aria-hidden="true"><path class="menu-bar menu-bar-top" d="M4 7h16"/><path class="menu-bar menu-bar-mid" d="M4 12h16"/><path class="menu-bar menu-bar-bot" d="M4 17h16"/></svg></button>
       </div>
     </div>
-    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation" data-i18n-aria="mobileNav" hidden><div class="mobile-app-services" data-gary-apps="mobile"></div><a href="#services" data-i18n="navServices">Our services</a><a href="#process" data-i18n="navProcess">How it works</a><a href="#about" data-i18n="navAbout">Why Gary</a><a href="#faq" data-i18n="navFaq">FAQs</a><a href="#contact" data-i18n="letsTalk">Let’s talk</a></nav>
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation" data-i18n-aria="mobileNav" hidden><div class="mobile-nav-panel"><div class="mobile-app-services" data-gary-apps="mobile"></div><div class="mobile-nav-links"><a href="#services"><svg class="icon" aria-hidden="true"><use href="#i-nav-services"/></svg><span data-i18n="navServices">Services</span></a><a href="#process"><svg class="icon" aria-hidden="true"><use href="#i-nav-process"/></svg><span data-i18n="navProcess">How it works</span></a><a href="#about"><svg class="icon" aria-hidden="true"><use href="#i-nav-about"/></svg><span data-i18n="navAbout">Why Gary</span></a><a href="#cms-articles"><svg class="icon" aria-hidden="true"><use href="#i-nav-news"/></svg><span data-i18n="navNews">News &amp; Guides</span></a><a href="#faq"><svg class="icon" aria-hidden="true"><use href="#i-nav-faq"/></svg><span data-i18n="navFaq">FAQs</span></a><a href="#contact"><svg class="icon" aria-hidden="true"><use href="#i-nav-contact"/></svg><span data-i18n="letsTalk">Support</span></a></div></div></nav>
   </header>
 
   <main id="main">

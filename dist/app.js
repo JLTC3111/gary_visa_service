@@ -75,7 +75,6 @@ menu.addEventListener('click',()=>{const expanded=menu.getAttribute('aria-expand
 mobileNav.addEventListener('click',event=>{if(event.target.closest('a'))closeMenu()});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!mobileNav.hidden){closeMenu();menu.focus()}});
 document.addEventListener('click',event=>{if(!mobileNav.hidden&&!event.target.closest('.header'))closeMenu()});
-globalThis.matchMedia?.('(min-width: 760px)').addEventListener('change',event=>{if(event.matches)closeMenu()});
 
 function updateFilterStatus(){const count=$$('.service-card:not([hidden])').length;$('#filter-status').textContent=`${count} ${t('results')}`}
 $$('[data-filter]').forEach(button=>button.addEventListener('click',()=>{currentFilter=button.dataset.filter;$$('[data-filter]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active))});$$('.service-card').forEach(card=>{card.hidden=currentFilter!=='all'&&card.dataset.category!==currentFilter});updateFilterStatus()}));

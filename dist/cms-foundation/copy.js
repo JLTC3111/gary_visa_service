@@ -13,6 +13,8 @@ const additional = {
   reviewFirst: ['Submit this saved draft for review before publishing.', 'Gửi bản nháp đã lưu để duyệt trước khi đăng.'],
   viewEntry: ['View entry', 'Xem nội dung'],
   publishedAddress: ['The URL stays fixed after the first publication.', 'Đường dẫn được giữ nguyên sau lần đăng đầu tiên.'],
+  automaticUrl: ['Generated URL', 'Đường dẫn tự động'],
+  automaticUrlPending: ['The URL is generated automatically from the title.', 'Đường dẫn được tạo tự động từ tiêu đề.'],
   priorPublicationLive: ['Earlier version is live', 'Phiên bản trước đang hiển thị công khai'],
   publicationMissing: ['No live snapshot', 'Chưa có phiên bản công khai'],
   cover: ['Cover image', 'Ảnh bìa'],

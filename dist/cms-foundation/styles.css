@@ -18,8 +18,6 @@
 .cms-cover fieldset{min-inline-size:0;border:0;padding:0;margin:0.75rem 0 0}
 .cms-cover img{display:block;width:min(100%,22rem);max-height:12rem;object-fit:contain;background:var(--cms-soft)}
 .cms-cover figcaption,.cms-media-grid figcaption{margin-top:0.5rem;color:var(--cms-muted)}
-.cms-media-consent{display:flex;align-items:flex-start;gap:0.5rem;margin:0.75rem 0}
-.cms-media-consent input{width:1.125rem;height:1.125rem;flex:none;accent-color:var(--cms-ink)}
 .cms-media-grid :is(details,form,button){margin-top:0.5rem}
 .cms-media-grid .cms-language-columns{grid-template-columns:minmax(0,1fr)}
 .cms-media-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,17rem),1fr))}

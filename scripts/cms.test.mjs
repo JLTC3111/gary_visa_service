@@ -7,6 +7,7 @@ import {loadHomepageCms,loadPublishedCms,renderPublicCms,renderServiceCms,cmsCop
 import {agencyCollections,createAgencyCmsAdapter} from '../dist/cms.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
 import {mountCms} from '../dist/cms-foundation/index.js';
+import {emptyEntry, titleSlug, validateEntry} from '../dist/cms-foundation/content.js';
 import {publicCmsImage} from '../dist/cms-articles.js';
 const fixture=async()=>new JSDOM(await readFile(new URL('../dist/index.html',import.meta.url),'utf8'),{url:'https://visa.example/'});
 const entry=(kind,slug,extra={})=>({id:slug,kind,slug,title_en:'English '+slug,title_vi:'Tiếng Việt '+slug,summary_en:'English summary',summary_vi:'Tóm tắt tiếng Việt',body_en:'English body',body_vi:'Nội dung tiếng Việt',published_at:'2026-01-08T09:00:00Z',data:{},...extra});
@@ -204,20 +205,21 @@ test('article editor previews and replaces covers; media metadata is bilingual a
  try{
   await cms.ready;
   select('[data-action=edit]').click();await settle();
-  assert.equal(select('[data-field=slug]').disabled,true);
+  assert.equal(select('[data-field=slug]'),null);
+  assert.doesNotMatch(select('[data-cms-editor]').textContent,/Page address|Đường dẫn trang|approved for public use|được phép sử dụng công khai/);
+  assert.match(select('[data-cms-auto-url]').textContent,/\/vi\/news\/work-guide/);
   assert.equal(select('[data-cover-preview] img').alt,'Ảnh bìa');
   const chooser=select('[data-cover-select]');
   chooser.value=media[1].url;
   chooser.dispatchEvent(new window.Event('change',{bubbles:true}));
   assert.equal(select('[data-cover-preview] img').src,media[1].url);
   submit('[data-cms-editor]');await settle();
+  assert.equal(writes[0].slug,'work-guide');
   assert.equal(writes[0].data.image_url,media[1].url);
   const replacement=select('[data-cms-cover-upload]');
+  assert.equal(replacement.elements.public_approval,undefined);
   Object.defineProperty(replacement.elements.file,'files',{value:[new window.File(['png'],'replacement.png',{type:'image/png'})]});
   replacement.elements.alt_en.value='New cover';replacement.elements.alt_vi.value='Ảnh bìa mới';
-  select('[data-action=upload-cover]').click();await settle();
-  assert.equal(writes.length,1,'replacement requires public approval');
-  replacement.elements.public_approval.checked=true;
   select('[data-action=upload-cover]').click();await settle();
   assert.equal(select('[data-cover-preview] img').src,makeItem(3).url);
   assert.equal(select('[data-cover-preview] img').alt,'Ảnh bìa mới');
@@ -236,12 +238,9 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   submit('[data-cms-media-metadata]');await settle();
   assert.deepEqual(writes.at(-1),{id:'1',metadata:{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_en:'Updated English',caption_vi:'Đã cập nhật',version:2}});
   const upload=select('[data-cms-upload]');
+  assert.equal(upload.querySelector('.cms-media-consent'),null);
   Object.defineProperty(upload.elements.file,'files',{value:[new window.File(['png'],'new.png',{type:'image/png'})]});
   upload.elements.alt_en.value='New image';upload.elements.alt_vi.value='Ảnh mới';
-  const beforeUpload=writes.length;
-  submit('[data-cms-upload]');await settle();
-  assert.equal(writes.length,beforeUpload);
-  upload.elements.public_approval.checked=true;
   submit('[data-cms-upload]');await settle();
   assert.equal(writes.at(-1).metadata.publicConfirmed,true);
   select('[data-action=remove-media]').click();await settle();
@@ -257,4 +256,69 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   assert.equal(select('[data-cms-cover-upload]'),null);
   assert.ok(select('[data-action=publish]'));
  }finally{cms.destroy({force:true});window.close();}
+});
+
+test('news articles derive a page address from the title and other entries still ask for one',()=>{
+ const article=agencyCollections.find(item=>item.kind==='article');
+ const service=agencyCollections.find(item=>item.kind==='service');
+ const blank=emptyEntry('article');
+ assert.equal(validateEntry(blank,article).some(issue=>issue.code==='cms-slug'),false);
+ assert.ok(validateEntry(blank,article).some(issue=>issue.field==='title_en'));
+ assert.equal(titleSlug({kind:'article',title_en:'Russia: 30-day visa-free for Vietnamese citizens, 2026!',title_vi:'Nga miễn thị thực'}),'russia-30-day-visa-free-for-vietnamese-citizens-2026');
+ assert.equal(titleSlug({kind:'article',title_vi:'Đào tạo tiếng Anh tại Đà Nẵng — 2026!'}),'dao-tao-tieng-anh-tai-da-nang-2026');
+ assert.deepEqual(validateEntry({...blank,title_en:'Russia visa update'},article),[]);
+ assert.ok(validateEntry({...emptyEntry('service'),title_en:'Visa services'},service).some(issue=>issue.code==='cms-slug'));
+});
+
+test('new article editor has no page-address field and saves the title address',async()=>{
+ const {window}=new JSDOM('<div id="cms"></div>',{url:'https://visa.garyhome.vn/'});
+ bindFeedbackDom(window);
+ const root=window.document.getElementById('cms'),saves=[];
+ const adapter={
+  capabilities:async()=>({role:'editor',read:true,edit:true,publish:true,media:true}),
+  list:async()=>({records:[],total:0}),revisions:async()=>[],
+  save:async record=>{saves.push(structuredClone(record));return {...record,id:'article-1',version:1};}
+ };
+ const cms=mountCms(root,{adapter,collections:agencyCollections.filter(item=>item.kind==='article'),language:'en'});
+ const settle=()=>new Promise(resolve=>setImmediate(resolve));
+ try{
+  await cms.ready;
+  root.querySelector('[data-action=new]').click();await settle();
+  const form=root.querySelector('[data-cms-editor]');
+  assert.equal(form.querySelector('[name=slug]'),null);
+  assert.equal(form.querySelector('.cms-media-consent'),null);
+  assert.doesNotMatch(form.textContent,/Page address|I confirm this image is approved for public use/);
+  assert.match(form.textContent,/The URL is generated automatically from the title/);
+  form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await settle();
+  assert.equal(saves.length,0);
+  assert.equal(form.querySelector('[data-error-for=slug]'),null);
+  assert.equal(form.querySelector('[name=title_en]').getAttribute('aria-invalid'),'true');
+  const title=form.querySelector('[name=title_en]');
+  title.value='Russia 30-day visa-free for Vietnamese citizens 2026';
+  title.dispatchEvent(new window.Event('input',{bubbles:true}));
+  assert.match(root.querySelector('[data-cms-auto-url]').textContent,/\/en\/news\/russia-30-day-visa-free-for-vietnamese-citizens-2026/);
+  form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await settle();
+  assert.equal(saves[0].slug,'russia-30-day-visa-free-for-vietnamese-citizens-2026');
+  assert.equal(root.querySelector('[name=slug]'),null);
+ }finally{cms.destroy({force:true});window.close();}
+});
+
+test('new article saves avoid an occupied title address and existing articles keep theirs',async()=>{
+ const taken=new Set(['russia-visa-update','russia-visa-update-2']);
+ const calls=[];
+ let lookups=0;
+ const db={
+  async rpc(name,args){
+   calls.push({name,slug:args.p_record?.slug,id:args.p_record?.id,version:args.p_expected_version});
+   return {data:{id:args.p_record?.id||'created',slug:args.p_record?.slug,version:(args.p_record?.version||0)+1},error:null};
+  },
+  from(){lookups++;return {select(){return this},eq(){return this},or(){return Promise.resolve({data:[...taken].map(slug=>({slug})),error:null})}};}
+ };
+ const adapter=createAgencyCmsAdapter({db,isStaff:()=>true,getUser:()=>({id:'user'})});
+ const created=await adapter.save({kind:'article',title_en:'Russia visa update',title_vi:'Cập nhật'});
+ assert.equal(created.slug,'russia-visa-update-3');
+ const kept=await adapter.save({id:'existing',kind:'article',slug:'custom-address',title_en:'Changed title',version:4},{expectedVersion:4});
+ assert.equal(kept.slug,'custom-address');
+ assert.equal(calls.at(-1).version,4);
+ assert.equal(lookups,1);
 });

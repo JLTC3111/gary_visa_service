@@ -33,6 +33,24 @@
   :is(.visa-preferences-panel, .visa-public .mobile-nav, .gary-apps-menu-panel, .select-menu) { opacity: 0; translate: 0 var(--gary-panel-shift, -5px); }
 }
 
+/* The public menu overlays the page: one height-and-fade transition, no second animation. */
+.visa-public .header .mobile-nav {
+  --gary-panel-shift: -12px;
+  transition-property: opacity, translate, display, overlay, grid-template-rows;
+  transition-duration: 250ms;
+  transition-timing-function: cubic-bezier(0, 0, .2, 1);
+  transition-behavior: allow-discrete;
+  grid-template-rows: 1fr;
+}
+.visa-public .header .mobile-nav[hidden] {
+  transition-duration: 190ms;
+  transition-timing-function: cubic-bezier(.4, 0, 1, 1);
+  grid-template-rows: 0fr;
+}
+@starting-style {
+  .visa-public .header .mobile-nav { grid-template-rows: 0fr; opacity: 0; translate: 0 -12px; }
+}
+
 :is(.gary-apps-menu)::details-content {
   transition: content-visibility var(--gary-motion-close) allow-discrete;
 }
@@ -151,4 +169,9 @@
 @media (max-width: 900px) {
   .visa-staff-sidebar .workspace-nav { overscroll-behavior: contain; }
   #workspace.visa-staff-workspace { transition: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visa-public .header .mobile-nav,
+  .visa-public .header .mobile-nav[hidden] { transition-duration: 0ms; }
 }
