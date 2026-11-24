@@ -175,7 +175,7 @@ export function SwipeToast({
     {closeButton && <button type="button" data-success-close onClick={close}>{vi ? "Đóng" : "Dismiss"}</button>}
     {duration > 0 && <svg key={duration} aria-hidden="true" className="action-toast-fuse" data-paused={paused || undefined}
       viewBox="0 0 360 12" preserveAspectRatio="none" style={{ "--toast-duration": `${duration}ms` } as CSSProperties}>
-      <defs><linearGradient id={fuseId}><stop offset="0%"/><stop offset="100%"/></linearGradient></defs>
+      <defs><linearGradient id={fuseId}><stop offset="0%"/><stop offset="50%"/><stop offset="100%"/></linearGradient></defs>
       <path d="M2 2 Q3 10 12 10 H348 Q357 10 358 2" pathLength={1} fill="none" stroke={`url(#${fuseId})`}
         strokeWidth={2} strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
     </svg>}

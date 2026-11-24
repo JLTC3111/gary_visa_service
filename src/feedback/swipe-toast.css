@@ -27,8 +27,10 @@
   --toast-warning-icon: var(--vp-warning, #755417);
   --toast-error-icon: var(--vp-danger, #a4382e);
   --toast-info-icon: var(--vp-info, #2a577a);
-  --toast-fuse-start: #2563EB;
-  --toast-fuse-end: #4F46E5;
+  --toast-fuse-start: #B45309;
+  --toast-fuse-end: #C2410C;
+  /* The middle stop lies on the same two-color ramp in light mode. */
+  --toast-fuse-middle: rgb(187, 74, 10.5);
   --toast-hover: #eff3fa;
   --toast-shadow: 0 6px 18px #15213124;
   --toast-accent: var(--toast-success-icon);
@@ -65,8 +67,9 @@ html:is([data-visa-theme="dark"], [data-visa-staff-theme="dark"]) .action-toast 
   --toast-warning-icon: #F4D597;
   --toast-error-icon: #FFB7AE;
   --toast-info-icon: #BCD8F7;
-  --toast-fuse-start: #C4B5FD;
-  --toast-fuse-end: #818CF8;
+  --toast-fuse-start: #8E5030;
+  --toast-fuse-middle: #E88932;
+  --toast-fuse-end: #F5A524;
   --toast-hover: #333d4e;
   --toast-shadow: 0 8px 22px #0005;
 }
@@ -74,6 +77,19 @@ html:is([data-visa-theme="dark"], [data-visa-staff-theme="dark"]) .action-toast 
 .action-toast[data-tone="error"] { --toast-accent: var(--toast-error-icon); }
 .action-toast[data-tone="info"] { --toast-accent: var(--toast-info-icon); }
 .action-toast-mark { flex: none; width: 1em; color: var(--toast-accent); font-weight: 750; text-align: center; }
+.action-toast[data-tone="success"] .action-toast-mark { position: relative; }
+.action-toast[data-tone="success"] .action-toast-mark::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  box-sizing: border-box;
+  width: 1.4em;
+  height: 1.4em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
 .action-toast-content { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .action-toast [data-success-heading],
 .action-toast [data-success-title] { display: block; font-weight: 650; }
@@ -101,6 +117,7 @@ html:is([data-visa-theme="dark"], [data-visa-staff-theme="dark"]) .action-toast 
   pointer-events: none;
 }
 .action-toast-fuse stop:first-child { stop-color: var(--toast-fuse-start); }
+.action-toast-fuse stop:nth-child(2) { stop-color: var(--toast-fuse-middle); }
 .action-toast-fuse stop:last-child { stop-color: var(--toast-fuse-end); }
 .action-toast-fuse path {
   stroke-dasharray: 1 1;
