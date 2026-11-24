@@ -10,7 +10,7 @@ if(legacy.has('article')){
  let news={entries:[],state:'loading'};
  function render(){
   if(entries)renderPublicCms({doc:document,entries,language:language(),news});
-  else renderLatestArticles(document,news.entries,language(),{state:news.state});
+  else renderLatestArticles(document,news.entries,language(),{state:news.state,databaseClock:true});
   if(selected&&entries)renderServiceCms({doc:document,entries,slug:selected,language:language()});
  }
  document.addEventListener('gary:language',render);

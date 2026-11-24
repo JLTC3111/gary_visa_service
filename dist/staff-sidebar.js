@@ -7,7 +7,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  const trigger=doc.getElementById('visa-mobile-nav-trigger');
  if(!workspace||!sidebar||!nav||!trigger)return {refresh(){},destroy(){},getState(){return null;}};
  const buttons=[...nav.querySelectorAll(':scope > [data-view]')],label=sidebar.querySelector('.workspace-label');
- const groups=[{id:'operations',en:'Operations',vi:'Nghiệp vụ',views:['applications']},{id:'crm',en:'CRM',vi:'Quan hệ khách hàng',views:['customers','inbox']},{id:'content',en:'Content & Media',vi:'Nội dung & tư liệu',views:['cms','trash']},{id:'administration',en:'Administration',vi:'Quản trị',views:['staff-access']},{id:'account',en:'Account',vi:'Tài khoản',views:['profile']}];
+ const groups=[{id:'operations',en:'Operations',vi:'Nghiệp vụ',views:['applications']},{id:'crm',en:'CRM',vi:'Quan hệ khách hàng',views:['customers','inbox']},{id:'content',en:'Content & Media',vi:'Nội dung & tư liệu',views:['cms','news-guides','trash']},{id:'administration',en:'Administration',vi:'Quản trị',views:['staff-access']},{id:'account',en:'Account',vi:'Tài khoản',views:['profile']}];
  const preferenceKey='gary-visa:staff-sidebar:v1';
  const defaults={width:256,collapsed:false,groups:Object.fromEntries(groups.map(group=>[group.id,true]))};
  let preference={...defaults,groups:{...defaults.groups}};

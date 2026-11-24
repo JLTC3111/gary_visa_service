@@ -21,7 +21,7 @@ export function createNewsHandler(load=options=>loadArticleData(db,options)){
     let status=200,data={};
     try{
       data=slug!==null&&!validArticleSlug(slug)?{entries:[]}:await load(options);
-      if(slug!==null&&!eligibleArticles(data.entries).some(entry=>entry.slug===slug))status=404;
+      if(slug!==null&&!eligibleArticles(data.entries,data.databaseClock?Infinity:undefined).some(entry=>entry.slug===slug))status=404;
     }catch{
       status=503;data={state:'error'};
     }

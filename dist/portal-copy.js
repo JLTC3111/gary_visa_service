@@ -6,8 +6,42 @@ export const portalCopy={
 Object.assign(portalCopy.en,workspaceCopy.en);
 Object.assign(portalCopy.vi,workspaceCopy.vi);
 
-Object.assign(portalCopy.en,{cmsNav:'Content management'});
-Object.assign(portalCopy.vi,{cmsNav:'Quản lý nội dung'});
+Object.assign(portalCopy.en,{cmsNav:'Content management',newsGuidesNav:'News & Guides'});
+Object.assign(portalCopy.vi,{cmsNav:'Quản lý nội dung',newsGuidesNav:'Tin tức & Hướng dẫn'});
+
+Object.assign(portalCopy.en,{
+ applicationKind:'Intake classification',intakeRequests:'Requests and unreviewed',intakeAll:'All intake',
+ intake_unreviewed:'Unreviewed',intake_application:'Customer request',intake_editorial:'Editorial or service content',
+ intake_internal_test:'Internal or test',saveIntake:'Save classification',intakeSaved:'Intake classification saved.',
+ applicationIntentHint:'Use this form to request support with a visa, work permit, residence card or documents.',
+ applicationIntentConfirm:'I’m submitting a request for support.',
+ applicationSubjectInvalid:'Enter a title with at least three characters on one line, including a letter or number.'
+});
+Object.assign(portalCopy.vi,{
+ applicationKind:'Phân loại hồ sơ tiếp nhận',intakeRequests:'Yêu cầu và hồ sơ chưa phân loại',intakeAll:'Tất cả hồ sơ tiếp nhận',
+ intake_unreviewed:'Chưa phân loại',intake_application:'Yêu cầu của khách hàng',intake_editorial:'Bài viết hoặc nội dung dịch vụ',
+ intake_internal_test:'Nội bộ hoặc thử nghiệm',saveIntake:'Lưu phân loại',intakeSaved:'Đã lưu phân loại hồ sơ.',
+ applicationIntentHint:'Dùng biểu mẫu này để yêu cầu hỗ trợ về thị thực, giấy phép lao động, thẻ tạm trú hoặc giấy tờ.',
+ applicationIntentConfirm:'Tôi đang gửi yêu cầu hỗ trợ.',
+ applicationSubjectInvalid:'Nhập tiêu đề trên một dòng với ít nhất ba ký tự, trong đó có chữ hoặc số.'
+});
+
+Object.assign(portalCopy.en,{
+ contactKind:'Relationship type',allContactKinds:'All relationship types',relationship_lead:'Lead',relationship_customer:'Customer',
+ relationship_staff_linked:'Staff-linked',relationship_internal_test:'Internal or test',
+ crmEmailInUse:'A CRM contact already uses this email. Search by email before creating a record.',
+ crmCountHint:'Counts cover active leads and customers.',
+ crmScopeNote:'Staff links and internal records are labeled in CRM. Notes are private to staff.',
+ editProfileSync:'Changes to the linked profile update the name, email and phone here.'
+});
+Object.assign(portalCopy.vi,{
+ contactKind:'Loại quan hệ',allContactKinds:'Tất cả loại quan hệ',relationship_lead:'Khách tiềm năng',relationship_customer:'Khách hàng',
+ relationship_staff_linked:'Liên kết nhân viên',relationship_internal_test:'Nội bộ hoặc thử nghiệm',
+ crmEmailInUse:'Một liên hệ CRM đã dùng email này. Hãy tìm theo email trước khi tạo liên hệ.',
+ crmCountHint:'Số liệu gồm khách hàng và khách tiềm năng đang hoạt động.',
+ crmScopeNote:'CRM có nhãn cho liên hệ nhân viên và hồ sơ nội bộ. Ghi chú chỉ hiển thị cho nhân viên.',
+ editProfileSync:'Khi hồ sơ liên kết thay đổi, họ tên, email và số điện thoại tại đây cũng được cập nhật.'
+});
 
 Object.assign(portalCopy.en,{
  avatarTitle:'Profile picture',avatarChoose:'Choose a picture',avatarFormats:'JPG, JPEG, PNG or WebP. Up to 5 MB.',

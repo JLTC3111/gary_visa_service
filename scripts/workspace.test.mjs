@@ -24,12 +24,15 @@ function mockDatabase(tables){
  class Query{
   constructor(table){this.table=table;this.op='select';this.predicates=[];this.orders=[];this.from=0;this.to=Infinity;this.singleRow=false;this.options={}}
   select(columns,options){this.options=options||{};return this}order(key,{ascending=true}={}){this.orders.push([key,ascending]);return this}range(from,to){this.from=from;this.to=to;return this}limit(limit){this.to=limit-1;return this}single(){this.singleRow=true;return this}
-  eq(key,value){this.predicates.push(row=>row[key]===value);return this}neq(key,value){this.predicates.push(row=>row[key]!==value);return this}is(key,value){return this.eq(key,value)}lte(key,value){this.predicates.push(row=>row[key]!=null&&row[key]<=value);return this}
+  eq(key,value){this.predicates.push(row=>row[key]===value);return this}neq(key,value){this.predicates.push(row=>row[key]!==value);return this}in(key,values){this.predicates.push(row=>values.includes(row[key]));return this}is(key,value){return this.eq(key,value)}lte(key,value){this.predicates.push(row=>row[key]!=null&&row[key]<=value);return this}
   ilike(key,value){const search=value.slice(1,-1).replace(/\\(.)/g,'$1').toLowerCase();this.predicates.push(row=>String(row[key]||'').toLowerCase().includes(search));return this}
   insert(values){this.op='insert';this.values=values;return this}update(values){this.op='update';this.values=values;return this}
   then(resolve,reject){
    calls.push({table:this.table,operation:this.op,values:this.values});
-   let rows=(tables[this.table]||[]).filter(row=>this.predicates.every(test=>test(row)));
+   const records=this.table==='gary_crm_contact_directory'?(tables.gary_crm_contacts||[]).map(row=>({
+    relationship:row.internal_test?'internal_test':row.stage==='customer'?'customer':'lead',display_stage:row.stage,...row
+   })):tables[this.table]||[];
+   let rows=records.filter(row=>this.predicates.every(test=>test(row)));
    if(this.op==='insert'){const record={id:randomUUID(),created_at:new Date().toISOString(),updated_at:new Date().toISOString(),source:'manual',tags:[],...this.values};(tables[this.table]??=[]).push(record);rows=[record]}
    if(this.op==='update')rows.forEach(row=>Object.assign(row,this.values));
    const count=rows.length;rows=[...rows].sort((a,b)=>{for(const [key,ascending]of this.orders){const n=String(a[key]||'').localeCompare(String(b[key]||''));if(n)return ascending?n:-n}return 0}).slice(this.from,this.to+1);

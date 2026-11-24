@@ -100,7 +100,7 @@ test('direct article pages trust server-rendered HTML on load and recheck public
     w.document.dispatchEvent(new w.Event('visibilitychange'));
     await settle();
     assert.deepEqual(calls.filter(([key])=>key==='eq'),[['eq','kind','article'],['eq','slug','guide']]);
-    assert.ok(Number.isFinite(Date.parse(calls.find(([key])=>key==='lte')[2])));
+    assert.equal(calls.some(([key])=>key==='lte'),false,'the current public snapshot policy uses the database clock');
     assert.equal(calls.filter(([key,table])=>key==='table'&&table==='gary_cms_public').length,1);
     assert.equal(w.document.querySelector('.cms-article-body'),null);
     assert.equal(w.document.querySelector('meta[name=robots]').content,'noindex, follow');
@@ -215,6 +215,30 @@ test('homepage retry restores the article feed independently of the other CMS co
     assert.equal(w.document.activeElement.id,'cms-news-title');
     assert.equal(w.document.querySelector('#services').hidden,false,'failure in separate CMS content preserves the existing homepage');
   }finally{w.close();}
+});
+
+test('the homepage, directory and article detail accept a snapshot already due on the database clock',async()=>{
+ const guide=record('clock-skew-guide','2100-01-02T00:00:00Z');
+ const row={entry_id:guide.id,kind:guide.kind,slug:guide.slug,published_at:guide.published_at,content:guide};
+ const db={
+  from(table){assert.equal(table,'gary_cms_public');return {
+   select(){return this;},order(){return this;},eq(){return this;},neq(){return this;},
+   async range(){return {data:[row]};}
+  };},
+  async rpc(){return {data:{entries:[guide],page:1,total:1}};}
+ };
+ const dom=new JSDOM(await html('index.html'),{url:newsOrigin});
+ try{
+   const data=await loadHomepageCms(db);
+   renderPublicCms({doc:dom.window.document,entries:[],news:data.news});
+   assert.equal(dom.window.document.querySelector('#cms-articles article a').getAttribute('href'),'/en/news/clock-skew-guide');
+   const handler=createNewsHandler(options=>loadArticleData(db,options));
+   for(const path of ['/en/news','/en/news/clock-skew-guide']){
+     let status,body;
+     await handler({url:path,method:'GET'},{writeHead(code){status=code;return this;},end(value){body=value;}});
+     assert.equal(status,200);assert.match(body,/Title: clock-skew-guide/);
+   }
+ }finally{dom.window.close();}
 });
 
 test('Vercel news handler sends localized SEO and article text without JavaScript, and reports missing or unavailable pages',async()=>{

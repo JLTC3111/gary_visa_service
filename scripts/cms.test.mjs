@@ -109,9 +109,40 @@ test('workspace refuses unverified staff and explains missing setup in Vietnames
  try{await workspace.enter();assert.equal(calls,0);allowed=true;await workspace.enter();assert.match(dom.window.document.querySelector('#cms-root').textContent,/hoàn tất thiết lập/);assert.equal(calls,1);workspace.reset();assert.equal(dom.window.document.querySelector('#cms-root').children.length,0)}finally{dom.window.close()}
 });
 
-test('agency media adapter reserves before upload and reconciles a retried removal',async()=>{
+test('News & Guides mounts only article records, shows the live snapshot and retries a failed load',async()=>{
+ const {window}=new JSDOM('<section id="cms-view"><div id="cms-root"></div></section><section id="news-guides-view"><div id="news-guides-root"></div></section>');
+ const doc=window.document,root=doc.getElementById('news-guides-root'),settle=()=>new Promise(resolve=>setImmediate(resolve));
+ let view='news-guides',fail=true;
+ const seen=[];
+ const db={
+  async rpc(){return {data:{role:'publisher',read:true,edit:false,publish:true}};},
+  from(table){assert.equal(table,'gary_cms_entries');return {
+   select(fields){if(view==='news-guides')assert.match(fields,/publication:gary_cms_public/);return this;},
+   eq(field,value){seen.push([field,value]);return this;},order(){return this;},async range(){
+    return fail?{error:{code:'NETWORK'}}:{data:[entry('article','visa-guide',{status:'draft',publication:{published_at:'2026-01-01T00:00:00Z'}})],count:1};
+   }
+  };}
+ };
+ const workspace=createAgencyCms({doc,db,isStaff:()=>true,getUser:()=>({id:'publisher'}),getLanguage:()=> 'en',getView:()=>view});
+ try{
+  await workspace.enter();await settle();
+  assert.equal(root.querySelector('h2').textContent,'News & Guides');
+  assert.deepEqual([...root.querySelectorAll('[data-kind]')].map(tab=>tab.dataset.kind),['article']);
+  assert.equal(root.querySelector('[data-cms-notice]').getAttribute('role'),'alert');
+  fail=false;root.querySelector('[data-action=refresh]').click();await settle();
+  assert.equal(root.querySelector('[data-cms-notice]').textContent,'');
+  assert.match(root.querySelector('tbody').textContent,/Earlier version is live/);
+  assert.equal(root.querySelector('[data-action=new]'),null);
+  assert.deepEqual(seen,[['kind','article'],['kind','article']]);
+  view='cms';await workspace.enter();await settle();
+  assert.equal(root.childElementCount,0);
+  assert.equal(doc.querySelector('#cms-root [data-kind=article]'),null);
+ }finally{workspace.reset();window.close();}
+});
+
+test('agency media adapter reserves before upload and checks Storage state after lost responses',async()=>{
  const calls=[];
- let removalError=true;
+ let missing=false;
  const stored={id:'media-id',file_name:'cover.png',mime_type:'image/png',size_bytes:3,alt_en:'Cover',alt_vi:'Ảnh bìa'};
  const db={
   async rpc(name,args){
@@ -121,23 +152,27 @@ test('agency media adapter reserves before upload and reconciles a retried remov
     assert.equal(args.p_caption_vi,'Chú thích');
     stored.object_path=args.p_path;
    }
-   if(name==='gary_cms_confirm_media_removal')return {data:true};
+   if(name==='gary_cms_register_media')return {data:{...stored,state:'ready'}};
+   if(name==='gary_cms_prepare_media_removal')return {data:{...stored,state:'deleting'}};
+   if(name==='gary_cms_confirm_media_removal')return {data:missing};
    return {data:stored};
   },
   storage:{from(bucket){
    assert.equal(bucket,'gary-cms-media');
    return {
-    async upload(path,file,options){assert.equal(path,stored.object_path);assert.equal(options.upsert,false);calls.push('Storage upload');return {data:{path}};},
-    async remove(paths){assert.deepEqual(paths,[stored.object_path]);calls.push('Storage remove');return removalError?{error:new Error('timeout')}:{data:[]};}
+    getPublicUrl(path){return {data:{publicUrl:'https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/gary-cms-media/'+path}};},
+    async upload(path,file,options){assert.equal(path,stored.object_path);assert.equal(options.upsert,false);calls.push('Storage upload');return {error:new Error('timeout')};},
+    async remove(paths){assert.deepEqual(paths,[stored.object_path]);calls.push('Storage remove');return {error:new Error('timeout')};}
    };
   }}
  };
  const adapter=createAgencyCmsAdapter({db,isStaff:()=>true,getUser:()=>({id:'20000000-0000-4000-8000-000000000001'})});
- await adapter.uploadMedia({name:'cover.png',size:3,type:'image/png'},{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_vi:'Chú thích',publicConfirmed:true});
+ const ready=await adapter.uploadMedia({name:'cover.png',size:3,type:'image/png'},{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_vi:'Chú thích',publicConfirmed:true});
+ assert.ok(ready.url.endsWith(stored.object_path));
  assert.deepEqual(calls,['gary_cms_reserve_media','Storage upload','gary_cms_register_media']);
  await assert.rejects(()=>adapter.removeMedia(stored.id),/CMS_MEDIA_PENDING/);
- assert.equal(calls.includes('gary_cms_confirm_media_removal'),false);
- removalError=false;
+ assert.equal(calls.at(-1),'gary_cms_confirm_media_removal');
+ missing=true;
  await adapter.removeMedia(stored.id);
  assert.deepEqual(calls.slice(-3),['gary_cms_prepare_media_removal','Storage remove','gary_cms_confirm_media_removal']);
 });
@@ -158,7 +193,7 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   capabilities:async()=>({role,read:true,edit:role==='editor',media:role==='editor',publish:role==='publisher'}),
   list:async()=>({records:[article],total:1}),listMedia:async()=>media,coverUrl:publicCmsImage,
   save:async record=>{article={...record,version:record.version+1,status:'draft'};writes.push(article);return article;},
-  uploadMedia:async(file,metadata)=>writes.push({file,metadata}),
+  uploadMedia:async(file,metadata)=>{writes.push({file,metadata});return {...makeItem(3),...metadata};},
   updateMedia:async(id,metadata)=>writes.push({id,metadata}),
   removeMedia:async id=>{media=media.filter(item=>item.id!==id);}
  };
@@ -177,25 +212,38 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   assert.equal(select('[data-cover-preview] img').src,media[1].url);
   submit('[data-cms-editor]');await settle();
   assert.equal(writes[0].data.image_url,media[1].url);
+  const replacement=select('[data-cms-cover-upload]');
+  Object.defineProperty(replacement.elements.file,'files',{value:[new window.File(['png'],'replacement.png',{type:'image/png'})]});
+  replacement.elements.alt_en.value='New cover';replacement.elements.alt_vi.value='Ảnh bìa mới';
+  select('[data-action=upload-cover]').click();await settle();
+  assert.equal(writes.length,1,'replacement requires public approval');
+  replacement.elements.public_approval.checked=true;
+  select('[data-action=upload-cover]').click();await settle();
+  assert.equal(select('[data-cover-preview] img').src,makeItem(3).url);
+  assert.equal(select('[data-cover-preview] img').alt,'Ảnh bìa mới');
+  assert.equal(article.data.image_url,media[1].url,'upload leaves the saved reference alone');
+  submit('[data-cms-editor]');await settle();
+  assert.equal(writes.at(-1).data.image_url,makeItem(3).url);
   select('[data-action=remove-cover]').click();
   assert.equal(select('[data-cover-preview] img'),null);
   submit('[data-cms-editor]');await settle();
-  assert.equal(writes[1].data.image_url,'');
+  assert.equal(writes.at(-1).data.image_url,'');
   select('[data-action=close]').click();await settle();
   select('[data-action=media]').click();await settle();
   const editing=select('[data-cms-media-metadata]');
   editing.elements.caption_en.value='Updated English';
   editing.elements.caption_vi.value='Đã cập nhật';
   submit('[data-cms-media-metadata]');await settle();
-  assert.deepEqual(writes[2],{id:'1',metadata:{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_en:'Updated English',caption_vi:'Đã cập nhật',version:2}});
+  assert.deepEqual(writes.at(-1),{id:'1',metadata:{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_en:'Updated English',caption_vi:'Đã cập nhật',version:2}});
   const upload=select('[data-cms-upload]');
   Object.defineProperty(upload.elements.file,'files',{value:[new window.File(['png'],'new.png',{type:'image/png'})]});
   upload.elements.alt_en.value='New image';upload.elements.alt_vi.value='Ảnh mới';
+  const beforeUpload=writes.length;
   submit('[data-cms-upload]');await settle();
-  assert.equal(writes.length,3);
+  assert.equal(writes.length,beforeUpload);
   upload.elements.public_approval.checked=true;
   submit('[data-cms-upload]');await settle();
-  assert.equal(writes[3].metadata.publicConfirmed,true);
+  assert.equal(writes.at(-1).metadata.publicConfirmed,true);
   select('[data-action=remove-media]').click();await settle();
   assert.equal(select('.cms-media-grid').children.length,1);
   role='publisher';await cms.refresh();
@@ -206,6 +254,7 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   select('[data-action=edit]').click();
   assert.equal(select('[data-field=title_en]').disabled,true);
   assert.equal(select('[data-cover-select]'),null);
+  assert.equal(select('[data-cms-cover-upload]'),null);
   assert.ok(select('[data-action=publish]'));
  }finally{cms.destroy({force:true});window.close();}
 });

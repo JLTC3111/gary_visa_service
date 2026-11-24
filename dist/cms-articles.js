@@ -1,4 +1,5 @@
 import {config} from './config.js';
+import {showDelayedLattice} from './lattice-loader.js';
 
 export const newsOrigin='https://visa.garyhome.vn';
 export const articlePageSize=9;
@@ -77,20 +78,26 @@ export function bindArticleFallbacks(root){
   }
 }
 
-export function renderLatestArticles(doc,entries,language,{state='ready'}={}){
+function mountArticleLattice(root,state){
+  const slot=state==='loading'?root.querySelector('[data-lattice="navigation"]'):null;
+  if(slot)showDelayedLattice(slot,{pattern:'orbit',grid:3,label:'',cellSize:8,gap:3,fontSize:14});
+}
+
+export function renderLatestArticles(doc,entries,language,{state='ready',databaseClock=false}={}){
   let section=doc.getElementById('cms-articles');
   if(!section){
     section=doc.createElement('section');section.id='cms-articles';section.className='section cms-public-articles';
     section.setAttribute('aria-labelledby','cms-news-title');doc.getElementById('faq')?.before(section);
   }
-  const rows=state==='ready'?eligibleArticles(entries).slice(0,3):[],t=(en,vi)=>local(language,en,vi);
+  const rows=state==='ready'?eligibleArticles(entries,databaseClock?Infinity:undefined).slice(0,3):[],t=(en,vi)=>local(language,en,vi);
   section.hidden=false;
   section.setAttribute('aria-busy',String(state==='loading'));
   const message=state==='error'?t('Articles are temporarily unavailable.','Bài viết hiện tạm thời không tải được.'):
     state==='loading'?t('Loading articles…','Đang tải bài viết…'):
     t('New articles will appear here as they are published.','Bài viết mới sẽ xuất hiện tại đây sau khi được xuất bản.');
   const retry=state==='error'?`<button type="button" class="service-link" data-retry-articles>${t('Try again','Thử lại')}</button>`:'';
-  section.innerHTML=`<div class="container"><div class="cms-news-header"><h2 id="cms-news-title" tabindex="-1">${t('News &amp; Guides','Tin tức &amp; Hướng dẫn')}</h2><a href="${articlePath(language)}" class="service-link">${t('View all','Xem tất cả')}</a></div>${rows.length?cards(rows,language,doc.location.origin,'h3'):`<div class="cms-news-empty"><p role="status">${message}</p>${retry}</div>`}</div>`;
+  section.innerHTML=`<div class="container"><div class="cms-news-header"><h2 id="cms-news-title" tabindex="-1">${t('News &amp; Guides','Tin tức &amp; Hướng dẫn')}</h2><a href="${articlePath(language)}" class="service-link">${t('View all','Xem tất cả')}</a></div>${rows.length?cards(rows,language,doc.location.origin,'h3'):`<div class="cms-news-empty${state==='loading'?' lattice-surface':''}">${state==='loading'?'<div class="lattice-slot" data-lattice="navigation" data-reserve></div>':''}<p role="status">${message}</p>${retry}</div>`}</div>`;
+  mountArticleLattice(section,state);
   bindArticleFallbacks(section);
 }
 
@@ -114,10 +121,10 @@ function articleReference(value){
   }catch{return '';}
 }
 
-export function articleView({entries=[],total=null,language='en',slug=null,state='ready',filters={},origin=newsOrigin}={}){
+export function articleView({entries=[],total=null,language='en',slug=null,state='ready',filters={},origin=newsOrigin,databaseClock=false}={}){
   language=language==='vi'?'vi':'en';filters=articleFilters(filters);
   const t=(en,vi)=>local(language,en,vi),name=t('News & Guides','Tin tức & Hướng dẫn');
-  let rows=eligibleArticles(entries);
+  let rows=eligibleArticles(entries,databaseClock?Infinity:undefined);
   const entry=state==='ready'&&slug!==null?rows.find(item=>item.slug===slug):null;
   const missing=state==='ready'&&slug!==null&&!entry;
   const title=entry?localized(entry,'title',language):missing?t('Article unavailable','Bài viết không khả dụng'):name;
@@ -128,7 +135,7 @@ export function articleView({entries=[],total=null,language='en',slug=null,state
       ?t('Articles are temporarily unavailable. Please try again shortly.','Bài viết tạm thời không tải được. Vui lòng thử lại sau.')
       :t('Loading articles…','Đang tải bài viết…');
     const retry=state==='error'?`<a class="service-link" href="${escape(articlePath(language,slug,filters))}">${t('Try again','Thử lại')}</a>`:'';
-    content+=`<div class="cms-news-empty"><p role="status">${status}</p>${retry}</div>`;
+    content+=`<div class="cms-news-empty${state==='loading'?' lattice-surface':''}">${state==='loading'?'<div class="lattice-slot" data-lattice="navigation" data-reserve></div>':''}<p role="status">${status}</p>${retry}</div>`;
   }else if(entry){
     const cover=coverFor(entry,language,origin),summary=localized(entry,'summary',language),source=articleReference(entry.data?.source_url);
     const paragraphs=localized(entry,'body',language).split(/\n\s*\n/u).map(text=>text.trim()).filter(Boolean);
@@ -139,7 +146,7 @@ export function articleView({entries=[],total=null,language='en',slug=null,state
     if(total===null){
       const q=filters.q.toLocaleLowerCase(language);
       rows=rows.filter(row=>(!filters.category||categoryFor(row)===filters.category)&&
-        (!q||['title_en','title_vi','summary_en','summary_vi'].some(key=>String(row[key]||'').toLocaleLowerCase(language).includes(q))));
+        (!q||[row.title_en,row.title_vi,row.summary_en,row.summary_vi].filter(value=>value!=null).join(' ').toLocaleLowerCase(language).includes(q)));
       total=rows.length;filters.page=Math.min(filters.page,Math.max(1,Math.ceil(total/articlePageSize)));
       rows=rows.slice((filters.page-1)*articlePageSize,filters.page*articlePageSize);
     }
@@ -184,6 +191,7 @@ export function renderArticlePage(doc,options){
   const view=articleView({...options,origin:options?.origin??doc.location.origin});
   const main=doc.getElementById('article-content');
   main.innerHTML=view.content;main.setAttribute('aria-busy',String(view.state==='loading'));
+  mountArticleLattice(main,view.state);
   for(const node of doc.head.querySelectorAll('title,meta[name=description],meta[name=robots],meta[property^="og:"],meta[name^="twitter:"],link[rel=canonical],link[hreflang],script[type="application/ld+json"]'))node.remove();
   doc.head.insertAdjacentHTML('beforeend',seoMarkup(view));
   bindArticleFallbacks(main);

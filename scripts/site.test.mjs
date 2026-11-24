@@ -14,6 +14,8 @@ import {createAgencyCms} from '../dist/cms-workspace.js';
 import {createTrash} from '../dist/trash.js';
 import {createStaffAccess} from '../dist/staff-access.js';
 import {createProfileAvatar} from '../dist/profile-avatar.js';
+import {accountRoleLabel, mountAccountMenu} from '../dist/account-menu.js';
+import {mountPublicAccountMenu} from '../dist/public-account-menu.js';
 import {workspaceUI} from '../dist/workspace-ui.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function flush(){for(let i=0;i<8;i++)await tick()}
@@ -36,10 +38,98 @@ test('Public site filters, translates, recommends services and safely prepares e
  dom.window.close();
 });
 
+test('Visa public account menu keeps sign-in and verified routes distinct', async () => {
+ const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
+ const dom = environment(html), w = dom.window, doc = w.document;
+ try {
+  let user, accessResult, subscription, signoutOptions, signoutError;
+  const client = {
+   auth: {
+    onAuthStateChange: callback => { subscription = callback; },
+    getUser: async () => ({data: {user}}),
+    signOut: async options => { signoutOptions = options; return {error: signoutError}; }
+   },
+   rpc: name => {
+    assert.equal(name, 'gary_my_access');
+    return {abortSignal: () => accessResult};
+   },
+   from: () => ({select() { return this; }, eq() { return this; }, abortSignal() { return this; },
+    maybeSingle: async () => ({data: {full_name: 'Alex Nguyễn'}})}),
+   storage: {from: () => ({createSignedUrl: async () => ({data: {signedUrl: 'https://example.test/avatar'}})})}
+  };
+  mountPublicAccountMenu(doc, client);
+  const root = doc.querySelector('#public-account-menu'), trigger = root.querySelector('button');
+  const panel = doc.getElementById(trigger.getAttribute('aria-controls'));
+  const destination = key => panel.querySelector(`[data-account-destination=${key}]`);
+  const destinations = () => [...panel.querySelectorAll('[data-account-destination]:not([hidden])')].map(node => node.dataset.accountDestination);
+  const session = (event, nextUser) => { user = nextUser; subscription(event, user ? {user} : null); };
+
+  trigger.click();
+  assert.match(panel.querySelector('[role=status]').textContent, /Checking session/);
+  session('INITIAL_SESSION', null);
+  assert.deepEqual(destinations(), ['customerLogin', 'staffLogin']);
+  assert.equal(destination('staffLogin').search, '?area=staff');
+  doc.documentElement.lang = 'vi';
+  doc.dispatchEvent(new w.Event('gary:language'));
+  assert.equal(destination('customerLogin').textContent, 'Đăng nhập khách hàng');
+  destination('customerLogin').focus();
+  destination('customerLogin').dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  assert.equal(panel.hidden, true);
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+  assert.equal(doc.activeElement, trigger);
+
+  let finish;
+  accessResult = new Promise(resolve => { finish = resolve; });
+  session('SIGNED_IN', {id: 'staff-fixture', email: 'staff@example.test'});
+  trigger.click();
+  await flush();
+  assert.deepEqual(destinations(), []);
+  session('SIGNED_IN', {id: 'customer-fixture', email: 'customer@example.test', user_metadata: {role: 'staff'}});
+  assert.equal(panel.hidden, true);
+  accessResult = {data: {member: false}};
+  trigger.click();
+  await flush();
+  finish({data: {member: true, operations: 'admin'}});
+  await flush();
+  assert.deepEqual(destinations(), ['customerDashboard', 'profile']);
+  assert.equal(destination('profile').search, '?view=profile');
+  assert.equal(panel.querySelector('.visa-account-identity strong').textContent, 'Alex Nguyễn');
+  assert.equal(panel.querySelector('.visa-account-identity small').textContent, 'customer@example.test');
+
+  session('SIGNED_IN', {id: 'cms-fixture', email: 'cms@example.test'});
+  accessResult = {error: {status: 503}};
+  trigger.click();
+  await flush();
+  assert.deepEqual(destinations(), []);
+  const retry = panel.querySelector('.visa-account-retry');
+  assert.equal(retry.hidden, false);
+  accessResult = {data: {member: true, operations: null, cms: 'editor'}};
+  retry.click();
+  await flush();
+  assert.deepEqual(destinations(), ['staffDashboard', 'staffProfile']);
+  assert.equal(destination('staffProfile').search, '?area=staff&view=profile');
+  assert.match(panel.querySelector('.visa-account-badges').textContent, /Biên tập/);
+  const signout = panel.querySelector('.visa-account-signout');
+  signoutError = {status: 503};
+  signout.click();
+  await flush();
+  assert.equal(panel.querySelector('[role=alert]').hidden, false);
+  assert.equal(panel.hidden, false);
+  signoutError = null;
+  signout.click();
+  await flush();
+  assert.deepEqual(signoutOptions, {scope: 'local'});
+  assert.equal(panel.hidden, true);
+  trigger.click();
+  assert.deepEqual(destinations(), ['customerLogin', 'staffLogin']);
+ } finally { dom.window.close(); }
+});
+
 async function portalEnvironment(role='customer',url='http://localhost:4173/portal.html',cmsFactory=createAgencyCms,access=role==='staff'?{member:true,operations:'admin',cms:'admin'}:{member:false,operations:null,cms:null}){
  const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');const dom=environment(html,url);mountStaffSidebar(dom.window.document);const w=dom.window;const calls=[];const profile={id:'customer-id',full_name:'Alex Customer',contact_email:'alex@example.test',phone:'',nationality:'',preferred_language:'en'};
  bindFeedbackDom(w);
  w.createProfileAvatar=createProfileAvatar;
+ w.accountRoleLabel=accountRoleLabel;w.mountAccountMenu=mountAccountMenu;
  const application={id:'12345678-0000-4000-8000-000000000001',customer_id:'customer-id',service:'visa',subject:'A real service request',details:'Customer plans',status:'submitted',created_at:'2026-10-20T10:00:00Z',updated_at:'2026-10-20T10:00:00Z',assigned_staff_id:null};
  class Query{
   constructor(table){this.table=table;this.operation='select';this.singleRow=false;this.options={}}
@@ -52,6 +142,46 @@ async function portalEnvironment(role='customer',url='http://localhost:4173/port
  let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox,createAgencyCms,createTrash,createStaffAccess,workspaceUI,mountPortalEditors}=globalThis.__backend;${source}\n})()`);
  return {dom,w,doc:w.document,calls,application};
 }
+test('Visa staff account menu opens the permitted dashboard and profile from the mobile drawer', async () => {
+ const env = await portalEnvironment('staff', 'http://localhost:4173/portal.html?area=staff&view=profile',
+  undefined, {member: true, operations: null, cms: 'editor'});
+ const {dom, w, doc} = env;
+ try {
+  Object.defineProperty(w, 'innerWidth', {value: 440});
+  w.dispatchEvent(new w.Event('resize'));
+  doc.querySelector('#auth-email').value = 'staff@example.test';
+  doc.querySelector('#auth-password').value = 'Asecurepassword123';
+  doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit', {cancelable: true}));
+  await flush();
+  const root = doc.querySelector('#staff-account-menu'), trigger = root.querySelector('.visa-account-trigger');
+  const dashboard = root.querySelector('[data-account-destination=staffDashboard]');
+  const profile = root.querySelector('[data-account-destination=staffProfile]');
+  assert.equal(root.hidden, false);
+  assert.equal(doc.querySelector('#customer-sidebar-user').hidden, true);
+  doc.querySelector('#visa-mobile-nav-trigger').click();
+  trigger.click();
+  assert.equal(profile.getAttribute('aria-current'), 'page');
+  dashboard.click();
+  await flush();
+  assert.equal(doc.querySelector('#cms-view').hidden, false);
+  assert.equal(doc.querySelector('#visa-mobile-nav').open, false);
+  assert.equal(dashboard.getAttribute('aria-current'), 'page');
+  doc.querySelector('#visa-mobile-nav-trigger').click();
+  trigger.click();
+  profile.click();
+  await flush();
+  assert.equal(doc.querySelector('#profile-view').hidden, false);
+  assert.equal(doc.activeElement, doc.querySelector('#profile-title'));
+  doc.querySelector('#visa-mobile-nav-trigger').click();
+  trigger.click();
+  root.querySelector('.visa-account-signout').click();
+  await flush();
+  assert.equal(doc.querySelector('#auth-screen').hidden, false);
+  assert.equal(root.hidden, true);
+  assert.equal(root.querySelector('.visa-account-identity strong').textContent, '');
+ } finally { dom.window.close(); }
+});
+
 test('Customer signup never accepts a staff role and explains email confirmation',async()=>{
  const {dom,w,doc,calls}=await portalEnvironment();doc.querySelector('#signup-toggle').click();doc.querySelector('#auth-name').value='Alex Customer';doc.querySelector('#auth-email').value='alex@example.test';doc.querySelector('#auth-password').value='Asecurepassword123';doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();const call=calls.find(call=>call.operation==='signup');assert.ok(call);assert.deepEqual(Object.keys(call.values.options.data),['full_name']);assert.match(doc.querySelector('#auth-notice').textContent,/confirm your account/);assert.equal(doc.querySelector('#auth-password').value,'');dom.window.close();
 });

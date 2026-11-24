@@ -13,7 +13,7 @@ export function mountCms(root, options) {
   if (!root || !options?.adapter || !options.collections?.length) throw new Error('CMS root, collections and adapter required');
   const adapter = options.adapter, id = `cms-${++serial}`;
   const mediaPolicy = options.mediaPolicy || adapter.mediaPolicy || { mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], maxBytes: 10 * 1024 * 1024 };
-  let language = options.language === 'vi' ? 'vi' : 'en', disposed = false, epoch = 0, busy = false;
+  let language = options.language === 'vi' ? 'vi' : 'en', disposed = false, epoch = 0, busy = false, loadFailed = false;
   let capabilities = { read: false, edit: false, publish: false, media: false };
   let kind = options.collections[0].kind, query = '', status = '', page = 1, total = 0, records = [], media = [], view = 'content';
   let draft = null, baseline = '', revisions = [], coverImages = [], notice = '', noticeKind = 'status', editorWorkspace = null;
@@ -52,7 +52,7 @@ export function mountCms(root, options) {
     editorWorkspace?.destroy(); editorWorkspace = null;
     root.classList.add('gary-cms'); root.dataset.cmsApp = options.appId || 'content';
     const tabs = options.collections.map(item => button('collection', label(item.label), `data-kind="${escape(item.kind)}" aria-pressed="${item.kind === kind && view === 'content'}"`)).join('');
-    root.innerHTML = `<header class="cms-header"><div><p class="cms-eyebrow">${escape(options.appName || options.appId || 'Gary Group')}</p><h2>${t('cms')}</h2><p>${t('intro')}</p></div><div class="cms-role">${t('role')}: ${escape(capabilities.role ? t(capabilities.role) : t('readOnly'))}</div></header><p class="cms-notice" data-cms-notice role="${noticeKind}" aria-live="polite">${escape(notice)}</p><nav class="cms-collections" aria-label="${t('content')}">${tabs}${button('media', t('media'), `aria-pressed="${view === 'media'}"`)}</nav><div class="cms-workspace" data-cms-workspace></div><dialog class="cms-dialog" id="${id}-editor" aria-labelledby="${id}-editor-heading"></dialog>`;
+    root.innerHTML = `<header class="cms-header"><div><p class="cms-eyebrow">${escape(options.appName || options.appId || 'Gary Group')}</p><h2>${escape(label(options.heading) || t('cms'))}</h2><p>${t('intro')}</p></div><div class="cms-role">${t('role')}: ${escape(capabilities.role ? t(capabilities.role) : t('readOnly'))}</div></header><p class="cms-notice" data-cms-notice role="${noticeKind}" aria-live="polite">${escape(notice)}</p><nav class="cms-collections" aria-label="${t('content')}">${tabs}${button('media', t('media'), `aria-pressed="${view === 'media'}"`)}</nav><div class="cms-workspace" data-cms-workspace></div><dialog class="cms-dialog" id="${id}-editor" aria-labelledby="${id}-editor-heading"></dialog>`;
     renderWorkspace();
   }
   function renderWorkspace() {
@@ -60,11 +60,19 @@ export function mountCms(root, options) {
     if (!target) return;
     if (!capabilities.read) { target.innerHTML = `<div class="cms-empty" role="status">${escape(busy ? t('loading') : t('noAccess'))}${button('refresh', t('refresh'))}</div>`; return; }
     if (view === 'media') { renderMedia(target); return; }
-    target.innerHTML = `<div class="cms-toolbar"><label class="cms-search"><span>${t('search')}</span><input type="search" data-cms-search value="${escape(query)}" maxlength="180"></label><label><span>${t('status')}</span><select data-cms-status><option value="">${t('all')}</option>${['draft', 'review', 'published', 'archived'].map(value => `<option value="${value}"${status === value ? ' selected' : ''}>${t(value)}</option>`).join('')}</select></label>${button('search', t('search'))}${button('refresh', t('refresh'))}${capabilities.edit ? button('new', t('add'), 'class="cms-primary"') : ''}</div><div class="cms-table-scroll" aria-busy="${busy}"><table><caption class="cms-sr">${escape(label(collection().label))}</caption><thead><tr><th scope="col">${t('title')}</th><th scope="col">${t('status')}</th><th scope="col">${t('updated')}</th><th scope="col">${t('actions')}</th></tr></thead><tbody>${records.length ? records.map((record, index) => `<tr><th scope="row"><strong>${escape(record[`title_${language}`] || record.title_en || record.title_vi || record.slug)}</strong><small>${escape(record.slug)}</small></th><td><span class="cms-badge cms-badge-${escape(record.status)}">${escape(t(record.status))}</span></td><td>${escape(date(record.updated_at))}</td><td>${button('edit', t(capabilities.edit ? 'edit' : 'viewEntry'), `data-index="${index}"`)}${capabilities.delete && adapter.remove ? button('delete', t('delete'), `data-index="${index}" class="cms-danger"`) : ''}</td></tr>`).join('') : `<tr><td colspan="4" class="cms-empty">${escape(busy ? t('loading') : t('empty'))}</td></tr>`}</tbody></table></div><footer class="cms-pagination"><span>${t('results')}: ${total} · ${t('page')} ${page} ${t('of')} ${Math.max(1, Math.ceil(total / 20))}</span><div>${button('previous', t('previous'), '', page <= 1)}${button('next', t('next'), '', page * 20 >= total)}</div></footer>`;
+    target.innerHTML = `<div class="cms-toolbar"><label class="cms-search"><span>${t('search')}</span><input type="search" data-cms-search value="${escape(query)}" maxlength="180"></label><label><span>${t('status')}</span><select data-cms-status><option value="">${t('all')}</option>${['draft', 'review', 'published', 'archived'].map(value => `<option value="${value}"${status === value ? ' selected' : ''}>${t(value)}</option>`).join('')}</select></label>${button('search', t('search'))}${button('refresh', t('refresh'))}${capabilities.edit ? button('new', t('add'), 'class="cms-primary"') : ''}</div><div class="cms-table-scroll" aria-busy="${busy}"><table><caption class="cms-sr">${escape(label(collection().label))}</caption><thead><tr><th scope="col">${t('title')}</th><th scope="col">${t('status')}</th><th scope="col">${t('updated')}</th><th scope="col">${t('actions')}</th></tr></thead><tbody>${records.length ? records.map((record, index) => `<tr><th scope="row"><strong>${escape(record[`title_${language}`] || record.title_en || record.title_vi || record.slug)}</strong><small>${escape(record.slug)}</small>${publicationNote(record)}</th><td><span class="cms-badge cms-badge-${escape(record.status)}">${escape(t(record.status))}</span></td><td>${escape(date(record.updated_at))}</td><td>${button('edit', t(capabilities.edit ? 'edit' : 'viewEntry'), `data-index="${index}"`)}${capabilities.delete && adapter.remove ? button('delete', t('delete'), `data-index="${index}" class="cms-danger"`) : ''}</td></tr>`).join('') : `<tr><td colspan="4" class="cms-empty">${escape(busy ? t('loading') : loadFailed ? t('unavailable') : t('empty'))}</td></tr>`}</tbody></table></div><footer class="cms-pagination"><span>${t('results')}: ${total} · ${t('page')} ${page} ${t('of')} ${Math.max(1, Math.ceil(total / 20))}</span><div>${button('previous', t('previous'), '', page <= 1)}${button('next', t('next'), '', page * 20 >= total)}</div></footer>`;
+  }
+  function publicationNote(record) {
+    const live = Boolean(record.publication?.published_at);
+    if (live && record.status !== 'published') return `<small>${t('priorPublicationLive')}</small>`;
+    if (!live && record.status === 'published' && Object.hasOwn(record, 'publication')) return `<small>${t('publicationMissing')}</small>`;
+    return '';
   }
   async function refresh(recheck = false) {
     if (disposed) return;
-    const requestEpoch = ++epoch; busy = true; renderWorkspace();
+    const requestEpoch = ++epoch;
+    if (loadFailed) announce('');
+    loadFailed = false; busy = true; renderWorkspace();
     try {
       if (recheck || !capabilities.read) {
         capabilities = { read: false, edit: false, publish: false, media: false, ...await adapter.capabilities() };
@@ -80,7 +88,14 @@ export function mountCms(root, options) {
         if (disposed || requestEpoch !== epoch) return;
         records = result.records || []; total = Number(result.total) || 0;
       }
-    } catch (error) { if (!disposed && requestEpoch === epoch) announce(errorText(error), true); }
+    } catch (error) {
+      if (!disposed && requestEpoch === epoch) {
+        loadFailed = true;
+        if (view === 'media') media = [];
+        else { records = []; total = 0; }
+        announce(errorText(error), true);
+      }
+    }
     finally { if (!disposed && requestEpoch === epoch) { busy = false; shell(); } }
   }
   function field(key, text, type = 'text', extra = {}) {
@@ -102,9 +117,10 @@ export function mountCms(root, options) {
     dialog.innerHTML = `<header><div><p class="cms-eyebrow">${escape(label(collection().label))}</p><h2 id="${id}-editor-heading">${escape(draft.id ? t(capabilities.edit ? 'edit' : 'viewEntry') : t('add'))}</h2></div>${button('close', t('close'))}</header><form data-cms-editor novalidate><div class="cms-editor-body gw-editor-body" data-gw-body><div class="cms-editor-meta">${field('slug', t('slug'))}<p><span class="cms-badge cms-badge-${escape(draft.status)}">${t(draft.status)}</span> · <span data-cms-dirty>${t('clean')}</span></p></div><p class="cms-hint">${t('snapshot')}</p>${collection().lockPublishedSlug && draft.published_at ? `<p class="cms-hint">${t('publishedAddress')}</p>` : ''}<div class="cms-language-columns">${LOCALES.map(locale => `<section lang="${locale}" aria-label="${locale === 'en' ? 'English' : 'Tiếng Việt'}"><h3>${locale === 'en' ? 'English' : 'Tiếng Việt'}</h3>${field(`title_${locale}`, t('title'), 'text', { locale })}${field(`summary_${locale}`, t('summary'), 'textarea', { locale })}${field(`body_${locale}`, t('body'), 'textarea', { locale })}${extraFields.filter(item => item.locale === locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}<details><summary>${t('seo')}</summary>${field(`seo_title_${locale}`, t('seoTitle'), 'text', { locale })}${field(`seo_description_${locale}`, t('seoDescription'), 'textarea', { locale })}</details></section>`).join('')}</div>${extraFields.filter(item => !item.locale).map(item => field(item.key, label(item.label), item.type, item)).join('')}${collection().cover ? '<section class="cms-cover" data-cms-cover></section>' : ''}<details class="cms-seo"><summary>${t('seo')}</summary><p class="cms-hint">${t('advisory')}</p><div data-cms-checks></div></details><details class="cms-preview"><summary>${t('preview')}</summary><div class="cms-language-columns" data-cms-preview></div></details><details data-cms-revisions><summary>${t('revision')}</summary><div data-cms-history><p>${t('loadingRevisions')}</p></div></details><p class="cms-dialog-notice" data-editor-notice role="status" aria-live="polite"></p></div><footer class="cms-editor-actions gw-editor-actions" data-gw-actions>${capabilities.edit ? `<button type="submit" class="cms-primary" data-button-variant="save-draft"${disabled(busy)}>${t('save')}</button>${button('review', t('submit'), '', !draft.id)}` : ''}${capabilities.publish ? `${button('publish', t('publish'), '', !draft.id || draft.status !== 'review')}${button('archive', t('archive'), '', !draft.id || draft.status === 'archived')}` : ''}${capabilities.delete && adapter.remove ? button('delete', t('delete'), 'class="cms-danger"') : ''}${button('close', t('cancel'), 'data-button-variant="cancel" ')}</footer></form>`;
     if (!editorWorkspace) editorWorkspace = attachEditorWorkspace(dialog, {key: `${options.appId || 'content'}:cms:${kind}`, language: () => language});
     editorWorkspace.refresh();
+    renderCover();
     dialog.querySelectorAll('details').forEach((details, index) => { if (expanded[index]) details.open = true; });
     dialog.querySelector('[data-gw-body]').scrollTop = scrollTop;
-    updateEditorChecks(); renderHistory(); renderCover();
+    updateEditorChecks(); renderHistory();
     const opening = !dialog.open;
     if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); } else dialog.setAttribute('open', '');
     if (opening) dialog.querySelector('input')?.focus({preventScroll: true});
@@ -133,7 +149,17 @@ export function mountCms(root, options) {
   function renderCover() {
     const region = root.querySelector('[data-cms-cover]');
     if (!region || !draft) return;
-    region.innerHTML = `<h3>${t('cover')}</h3><div data-cover-preview></div>${capabilities.edit ? `<label class="cms-field"><span>${t('chooseCover')}</span><select data-cover-select${disabled(busy || !coverImages.length)}><option value="">—</option>${coverImages.map(image => `<option value="${escape(image.url)}">${escape(image.file_name)}</option>`).join('')}</select></label>${button('remove-cover', t('removeCover'))}<p class="cms-hint">${t('coverHint')}</p>` : ''}`;
+    if (!region.querySelector('[data-cover-preview]')) {
+      const upload = capabilities.edit && capabilities.media && mediaPolicy.publicImages && adapter.uploadMedia ?
+        `<details><summary>${t('uploadCover')}</summary><fieldset data-cms-cover-upload><p class="cms-hint">${t('onlyPublicImages')}</p><label class="cms-field"><span>${t('file')}</span><input type="file" name="file" accept="${escape(mediaPolicy.mimeTypes.join(','))}"></label>${mediaFields()}${publicAgreement()}${button('upload-cover', t('upload'))}</fieldset></details>` : '';
+      const controls = capabilities.edit ? `<label class="cms-field"><span>${t('chooseCover')}</span><select data-cover-select></select></label>${button('remove-cover', t('removeCover'))}<p class="cms-hint">${t('coverHint')}</p>` : '';
+      region.innerHTML = `<h3>${t('cover')}</h3><div data-cover-preview></div>${controls}${upload}`;
+    }
+    const select = region.querySelector('[data-cover-select]');
+    if (select) {
+      select.innerHTML = `<option value="">—</option>${coverImages.map(image => `<option value="${escape(image.url)}">${escape(image.file_name)}</option>`).join('')}`;
+      select.disabled = busy || !coverImages.length;
+    }
     updateCoverPreview();
   }
   function setCover(value) {
@@ -148,11 +174,11 @@ export function mountCms(root, options) {
     editorReturnId = record?.id || null;
     draft = structuredClone(record || emptyEntry(kind)); draft.data ||= {};
     baseline = JSON.stringify(draft); revisions = []; coverImages = []; editor();
-    if (collection().cover && adapter.listMedia && capabilities.edit) {
+    if (collection().cover && adapter.listMedia) {
       const opened = draft;
       void adapter.listMedia({readyOnly: true}).then(items => {
         if (disposed || draft !== opened) return;
-        coverImages = items.filter(item => item.url);
+        coverImages = [...new Map([...coverImages, ...items.filter(item => item.url)].map(item => [item.url, item])).values()];
         renderCover();
       }).catch(error => { if (draft === opened) editorNotice(errorText(error)); });
     }
@@ -162,7 +188,7 @@ export function mountCms(root, options) {
       catch (error) { if (draft?.id === selected) editorNotice(errorText(error)); }
     }
   }
-  function editorNotice(text) { const target = root.querySelector('[data-editor-notice]'); if (target) { target.textContent = text; target.setAttribute('role', 'alert'); } }
+  function editorNotice(text, failed = true) { const target = root.querySelector('[data-editor-notice]'); if (target) { target.textContent = text; target.setAttribute('role', failed ? 'alert' : 'status'); } }
   function renderHistory() {
     const target = root.querySelector('[data-cms-history]'); if (!target) return;
     target.innerHTML = revisions.length ? revisions.map((revision, index) => `<div class="cms-revision"><span>${escape(date(revision.created_at))} · v${escape(revision.version || index + 1)} · ${escape(t(revision.status || 'draft'))}</span>${capabilities.edit ? button('restore', t('restore'), `data-index="${index}"`) : ''}</div>`).join('') : `<p>${t('revisionsEmpty')}</p>`;
@@ -221,13 +247,56 @@ export function mountCms(root, options) {
   }
   function renderMedia(target) {
     const policyText = `${mediaPolicy.mimeTypes.map(type => type.split('/')[1].toUpperCase()).join(', ')} · ${Math.round(mediaPolicy.maxBytes / 1024 / 1024)} MB`;
-    const confirmation = mediaPolicy.publicImages ? `<label class="cms-media-consent"><input type="checkbox" name="public_approval" required> <span>${t('publicConfirmation')}</span></label>` : '';
+    const confirmation = mediaPolicy.publicImages ? publicAgreement() : '';
     const heading = mediaPolicy.publicImages ? 'publicImages' : 'media';
     const upload = capabilities.media && adapter.uploadMedia ? `<form data-cms-upload><p>${escape(policyText)}</p><label class="cms-field"><span>${t('file')}</span><input type="file" name="file" accept="${escape(mediaPolicy.mimeTypes.join(','))}" required></label>${mediaFields()}<p class="cms-hint">${t('altHint')}</p>${confirmation}${mediaSubmit('upload')}</form>` : '';
-    target.innerHTML = `<div class="cms-toolbar"><h3>${t(heading)}</h3>${button('refresh', t('refresh'))}</div>${mediaPolicy.publicImages ? `<p class="cms-hint">${t('onlyPublicImages')}</p>` : ''}${upload}<div class="cms-media-grid">${media.length ? media.map(mediaCard).join('') : `<p>${t('mediaEmpty')}</p>`}</div>`;
+    target.innerHTML = `<div class="cms-toolbar"><h3>${t(heading)}</h3>${button('refresh', t('refresh'))}</div>${mediaPolicy.publicImages ? `<p class="cms-hint">${t('onlyPublicImages')}</p>` : ''}${upload}<div class="cms-media-grid">${media.length ? media.map(mediaCard).join('') : `<p>${t(busy ? 'loading' : loadFailed ? 'unavailable' : 'mediaEmpty')}</p>`}</div>`;
+  }
+  function publicAgreement() {
+    return `<label class="cms-media-consent"><input type="checkbox" name="public_approval" required> <span>${t('publicConfirmation')}</span></label>`;
   }
   function readMediaFields(form) {
     return Object.fromEntries(['alt_en','alt_vi','caption_en','caption_vi'].map(key => [key, form.elements[key]?.value.trim() || '']));
+  }
+  function readMediaUpload(form) {
+    const file = form.elements.file.files?.[0];
+    const metadata = {...readMediaFields(form), publicConfirmed: form.elements.public_approval?.checked};
+    if (!file || file.size <= 0 || file.size > mediaPolicy.maxBytes || !mediaPolicy.mimeTypes.includes(file.type)) {
+      return {error: `${t('invalid')} ${Math.round(mediaPolicy.maxBytes / 1024 / 1024)} MB`};
+    }
+    if (file.type.startsWith('image/') && (!metadata.alt_en || !metadata.alt_vi)) return {error: t('altHint')};
+    if (mediaPolicy.publicImages && !metadata.publicConfirmed) return {error: t('publicConfirmation')};
+    return {file, metadata};
+  }
+  async function uploadCover() {
+    const form = root.querySelector('[data-cms-cover-upload]');
+    if (!draft || !form || !capabilities.edit || !capabilities.media || busy || !adapter.uploadMedia) return;
+    const {file, metadata, error} = readMediaUpload(form);
+    if (error) { editorNotice(error); return; }
+    const editing = draft;
+    form.disabled = busy = true;
+    editorNotice(t('savingMedia'), false);
+    try {
+      const item = await adapter.uploadMedia(file, metadata);
+      if (disposed || draft !== editing) return;
+      if (!item?.url) throw new Error('CMS_MEDIA_MISSING');
+      coverImages.unshift(item);
+      busy = false;
+      setCover(item.url);
+      if (form.isConnected) {
+        form.elements.file.value = '';
+        form.elements.public_approval.checked = false;
+        const details = form.closest('details');
+        details.open = false;
+        details.querySelector('summary').focus();
+      }
+      editorNotice(t('coverSelected'), false);
+    } catch (error) {
+      if (!disposed) editorNotice(errorText(error));
+    } finally {
+      busy = false; form.disabled = false;
+      if (!disposed && draft === editing) renderCover();
+    }
   }
   async function changeMedia(operation, message, control, refreshOnError = false) {
     if (!capabilities.media || busy) return;
@@ -285,6 +354,7 @@ export function mountCms(root, options) {
     if (action === 'edit') return openEditor(records[Number(target.dataset.index)]);
     if (action === 'new') { if (capabilities.edit) return openEditor(); return; }
     if (action === 'remove-cover') return setCover('');
+    if (action === 'upload-cover') return uploadCover();
     if (action === 'collection' || action === 'media') {
       if (!canLeave()) return; draft = null; baseline = ''; query = ''; page = 1;
       if (action === 'collection') { kind = target.dataset.kind; view = 'content'; } else view = 'media';
@@ -327,11 +397,8 @@ export function mountCms(root, options) {
     }
     if (event.target.matches('[data-cms-upload]')) {
       event.preventDefault(); event.stopPropagation(); if (!capabilities.media || busy) return;
-      const form = event.target, file = form.elements.file.files?.[0];
-      if (!file || file.size <= 0 || file.size > mediaPolicy.maxBytes || !mediaPolicy.mimeTypes.includes(file.type)) { announce(t('invalid') + ' ' + `${Math.round(mediaPolicy.maxBytes / 1024 / 1024)} MB`, true); return; }
-      if (file.type.startsWith('image/') && (!form.elements.alt_en.value.trim() || !form.elements.alt_vi.value.trim())) { announce(t('altHint'), true); return; }
-      const metadata = {...readMediaFields(form), publicConfirmed: form.elements.public_approval?.checked};
-      if (mediaPolicy.publicImages && !metadata.publicConfirmed) { announce(t('publicConfirmation'), true); return; }
+      const form = event.target, {file, metadata, error} = readMediaUpload(form);
+      if (error) { announce(error, true); return; }
       return changeMedia(() => adapter.uploadMedia(file, metadata), t('mediaSaved'), form.querySelector('button'), true);
     }
     if (event.target.matches('[data-cms-media-metadata], [data-cms-retry-upload]')) {

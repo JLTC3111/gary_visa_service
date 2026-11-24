@@ -10,6 +10,8 @@ const legacyMembers=['staff','staff2','manager','admin','admin2','editor','publi
 const operationsRoles={staff:'staff',staff2:'staff',manager:'manager',admin:'admin',admin2:'admin',editor:null,publisher:null,cmsAdmin:null,noAccess:null};
 const migrations=['20261022180819_gary_customer_staff_portal.sql','20261023040329_crm_and_site_chat.sql','20261023044012_live_staff_chat.sql','20261116043114_agency_cms_foundation.sql','20261116095518_agency_recoverable_deletion.sql'];
 const teamAccessMigrations=['20261117202944_staff_auth_eligibility.sql','20261118034500_visa_team_access.sql'];
+const intakeMigration='20261124115604_visa_application_intake.sql';
+const crmMigration='20261124115915_visa_crm_relationships.sql';
 const sql=name=>readFile(new URL(`../supabase/${name}`,import.meta.url),'utf8');
 const denied=(fn,code='42501')=>assert.rejects(fn,error=>error.code===code);
 
@@ -65,6 +67,86 @@ async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false}={}){
  if(cmsLifecycle)for(const name of ['20261124052852_agency_public_articles.sql','20261124053400_agency_cms_media_lifecycle.sql'])await db.exec(await sql(`migrations/${name}`));
  return {db,q,one,count,as,owner,rpc,ids:{assigned:assigned.id,queued:queued.id,other:other.id,contact,otherContact,guest,customerChat}};
 }
+
+test('Application intake preserves existing cases and lets Operations oversight review them in place',async()=>{
+ const h=await setup({teamAccess:true});
+ const submit=(subject,details='',confirmed=true)=>h.one("insert into public.gary_applications(service,subject,details,request_confirmed) values('documents',$1,$2,$3) returning id,subject,intake_kind",[subject,details,confirmed]);
+ const classify=()=>h.one("update public.gary_applications set intake_kind='editorial' where id=$1 returning id,status,intake_kind",[h.ids.assigned]);
+ try{
+  const before=await h.one('select * from public.gary_applications where id=$1',[h.ids.assigned]);
+  const originalEvents=await h.count('select 1 from public.gary_application_events where application_id=$1',[h.ids.assigned]);
+  await h.db.exec(await sql(`migrations/${intakeMigration}`));
+  const {intake_kind,request_confirmed,...after}=await h.one('select * from public.gary_applications where id=$1',[h.ids.assigned]);
+  assert.equal(intake_kind,'unreviewed');assert.equal(request_confirmed,false);assert.deepEqual(after,before);
+  await h.as('customer');
+  await denied(classify);
+  for(const subject of ['...', '   ', 'A\nB'])await denied(()=>submit(subject),'23514');
+  const articleQuestion=await submit('  Hỏi về hướng dẫn  ','I read this guide https://example.test/guide. Can you help with my request?');
+  assert.equal(articleQuestion.subject,'Hỏi về hướng dẫn');assert.equal(articleQuestion.intake_kind,'application');
+  assert.equal((await submit('Giấy tờ')).intake_kind,'application','details remain optional');
+  assert.equal((await submit('Document help','',false)).intake_kind,'unreviewed','older clients can still submit requests');
+  await h.as('staff');await denied(classify);
+  await h.as('manager');assert.deepEqual(await classify(),{id:h.ids.assigned,status:before.status,intake_kind:'editorial'});
+  assert.equal(await h.count('select 1 from public.gary_application_events where application_id=$1 and intake_kind is null',[h.ids.assigned]),originalEvents);
+  assert.deepEqual(await h.one('select status,actor_id,intake_kind from public.gary_application_events where application_id=$1 and intake_kind is not null',[h.ids.assigned]),
+   {status:before.status,actor_id:uid.manager,intake_kind:'editorial'});
+  assert.equal(await h.count('select 1 from public.gary_documents where application_id=$1',[h.ids.assigned]),1);
+  await h.as(null);assert.equal(await h.count("select 1 from public.gary_cms_public where kind='article'"),0);
+ }finally{await h.db.close()}
+});
+
+test('CRM relationship workflow keeps membership, profiles, cases and guest conversations distinct',async()=>{
+ const h=await setup({teamAccess:true});
+ const relationship=pid=>h.one('select id,relationship,staff_linked,display_stage from public.gary_crm_contact_directory where profile_id=$1',[pid]);
+ const guest=(char,name='Returning Visitor',email='returning@example.test')=>h.rpc('gary_open_chat',[char.repeat(64),name,email,'Question about my documents',randomUUID(),'documents']);
+ try{
+  await h.as('admin');
+  const duplicate=await h.one("insert into public.gary_crm_contacts(full_name,email) values('Existing manual lead','customer@example.test') returning id");
+  await h.owner();
+  for(const name of [intakeMigration,crmMigration])await h.db.exec(await sql(`migrations/${name}`));
+  await h.as('admin');
+  assert.equal((await relationship(uid.customer)).display_stage,'lead','legacy registrations without a reviewed case display as leads');
+  assert.equal(await h.count('select 1 from public.gary_crm_contact_directory where id=$1',[duplicate.id]),1,'legacy duplicates are preserved');
+  await denied(()=>h.q("insert into public.gary_crm_contacts(full_name,email) values('Another lead',' CUSTOMER@example.test ')"),'23505');
+  const internal=await h.one("insert into public.gary_crm_contacts(full_name,email,internal_test) values('Internal QA','customer@example.test',true) returning id");
+  assert.equal((await h.one('select relationship from public.gary_crm_contact_directory where id=$1',[internal.id])).relationship,'internal_test');
+  await h.q("update public.gary_applications set intake_kind='editorial' where id=$1",[h.ids.queued]);
+  assert.equal((await relationship(uid.customer)).relationship,'lead');
+  await h.q("update public.gary_applications set intake_kind='application' where id=$1",[h.ids.assigned]);
+  assert.equal((await relationship(uid.customer)).id,h.ids.contact);
+  assert.equal((await relationship(uid.customer)).relationship,'customer');
+
+  await h.as('staff');
+  assert.equal((await relationship(uid.customer)).id,h.ids.contact,'an assigned contact remains visible');
+  assert.equal(await relationship(uid.customer2),undefined,'CRM still scopes other contacts to their assignee');
+  await h.q("update public.gary_profiles set full_name='Staff customer' where id=auth.uid()");
+  await h.as('admin');assert.equal(await relationship(uid.staff),undefined,'staff profile changes alone do not create contacts');
+  await h.as('staff');
+  await h.q("insert into public.gary_applications(service,subject,request_confirmed) values('visa','My own visa request',true)");
+  await h.q("update public.gary_profiles set phone='12345' where id=auth.uid()");
+  await h.as('admin');
+  const dual=await relationship(uid.staff);assert.equal(dual.relationship,'customer');assert.equal(dual.staff_linked,true);
+  assert.equal((await h.one('select phone from public.gary_crm_contacts where id=$1',[dual.id])).phone,'12345');
+  await h.rpc('gary_set_operations_role',[uid.staff,null,'staff']);
+  assert.deepEqual(await relationship(uid.staff),dual,'role revocation keeps the historical roster and customer contact');
+  await h.as('staff');assert.equal((await h.rpc('gary_my_access')).operations,null);
+  assert.equal(await h.count('select 1 from public.gary_crm_contact_directory'),0);
+
+  await h.as('newcomer');
+  await h.q("insert into public.gary_profiles(full_name,contact_email) values('New customer','customer@example.test')");
+  assert.equal((await h.rpc('gary_my_access')).member,false);
+  assert.equal(await h.count('select 1 from public.gary_crm_contact_directory'),0);
+  await h.as('admin');assert.equal(await relationship(uid.newcomer),undefined,'registration alone does not create another matching-email contact');
+
+  await h.as(null);const first=await guest('1'),second=await guest('2','returning visitor','RETURNING@example.test');
+  assert.notEqual(first.conversation.id,second.conversation.id);
+  await denied(()=>h.rpc('gary_read_chat',[first.conversation.id,'2'.repeat(64)]));
+  await h.as('admin');
+  const conversations=(await h.q('select customer_id,contact_id from public.gary_chat_conversations where id in($1,$2)',[first.conversation.id,second.conversation.id])).rows;
+  assert.equal(conversations.length,2);assert.equal(conversations[0].contact_id,conversations[1].contact_id);
+  assert.ok(conversations.every(row=>row.customer_id===null));
+ }finally{await h.db.close()}
+});
 
 test('Public news can publish with the original CMS schema before the directory RPC is installed',async()=>{
  const h=await setup({teamAccess:true});

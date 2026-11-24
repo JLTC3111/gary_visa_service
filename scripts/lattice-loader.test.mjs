@@ -1,0 +1,81 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {JSDOM, VirtualConsole} from 'jsdom';
+import {showDelayedLattice, bindDocumentNavigation, LATTICE_REVEAL_MS} from '../dist/lattice-loader.js';
+
+const jobsRoot = new URL('../../../gary_jobs/gary-teaching-jobs/dist/', import.meta.url);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const click = (node, window) => node.dispatchEvent(new window.MouseEvent('click', {bubbles: true, cancelable: true, button: 0}));
+
+test('monochrome lattice assets match Teaching Jobs', () => {
+  const css = fs.readFileSync(new URL('../dist/lattice-loader.css', import.meta.url), 'utf8');
+  const js = fs.readFileSync(new URL('../dist/lattice-loader.js', import.meta.url), 'utf8');
+  assert.match(css, /--ll-color:\s*#111111/);
+  assert.match(css, /--ll-color:\s*#ffffff/);
+  assert.match(css, /prefers-reduced-motion:\s*reduce[\s\S]*animation:\s*none!important/);
+  assert.doesNotMatch(css, /#22c55e|#ef4444|gradient|lavender/i);
+  assert.equal(css, fs.readFileSync(new URL('lattice-loader.css', jobsRoot), 'utf8'));
+  assert.equal(js, fs.readFileSync(new URL('lattice-loader.js', jobsRoot), 'utf8'));
+});
+
+test('Orbit, Ripple, and Dots stay hidden for 200ms and can be cancelled', async () => {
+  const dom = new JSDOM('<div id="orbit"></div><div id="ripple"></div><div id="dots"></div>');
+  const doc = dom.window.document;
+  const orbit = doc.getElementById('orbit');
+  const stop = showDelayedLattice(orbit, {pattern: 'orbit', grid: 3, label: 'Opening page…', cellSize: 8, gap: 3, fontSize: 14});
+  assert.equal(orbit.querySelector('.lattice-loader'), null);
+  assert.equal(orbit.querySelector('.lattice-loader__sr').textContent, 'Opening page…');
+  stop();
+  const disconnected = doc.createElement('div');
+  showDelayedLattice(disconnected, {label: 'Disconnected'});
+  await wait(LATTICE_REVEAL_MS + 30);
+  assert.equal(orbit.querySelector('.lattice-loader'), null);
+  assert.equal(disconnected.querySelector('.lattice-loader'), null);
+  showDelayedLattice(orbit, {pattern: 'orbit', grid: 3, label: 'Opening page…'});
+  const ripple = doc.getElementById('ripple');
+  const dots = doc.getElementById('dots');
+  showDelayedLattice(ripple, {pattern: 'ripple', grid: 4, label: 'Loading workspace…', status: true});
+  showDelayedLattice(dots, {pattern: 'dots', grid: 3, label: 'Đang kết nối an toàn…', status: true});
+  assert.equal(ripple.querySelector('.lattice-loader'), null);
+  await wait(LATTICE_REVEAL_MS + 30);
+  assert.equal(orbit.querySelectorAll('.lattice-loader__run .lattice-loader__cell').length, 9);
+  assert.equal(orbit.querySelectorAll('[data-hole]').length, 1);
+  assert.equal(orbit.querySelector('.lattice-loader').dataset.pattern, 'orbit');
+  assert.equal(orbit.querySelector('.lattice-loader').dataset.grid, '3');
+  assert.equal(ripple.querySelectorAll('.lattice-loader__run .lattice-loader__cell').length, 16);
+  assert.equal(ripple.querySelector('[data-hole]'), null);
+  assert.equal(ripple.getAttribute('role'), 'status');
+  assert.equal(ripple.querySelector('.lattice-loader').dataset.pattern, 'ripple');
+  assert.equal(dots.querySelectorAll('.lattice-loader__run .lattice-loader__cell').length, 9);
+  assert.equal(dots.querySelector('[data-hole]'), null);
+  assert.equal(dots.querySelector('.lattice-loader').dataset.grid, '3');
+  assert.equal(dots.querySelector('.lattice-loader__label').textContent, 'Đang kết nối an toàn…');
+  dom.window.close();
+});
+
+test('full-page links use delayed Orbit and in-page actions do not', async () => {
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', () => {});
+  const dom = new JSDOM('<a id="go" href="/en/news">News</a><a id="job" href="/jobs/teacher">Job</a><a id="here" href="https://visa.example/">Stay</a>', {url: 'https://visa.example/', virtualConsole});
+  const doc = dom.window.document;
+  const {window} = dom;
+  bindDocumentNavigation(doc);
+  doc.getElementById('job').addEventListener('click', event => event.preventDefault());
+  click(doc.getElementById('job'), window);
+  click(doc.getElementById('here'), window);
+  await wait(0);
+  assert.equal(doc.getElementById('lattice-navigation'), null);
+  doc.documentElement.lang = 'vi';
+  click(doc.getElementById('go'), window);
+  await wait(0);
+  const host = doc.getElementById('lattice-navigation');
+  assert.equal(host.hidden, false);
+  assert.equal(host.getAttribute('role'), 'status');
+  assert.equal(host.querySelector('.lattice-loader'), null);
+  assert.match(host.textContent, /Đang mở trang/);
+  window.dispatchEvent(new window.Event('pagehide'));
+  assert.equal(host.hidden, true);
+  assert.equal(host.querySelector('.lattice-loader'), null);
+  dom.window.close();
+});

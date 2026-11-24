@@ -18,10 +18,12 @@
   <link rel="preload" href="./assets/dm-sans.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="./assets/be-vietnam-pro-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="./assets/be-vietnam-pro-600.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./cms-public.css"><link rel="stylesheet" href="./gary-apps.css"><link rel="stylesheet" href="./chat.css"><link rel="stylesheet" href="./controls.css"><link rel="stylesheet" href="./public-design.css"><link rel="stylesheet" href="./visuals/visual-effects.css"><script type="module" src="./form-controls.js"></script>
+  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./cms-public.css"><link rel="stylesheet" href="./gary-apps.css"><link rel="stylesheet" href="./chat.css"><link rel="stylesheet" href="./controls.css"><link rel="stylesheet" href="./public-design.css"><link rel="stylesheet" href="./visuals/visual-effects.css"><link rel="stylesheet" href="./lattice-loader.css"><script type="module" src="./lattice-loader.js"></script><script type="module" src="./form-controls.js"></script>
   <script type="module" src="./app.js"></script><script type="module" src="./appearance.js"></script><script type="module" src="./visuals/visual-effects.js"></script><script type="module" src="./cms-public-bootstrap.js"></script><script type="module" src="./gary-apps.js"></script><script type="module" src="./chat-widget.js"></script>
   <link rel="stylesheet" href="./ui-motion.css">
   <link rel="stylesheet" href="./action-buttons.css">
+  <link rel="stylesheet" href="./account-menu.css">
+  <script type="module" src="./public-account-menu.js"></script>
 </head>
 <body class="visa-public">
   <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
@@ -63,7 +65,7 @@
             <fieldset><legend data-preferences-effects>Visual effects</legend><div class="preferences-options"><button type="button" data-effects-choice="on" aria-pressed="false">On</button><button type="button" data-effects-choice="off" aria-pressed="true">Off</button></div><p class="preferences-help" data-preferences-help>Turn off the animated highway to save graphics power.</p></fieldset>
           </div>
         </div>
-        <a class="portal-link" href="./portal.html" data-i18n="portal">Sign in</a>
+        <div class="visa-account-menu" id="public-account-menu"><a class="portal-link" href="./portal.html" data-i18n="portal">Sign in</a></div>
 
         <button type="button" class="icon-button button-utility menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav" aria-label="Open menu" data-i18n-aria="openMenu"><svg class="icon"><use href="#i-menu"/></svg></button>
       </div>

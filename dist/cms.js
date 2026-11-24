@@ -3,7 +3,7 @@
 import {articleCategories,publicCmsImage} from './cms-articles.js';
 
 export const agencyCollections=[
- {kind:'service',label:{en:'Visa services',vi:'Dịch vụ visa'},fields:[{key:'data.category',label:{en:'Service group',vi:'Nhóm dịch vụ'},type:'select',options:[{value:'travel',label:{en:'Entry & travel',vi:'Nhập cảnh & du lịch'}},{value:'settle',label:{en:'Work & residence',vi:'Làm việc & cư trú'}},{value:'documents',label:{en:'Documents',vi:'Giấy tờ'}}]},{key:'data.service_type',label:{en:'Enquiry service',vi:'Dịch vụ khi liên hệ'},type:'select',options:[{value:'visa',label:{en:'Visa',vi:'Visa'}},{value:'work',label:{en:'Work permits',vi:'Giấy phép lao động'}},{value:'residence',label:{en:'Residence cards',vi:'Thẻ tạm trú'}},{value:'documents',label:{en:'Document support',vi:'Hỗ trợ giấy tờ'}}]},{key:'includes',bilingual:true,type:'textarea',label:{en:'Included support (one item per line)',vi:'Hỗ trợ bao gồm (mỗi dòng một mục)'}},{key:'data.image_url',type:'url',label:{en:'Image URL',vi:'Đường dẫn ảnh'}}]},
+ {kind:'service',cover:true,label:{en:'Visa services',vi:'Dịch vụ visa'},fields:[{key:'data.category',label:{en:'Service group',vi:'Nhóm dịch vụ'},type:'select',options:[{value:'travel',label:{en:'Entry & travel',vi:'Nhập cảnh & du lịch'}},{value:'settle',label:{en:'Work & residence',vi:'Làm việc & cư trú'}},{value:'documents',label:{en:'Documents',vi:'Giấy tờ'}}]},{key:'data.service_type',label:{en:'Enquiry service',vi:'Dịch vụ khi liên hệ'},type:'select',options:[{value:'visa',label:{en:'Visa',vi:'Visa'}},{value:'work',label:{en:'Work permits',vi:'Giấy phép lao động'}},{value:'residence',label:{en:'Residence cards',vi:'Thẻ tạm trú'}},{value:'documents',label:{en:'Document support',vi:'Hỗ trợ giấy tờ'}}]},{key:'includes',bilingual:true,type:'textarea',label:{en:'Included support (one item per line)',vi:'Hỗ trợ bao gồm (mỗi dòng một mục)'}},{key:'data.image_url',type:'url',label:{en:'Image URL',vi:'Đường dẫn ảnh'}}]},
  {kind:'eligibility',label:{en:'Eligibility information',vi:'Thông tin điều kiện'},fields:[{key:'data.service_slug',type:'text',label:{en:'Related service slug',vi:'Đường dẫn dịch vụ liên quan'}},{key:'data.reviewed_on',type:'date',label:{en:'Last reviewed',vi:'Ngày rà soát'}},{key:'data.source_url',type:'url',label:{en:'Official source',vi:'Nguồn chính thức'}}]},
  {kind:'document',label:{en:'Document requirements',vi:'Giấy tờ cần chuẩn bị'},fields:[{key:'data.service_slug',type:'text',label:{en:'Related service slug',vi:'Đường dẫn dịch vụ liên quan'}},{key:'data.required',type:'select',options:[{value:'required',label:{en:'Required',vi:'Bắt buộc'}},{value:'conditional',label:{en:'Depending on the case',vi:'Tùy trường hợp'}},{value:'optional',label:{en:'Optional',vi:'Không bắt buộc'}}],label:{en:'Requirement',vi:'Yêu cầu'}},{key:'data.source_url',type:'url',label:{en:'Official source',vi:'Nguồn chính thức'}}]},
  {kind:'process',label:{en:'Process steps',vi:'Các bước thực hiện'},fields:[{key:'data.position',type:'number',label:{en:'Display order',vi:'Thứ tự hiển thị'}},{key:'label',bilingual:true,type:'text',label:{en:'Step label',vi:'Nhãn bước'}}]},
@@ -34,15 +34,24 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
  const allowed=()=>{if(!isStaff()||!getUser()?.id)throw Object.assign(new Error('CMS_ACCESS_DENIED'),{code:'42501'})};
  const rpc=async(name,args)=>{allowed();return take(await db.rpc(name,args))};
  const imageBucket=()=>db.storage.from('gary-cms-media');
- const finishMedia=item=>rpc('gary_cms_register_media',{
+ const presentMedia=row=>({
+  ...row,owned:row.uploaded_by===getUser()?.id,
+  url:row.state==='ready'?publicCmsImage(imageBucket().getPublicUrl(row.object_path).data.publicUrl):''
+ });
+ const finishMedia=async item=>presentMedia(await rpc('gary_cms_register_media',{
   p_path:item.object_path,p_name:item.file_name,p_mime:item.mime_type,p_size:item.size_bytes,
   p_alt_en:item.alt_en,p_alt_vi:item.alt_vi
- });
+ }));
  const resumeMedia=async(item,file)=>{
   allowed();
   if(!file||file.type!==item.mime_type||file.size!==item.size_bytes||file.name.slice(0,200)!==item.file_name)throw new Error('CMS_MEDIA_MISSING');
-  const upload=await imageBucket().upload(item.object_path,file,{upsert:false,contentType:file.type,cacheControl:'300'});
-  if(upload.error)throw upload.error;
+  try{
+   const upload=await imageBucket().upload(item.object_path,file,{upsert:false,contentType:file.type,cacheControl:'300'});
+   if(upload.error)throw upload.error;
+  }catch(error){
+   // Storage may have accepted the upload before its response was lost.
+   try{return await finishMedia(item);}catch{throw error;}
+  }
   return finishMedia(item);
  };
  const mediaPending=()=>new Error('CMS_MEDIA_PENDING');
@@ -60,7 +69,8 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   },
   async list({kind,query='',status='',page=1,pageSize=20}={}){
    allowed();page=Math.max(1,Math.trunc(page));pageSize=Math.min(100,Math.max(1,Math.trunc(pageSize)));
-   let request=db.from('gary_cms_entries').select('*',{count:'exact'}).eq('kind',kind).order('updated_at',{ascending:false}).order('id');
+   const selection=kind==='article'?'*,publication:gary_cms_public(published_at)':'*';
+   let request=db.from('gary_cms_entries').select(selection,{count:'exact'}).eq('kind',kind).order('updated_at',{ascending:false}).order('id');
    if(status)request=request.eq('status',status);
    const search=String(query).slice(0,100).replace(/[,%()\\]/g,' ').trim();if(search)request=request.or(`title_en.ilike.%${search}%,title_vi.ilike.%${search}%,slug.ilike.%${search}%`);
    const result=await request.range((page-1)*pageSize,page*pageSize-1);if(result.error)throw result.error;
@@ -77,10 +87,7 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
     .select('id,file_name,object_path,mime_type,size_bytes,created_at,uploaded_by,state,version,alt_en,alt_vi,caption_en,caption_vi')
     .order('created_at',{ascending:false}).limit(200);
    const rows=take(await (readyOnly?request.eq('state','ready'):request.neq('state','removed')));
-   return (Array.isArray(rows)?rows:rows?[rows]:[]).map(row=>({
-    ...row,owned:row.uploaded_by===getUser().id,
-    url:row.state==='ready'?publicCmsImage(imageBucket().getPublicUrl(row.object_path).data.publicUrl):''
-   }));
+   return (Array.isArray(rows)?rows:rows?[rows]:[]).map(presentMedia);
   },
   async uploadMedia(file,metadata={}){
    allowed();
@@ -99,10 +106,10 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   async removeMedia(id){
    const prepared=await rpc('gary_cms_prepare_media_removal',{p_id:id});
    if(prepared.state==='removed')return;
-   const response=await imageBucket().remove([prepared.object_path]).catch(()=>null);
-   if(!response||response.error)throw mediaPending();
-   // The confirmation also covers retries where Storage already removed the
-   // object and returns an empty result for the old key.
+   if(prepared.state!=='deleting'||!prepared.object_path)throw mediaPending();
+   await imageBucket().remove([prepared.object_path]).catch(()=>null);
+   // Confirm the actual object state even if Storage returned an error or a
+   // previous attempt already removed the file.
    let removed;
    try{removed=await rpc('gary_cms_confirm_media_removal',{p_id:id});}catch{throw mediaPending();}
    if(!removed)throw mediaPending();

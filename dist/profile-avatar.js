@@ -16,7 +16,7 @@ export function renderAvatar(node, name, url) {
  node.append(photo);
 }
 
-export function createProfileAvatar({db, doc, t, name, notify}) {
+export function createProfileAvatar({db, doc, t, name, notify, onPhotoChange}) {
  const win = doc.defaultView;
  const get = id => doc.getElementById(id);
  const fileInput = get('profile-avatar-file'), preview = get('profile-avatar-preview');
@@ -42,6 +42,7 @@ export function createProfileAvatar({db, doc, t, name, notify}) {
   if (localPicture) win.URL.revokeObjectURL(localPicture);
   picture = url;
   localPicture = objectUrl;
+  onPhotoChange?.(picture);
  }
  function reset() {
   accountEpoch++; photoEpoch++; selectionEpoch++;

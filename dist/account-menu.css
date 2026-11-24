@@ -1,0 +1,140 @@
+.visa-account-menu {
+  --account-surface: var(--visa-surface);
+  --account-hover: var(--visa-soft);
+  --account-active: var(--visa-raised);
+  --account-text: var(--visa-text);
+  --account-muted: var(--visa-muted);
+  --account-line: var(--visa-line);
+  --account-focus: var(--visa-focus);
+  --account-danger: #a13a32;
+  --account-danger-bg: #f9eae7;
+  position: relative;
+  flex: none;
+}
+
+.visa-account-menu--staff {
+  --account-surface: var(--vp-surface, var(--white));
+  --account-hover: var(--vp-soft, var(--paper));
+  --account-active: var(--vp-hover, var(--visa-nav-active));
+  --account-text: var(--vp-text, var(--ink));
+  --account-muted: var(--vp-muted, var(--muted));
+  --account-line: var(--vp-line, var(--line));
+  --account-focus: var(--vp-focus, var(--teal));
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--account-line);
+}
+
+html[data-visa-theme="dark"] .visa-account-menu {
+  --account-danger: var(--vp-danger, #ffb7ae);
+  --account-danger-bg: var(--vp-danger-soft, #482b31);
+}
+
+.visa-account-menu button { font: inherit; cursor: pointer; }
+.visa-account-menu svg { width: 1.15rem; height: 1.15rem; flex: none; }
+
+.visa-account-menu .visa-account-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.visa-account-trigger:hover, .visa-account-trigger[aria-expanded="true"] {
+  background: var(--visa-header-hover, var(--account-hover));
+}
+.visa-account-trigger > svg { width: 14px; height: 14px; }
+.visa-account-menu :is(button, a):focus-visible { outline: 2px solid var(--account-focus); outline-offset: 2px; }
+.visa-public .visa-account-trigger:focus-visible { outline-color: var(--visa-header-focus, var(--account-focus)); }
+
+.visa-account-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  position: relative;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--account-hover);
+  color: var(--account-text);
+  font-size: .875rem;
+  font-weight: 600;
+}
+.visa-account-trigger .visa-account-avatar { width: 26px; height: 26px; }
+.visa-account-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+.visa-account-panel {
+  position: absolute;
+  z-index: 35;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  width: min(22rem, calc(100vw - 32px));
+  max-height: min(34rem, calc(100dvh - 96px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid var(--account-line);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-text);
+  box-shadow: 0 12px 32px var(--vp-shadow-color, #101c3026);
+  font-size: .875rem;
+  line-height: 1.45;
+}
+.visa-account-identity { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 6px 4px 14px; margin-bottom: 6px; border-bottom: 1px solid var(--account-line); overflow-wrap: anywhere; }
+.visa-account-identity strong, .visa-account-identity small { display: block; }
+.visa-account-identity strong { font-size: 1rem; }
+.visa-account-identity small, .visa-account-panel p { color: var(--account-muted); font-size: .8125rem; }
+.visa-account-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.visa-account-badges:not(:empty) { margin-top: 5px; }
+.visa-account-badges span { padding: 2px 8px; border-radius: 20px; background: var(--account-hover); font-size: .75rem; }
+.visa-account-destinations { display: grid; }
+.visa-account-menu :is(.visa-account-destinations > *, .visa-account-signout, .visa-account-retry) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--account-text);
+  text-align: start;
+}
+.visa-account-destinations > :is(:hover, :focus-visible), .visa-account-retry:hover { background: var(--account-hover); }
+.visa-account-destinations > :is(:active, [aria-current="page"]) { background: var(--account-active); }
+.visa-account-footer { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--account-line); }
+.visa-account-menu .visa-account-signout { color: var(--account-danger); }
+.visa-account-menu .visa-account-signout:is(:hover, :focus-visible, :active):not(:disabled) { color: var(--account-danger); background: var(--account-danger-bg); }
+.visa-account-signout:disabled { opacity: .7; cursor: progress; }
+.visa-account-status { margin: 0; padding: 6px 8px; }
+.visa-account-menu[hidden], .visa-account-menu [hidden], #customer-sidebar-user[hidden] { display: none; }
+
+.visa-staff-sidebar:has(.visa-account-trigger[aria-expanded="true"]) { z-index: 7; }
+.visa-account-menu--staff .visa-account-trigger { justify-content: flex-start; width: 100%; color: var(--account-text); }
+.visa-account-menu--staff .visa-account-trigger > svg { margin-inline-start: auto; transition: transform var(--gary-motion-chevron, 200ms) var(--gary-motion-out, ease-out); }
+.visa-account-menu--staff .visa-account-trigger[aria-expanded="true"] > svg { transform: rotate(-90deg); }
+.visa-account-menu--staff .visa-account-label { overflow: hidden; text-overflow: ellipsis; }
+.visa-account-menu--staff .visa-account-panel { inset-block: auto 0; inset-inline: calc(100% + 12px) auto; width: min(22rem, calc(100vw - var(--visa-sidebar-width, 256px) - 32px)); }
+.visa-sidebar-collapsed .visa-account-menu--staff .visa-account-trigger { justify-content: center; padding-inline: 0; }
+.visa-sidebar-collapsed .visa-account-trigger > :not(.visa-account-avatar) { display: none; }
+
+@media (max-width: 900px) {
+  .visa-mobile-nav-drawer .visa-account-menu--staff .visa-account-panel { inset-block: auto calc(100% + 6px); inset-inline: 0; width: 100%; }
+}
+@media (max-width: 760px) {
+  .visa-public .visa-account-trigger { width: 44px; padding: 0; }
+  .visa-public .visa-account-trigger > :not(.visa-account-avatar) { display: none; }
+  .visa-public .visa-account-panel { position: fixed; inset-block-start: 80px; inset-inline-end: 16px; }
+}

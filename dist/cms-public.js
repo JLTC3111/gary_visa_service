@@ -5,9 +5,10 @@ const copy=(entry,key,language)=>String(entry?.[`${key}_${language}`]??'');
 const lines=value=>Array.isArray(value)?value:String(value??'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
 const el=(doc,tag,text,attrs={})=>{const node=doc.createElement(tag);if(text)node.textContent=text;for(const [key,value]of Object.entries(attrs))node.setAttribute(key,value);return node};
 const items=(entries,kind)=>entries.filter(e=>e.kind===kind).sort((a,b)=>(Number(a.data?.position)||0)-(Number(b.data?.position)||0)||a.slug.localeCompare(b.slug));
-export async function loadPublishedCms(db,{kind,slug,excludeKind,newest}={}){
- const result=[];const batch=newest??200,now=new Date().toISOString();for(let page=0;page<100;page++){
-  let query=db.from('gary_cms_public').select('entry_id,kind,slug,content,published_at').lte('published_at',now);
+export async function loadPublishedCms(db,{kind,slug,excludeKind,newest,legacyDateFilter=false}={}){
+ const result=[];const batch=newest??(slug?1:200);for(let page=0;page<100;page++){
+  let query=db.from('gary_cms_public').select('entry_id,kind,slug,content,published_at');
+  if(legacyDateFilter)query=query.lte('published_at',new Date().toISOString());
   query=newest?query.order('published_at',{ascending:false}).order('slug'):query.order('entry_id');
   if(kind)query=query.eq('kind',kind);
   if(excludeKind)query=query.neq('kind',excludeKind);
@@ -16,9 +17,10 @@ export async function loadPublishedCms(db,{kind,slug,excludeKind,newest}={}){
   const response=await (query.abortSignal?query.abortSignal(AbortSignal.timeout(8000)):query);
   if(response.error)throw response.error;
   const records=response.data;
-  if(!Array.isArray(records))throw new Error('Invalid publication snapshot response');
+  if(!Array.isArray(records)||records.some(row=>!row||typeof row.entry_id!=='string'||typeof row.slug!=='string'||
+    typeof row.kind!=='string'||!row.content||typeof row.content!=='object'||Array.isArray(row.content)))throw new Error('Invalid publication snapshot response');
   result.push(...records.map(row=>({...row.content,id:row.entry_id,kind:row.kind,slug:row.slug,published_at:row.published_at})));
-  if(newest||records.length<batch)return result;
+  if(newest||slug||records.length<batch)return result;
  }
  throw new Error('CMS_PUBLIC_FEED_TOO_LARGE');
 }
@@ -33,16 +35,17 @@ export async function loadHomepageCms(db){
  };
 }
 export async function loadArticleData(db,{slug=null,filters={}}={}){
- if(slug!==null)return {entries:validArticleSlug(slug)?await loadPublishedCms(db,{kind:'article',slug}):[]};
+ if(slug!==null)return {entries:validArticleSlug(slug)?await loadPublishedCms(db,{kind:'article',slug}):[],databaseClock:true};
  filters=articleFilters(filters);
  const query=db.rpc('gary_cms_article_directory',{p_search:filters.q,p_category:filters.category,p_page:filters.page});
  const {data,error}=await (query.abortSignal?query.abortSignal(AbortSignal.timeout(8000)):query);
  // Older installations can read the same snapshots before the directory RPC
  // is installed or its schema cache is refreshed. Preserve all other errors.
- if(error?.code==='PGRST202')return {entries:await loadPublishedCms(db,{kind:'article'}),filters};
+ if(error?.code==='PGRST202')return {entries:await loadPublishedCms(db,{kind:'article',legacyDateFilter:true}),filters};
  if(error)throw error;
- if(!Array.isArray(data?.entries)||!Number.isSafeInteger(data.total)||data.total<0||!Number.isSafeInteger(data.page)||data.page<1)throw new Error('Invalid article directory response');
- return {entries:data.entries,total:data.total,filters:{...filters,page:data.page}};
+ if(!Array.isArray(data?.entries)||data.entries.some(entry=>!entry||entry.kind!=='article'||!validArticleSlug(entry.slug)||!Number.isFinite(Date.parse(entry.published_at)))||
+  !Number.isSafeInteger(data.total)||data.total<0||!Number.isSafeInteger(data.page)||data.page<1)throw new Error('Invalid article directory response');
+ return {entries:data.entries,total:data.total,filters:{...filters,page:data.page},databaseClock:true};
 }
 export function cmsCopyOverrides(entries){
  const result={en:{},vi:{}};
@@ -72,7 +75,7 @@ export function renderPublicCms({doc,entries,language='en',news}){
  const faq=doc.querySelector('.faq-list');if(faq){const rows=items(entries,'faq');faq.replaceChildren(...rows.map((entry,index)=>{const node=el(doc,'details');if(index===0)node.open=true;node.append(el(doc,'summary',copy(entry,'title',language)),el(doc,'p',copy(entry,'body',language)));return node}));doc.querySelector('#faq').hidden=!rows.length||!activeSlot('faq')}
  const process=doc.querySelector('.process-grid');if(process){const rows=items(entries,'process');process.replaceChildren(...rows.map((entry,index)=>{const node=el(doc,'li');node.append(el(doc,'div',String(index+1).padStart(2,'0'),{class:'step-top'}),el(doc,'h3',copy(entry,'title',language)),el(doc,'p',copy(entry,'body',language)),el(doc,'span',entry.data?.[`label_${language}`]||'',{class:'step-label'}));return node}));doc.querySelector('#process').hidden=!rows.length||!activeSlot('process')}
  const overrides=cmsCopyOverrides(entries)[language];for(const node of doc.querySelectorAll('[data-i18n]')){const key=node.dataset.i18n;if(Object.hasOwn(overrides,key))node.textContent=overrides[key]}
- renderLatestArticles(doc,news?.entries??entries,language,{state:news?.state});
+ renderLatestArticles(doc,news?.entries??entries,language,{state:news?.state,databaseClock:Boolean(news)});
  const hero=entries.find(e=>e.kind==='landing'&&e.data?.slot==='hero');
  if(hero){
   const title=copy(hero,'seo_title',language).trim(),description=copy(hero,'seo_description',language).trim();
