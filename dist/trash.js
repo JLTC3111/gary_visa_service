@@ -1,4 +1,5 @@
 import {workspaceUI} from './workspace-ui.js';
+import {isConflictResponse} from './conflict-response.js';
 
 const pageSize=20;
 const categories={case:'trashCases',article:'trashArticles',contact:'trashContacts',cms:'trashContent'};
@@ -30,7 +31,8 @@ export function createTrash({db,doc,t,isStaff,kinds=()=>['case','article','conta
   node.setAttribute('role',error?'alert':'status');
   node.classList.toggle('error',error);
  }
- const errorKey=(error,fallback)=>error?.code==='42501'?'permissionChanged':purgeMessages[error?.message]||fallback;
+ const errorKey=(error,fallback)=>error?.code==='42501'?'permissionChanged':
+  purgeMessages[error?.message]||(isConflictResponse(error)?'trashChanged':fallback);
  const statusLabel=(category,status)=>t(!status?'none':(category==='case'?'status_':category==='contact'?'stage_':'trashStatus_')+status);
 
  function renderFilters(){

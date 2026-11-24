@@ -1,3 +1,4 @@
+import {responseError} from './conflict-response.js';
 // Agency adapter: shared presentation never owns this application's credentials,
 // membership decisions, queries, or publication snapshots.
 import {articleCategories,publicCmsImage} from './cms-articles.js';
@@ -17,7 +18,7 @@ export const agencyCollections=[
  ]},
  {kind:'landing',label:{en:'Landing-page content',vi:'Nội dung trang chủ'},requireBody:false,fields:[{key:'data.slot',type:'select',options:[{value:'hero',label:{en:'Opening section',vi:'Phần mở đầu'}},{value:'services',label:{en:'Services introduction',vi:'Giới thiệu dịch vụ'}},{value:'process',label:{en:'Process introduction',vi:'Giới thiệu quy trình'}},{value:'about',label:{en:'About the team',vi:'Về đội ngũ'}},{value:'faq',label:{en:'FAQ introduction',vi:'Giới thiệu câu hỏi thường gặp'}},{value:'contact',label:{en:'Contact introduction',vi:'Giới thiệu liên hệ'}}],label:{en:'Page section',vi:'Phần trên trang'}},{key:'accent',bilingual:true,type:'text',label:{en:'Second heading line',vi:'Dòng tiêu đề thứ hai'}},{key:'third_line',bilingual:true,type:'text',label:{en:'Third heading line (hero)',vi:'Dòng tiêu đề thứ ba (đầu trang)'}}]}
 ];
-const take=result=>{if(result.error)throw result.error;const value=result.data;return Array.isArray(value)&&value.length===1?value[0]:value};
+const take=result=>{if(result.error)throw responseError(result);const value=result.data;return Array.isArray(value)&&value.length===1?value[0]:value};
 const imageExtensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/avif':'avif'};
 const describeMedia=({alt_en='',alt_vi='',caption_en='',caption_vi=''}={})=>({
  p_alt_en:alt_en.trim(),p_alt_vi:alt_vi.trim(),p_caption_en:caption_en.trim(),p_caption_vi:caption_vi.trim()

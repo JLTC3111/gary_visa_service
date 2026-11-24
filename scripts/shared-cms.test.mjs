@@ -32,7 +32,7 @@ test('editor keeps the same bilingual draft through locale changes and honors di
   assert.equal(await h.controller.refresh(), false); h.close();
 });
 test('version conflicts preserve the entire draft and show localized recovery guidance', async () => {
-  const h = harness({save: async () => {throw {code: '40001', message: 'DO NOT DISPLAY SERVER SQL'};}}, 'vi'); await h.controller.ready;
+  const h = harness({save: async () => {throw {code: 'PT409', message: 'DO NOT DISPLAY SERVER SQL'};}}, 'vi'); await h.controller.ready;
   h.root.querySelector('[data-action=edit]').click(); await settle(); h.input('[name=body_vi]', 'Thay đổi chưa lưu');
   h.root.querySelector('[data-cms-editor]').dispatchEvent(new h.dom.window.Event('submit', {bubbles: true, cancelable: true})); await settle();
   assert.equal(h.root.querySelector('[name=body_vi]').value, 'Thay đổi chưa lưu'); assert.equal(h.controller.isDirty(), true);

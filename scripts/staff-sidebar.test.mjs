@@ -30,11 +30,15 @@ function harness({role='staff',width=1440,storage,access}={}){
 }
 test('Visa staff groups retain original destination nodes, listeners, permissions and active state',async()=>{
  const h=harness();try{
-  assert.deepEqual([...h.doc.querySelectorAll('[data-visa-nav-group]')].map(node=>node.dataset.visaNavGroup),['operations','crm','content','administration','account']);
-  assert.equal(h.doc.querySelector('[data-visa-nav-group=administration]').hidden,true,'Staff Management stays hidden until the portal grants it');
+  assert.deepEqual([...h.doc.querySelectorAll('[data-visa-nav-group]')].map(node=>node.dataset.visaNavGroup),['operations','content','administration']);
+  const administration=h.doc.querySelector('[data-visa-nav-group=administration]');
+  assert.equal(administration.hidden,false,'My Profile keeps Administration visible');
+  assert.deepEqual([...administration.querySelectorAll('[data-view]')].map(button=>button.dataset.view),['staff-access','profile']);
+  assert.deepEqual([...administration.querySelectorAll('[data-view]:not([hidden])')].map(button=>button.dataset.view),['profile']);
   assert.equal(h.doc.querySelectorAll('.workspace-nav [data-view]').length,8);for(const button of h.buttons)assert.equal(h.doc.querySelector(`[data-view=${button.dataset.view}]`),button);
   let clicks=0;const cms=h.doc.querySelector('[data-view=cms]');assert.equal(h.doc.querySelector('#news-guides-nav').closest('[data-visa-nav-group]').dataset.visaNavGroup,'content');cms.addEventListener('click',()=>{clicks++;h.buttons.forEach(button=>button.classList.toggle('active',button===cms));});cms.click();await settle();assert.equal(clicks,1);assert.equal(cms.getAttribute('aria-current'),'page');assert.equal(cms.closest('[data-visa-nav-group]').dataset.active,'true');
-  for(const view of ['customers','inbox'])h.doc.querySelector(`[data-view=${view}]`).hidden=true;await settle();assert.equal(h.doc.querySelector('[data-visa-nav-group=crm]').hidden,true);assert.equal(h.doc.querySelector('[data-view=customers]').hidden,true,'navigation never grants visibility');
+  for(const view of ['customers','inbox'])h.doc.querySelector(`[data-view=${view}]`).hidden=true;await settle();assert.equal(h.doc.querySelector('[data-visa-nav-group=operations]').hidden,false);assert.equal(h.doc.querySelector('[data-view=customers]').hidden,true,'navigation never grants visibility');
+  h.doc.querySelector('[data-view=applications]').hidden=true;await settle();assert.equal(h.doc.querySelector('[data-visa-nav-group=operations]').hidden,true);
   h.doc.body.dataset.role='customer';await settle();assert.equal(h.doc.querySelector('.visa-staff-workspace'),null);assert.equal(h.doc.querySelectorAll('.workspace-nav > [data-view]').length,8);assert.equal(h.doc.querySelector('[data-view=cms]'),cms);
  }finally{h.close();}
 });
@@ -47,8 +51,10 @@ test('Visa headings and destinations have distinct icons in the staff sidebar',a
  try{
   h.trigger.click();
   const nav=h.doc.querySelector('.workspace-nav');
+  const administration=nav.querySelector('[data-visa-nav-group=administration]');
+  assert.deepEqual([...administration.querySelectorAll('[data-view]:not([hidden])')].map(button=>button.dataset.view),['staff-access','profile']);
   const controls=[...nav.querySelectorAll('.branched-menu__head, [data-view]')];
-  assert.equal(controls.length,13);
+  assert.equal(controls.length,11);
   const refs=controls.map(button=>{
    const icons=button.querySelectorAll(':scope > svg.branched-menu__icon');
    assert.equal(icons.length,1);
@@ -62,42 +68,44 @@ test('Visa headings and destinations have distinct icons in the staff sidebar',a
   });
   assert.equal(new Set(refs).size,controls.length);
   assert.equal(nav.querySelector('[data-view=cms] use').getAttribute('href'),'#p-file-pen-line');
-  const profile=nav.querySelector('[data-view=profile] use');
+  const profile=administration.querySelector('[data-view=profile] use');
   assert.equal(profile.getAttribute('href'),'./assets/staff-nav-icons.svg#user-round');
   h.doc.body.dataset.role='customer';await settle();
   assert.equal(profile.getAttribute('href'),'#p-person');
+  assert.equal(h.doc.querySelector('#sidebar-profile-button #user-avatar')?.id,'user-avatar');
  }finally{h.close();sprite.window.close();}
 });
 test('groups collapse independently and localized labels follow the existing page language',()=>{
  const h=harness();try{
-  const crm=h.doc.querySelector('[data-visa-group-toggle=crm]');crm.click();assert.equal(crm.getAttribute('aria-expanded'),'false');assert.equal(h.doc.querySelector('#visa-nav-crm').inert,true);assert.equal(h.doc.querySelector('#visa-nav-operations').inert,false);
+  const operations=h.doc.querySelector('[data-visa-group-toggle=operations]');operations.click();assert.equal(operations.getAttribute('aria-expanded'),'false');assert.equal(h.doc.querySelector('#visa-nav-operations').inert,true);assert.equal(h.doc.querySelector('#visa-nav-content').inert,false);
   h.doc.documentElement.lang='vi';h.doc.querySelector('[data-view=cms] span').textContent='Quản lý nội dung';h.controller.refresh();assert.equal(h.doc.querySelector('[data-visa-group-toggle=content] span').textContent,'Nội dung & tư liệu');assert.equal(h.doc.querySelector('[data-view=cms]').getAttribute('aria-label'),'Quản lý nội dung');assert.equal(h.doc.querySelector('[data-visa-sidebar-toggle]').getAttribute('aria-label'),'Thu gọn thanh điều hướng');
-  const saved=JSON.parse(h.w.localStorage.getItem('gary-visa:staff-sidebar:v1'));assert.equal(saved.groups.crm,false);assert.equal('form' in saved,false);
+  const saved=JSON.parse(h.w.localStorage.getItem('gary-visa:staff-sidebar:v1'));assert.equal(h.doc.querySelector('[data-visa-group-toggle=operations] [data-visa-group-label]').textContent,'Nghiệp vụ khách hàng');
+  assert.equal(saved.groups.operations,false);assert.equal('form' in saved,false);
  }finally{h.close();}
 });
 test('Visa SVG elbows track wrapped rows and animate selection without rebuilding paths',async()=>{
  const h=harness();try{
-  const nav=h.doc.querySelector('.workspace-nav'),crm=h.doc.querySelector('[data-visa-nav-group=crm]');
-  const header=crm.querySelector('button'),tree=crm.querySelector('.branched-menu__tree');
-  const customers=tree.querySelector('[data-view=customers]'),inbox=tree.querySelector('[data-view=inbox]');
+  const nav=h.doc.querySelector('.workspace-nav'),operations=h.doc.querySelector('[data-visa-nav-group=operations]');
+  const header=operations.querySelector('button'),tree=operations.querySelector('.branched-menu__tree');
+  const applications=tree.querySelector('[data-view=applications]'),customers=tree.querySelector('[data-view=customers]'),inbox=tree.querySelector('[data-view=inbox]');
   const box=(node,top,height)=>{node.getBoundingClientRect=()=>({top,height,width:210});};
-  box(nav,100,350);box(header,160,38);box(tree,198,126);box(customers,204,66);box(inbox,274,44);
+  box(nav,100,350);box(header,160,38);box(tree,198,172);box(applications,204,42);box(customers,248,66);box(inbox,316,44);
   nav.style.setProperty('--branched-indent','32px');nav.style.setProperty('--branched-trunk','17px');nav.scrollTop=15;
-  const marker=nav.querySelector('.branched-menu__marker'),paths=crm.querySelectorAll('.branched-menu__reach');
+  const marker=nav.querySelector('.branched-menu__marker'),paths=operations.querySelectorAll('.branched-menu__reach');
   h.route('customers');await settle();
-  assert.equal(paths[0].getAttribute('d'),'M 17 0 V 31 A 8 8 0 0 0 25 39 H 32');
-  assert.equal(paths[1].getAttribute('d'),'M 17 0 V 90 A 8 8 0 0 0 25 98 H 32');
-  assert.deepEqual([...paths].map(path=>path.getAttribute('stroke-dashoffset')),['0','1']);
+  assert.equal(paths[1].getAttribute('d'),'M 17 0 V 75 A 8 8 0 0 0 25 83 H 32');
+  assert.equal(paths[2].getAttribute('d'),'M 17 0 V 132 A 8 8 0 0 0 25 140 H 32');
+  assert.deepEqual([...paths].map(path=>path.getAttribute('stroke-dashoffset')),['1','0','1']);
   assert.equal(marker.style.getPropertyValue('--branched-marker-y'),'94px');
   box(h.doc.querySelector('[data-visa-group-toggle=content]'),326,38);
   h.route('cms');await settle();
   assert.equal(nav.querySelector('.branched-menu__marker'),marker);
   assert.equal(marker.style.getPropertyValue('--branched-marker-y'),'260px');
   h.route('inbox');await settle();
-  assert.equal(crm.querySelectorAll('.branched-menu__reach')[1],paths[1]);
-  assert.deepEqual([...paths].map(path=>path.getAttribute('stroke-dashoffset')),['1','0']);
+  assert.equal(operations.querySelectorAll('.branched-menu__reach')[2],paths[2]);
+  assert.deepEqual([...paths].map(path=>path.getAttribute('stroke-dashoffset')),['1','1','0']);
   inbox.hidden=true;await settle();
-  assert.equal(crm.querySelectorAll('.branched-menu__reach').length,1);
+  assert.equal(operations.querySelectorAll('.branched-menu__reach').length,2);
   assert.equal(inbox.hasAttribute('aria-current'),false);
   assert.equal(marker.hasAttribute('data-visible'),false);
   const css=await readFile(new URL('../dist/branched-menu.css',import.meta.url),'utf8');
@@ -110,17 +118,18 @@ test('Visa SVG elbows track wrapped rows and animate selection without rebuildin
 });
 test('Visa branches use disclosure and keyboard navigation across visible links',async()=>{
  const h=harness();try{
-  const crm=h.doc.querySelector('[data-visa-group-toggle=crm]'),customers=h.doc.querySelector('[data-view=customers]');
+  const operations=h.doc.querySelector('[data-visa-group-toggle=operations]'),customers=h.doc.querySelector('[data-view=customers]');
   const content=h.doc.querySelector('[data-visa-group-toggle=content]');
   const key=(node,key)=>node.dispatchEvent(new h.w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
-  crm.focus();key(crm,'ArrowLeft');
+  operations.focus();key(operations,'ArrowLeft');
   assert.equal(customers.tabIndex,-1);
-  key(crm,'ArrowDown');assert.equal(h.doc.activeElement,content);
-  crm.focus();key(crm,'ArrowRight');key(crm,'ArrowDown');assert.equal(h.doc.activeElement,customers);
+  key(operations,'ArrowDown');assert.equal(h.doc.activeElement,content);
+  operations.focus();key(operations,'ArrowRight');key(operations,'ArrowDown');assert.equal(h.doc.activeElement.dataset.view,'applications');
+  key(h.doc.activeElement,'ArrowDown');assert.equal(h.doc.activeElement,customers);
   key(customers,'End');assert.equal(h.doc.activeElement.dataset.view,'profile');
   key(h.doc.activeElement,'Home');assert.equal(h.doc.activeElement.dataset.visaGroupToggle,'operations');
-  crm.click();h.route('inbox');await settle();
-  assert.equal(crm.getAttribute('aria-expanded'),'true');
+  operations.click();h.route('inbox');await settle();
+  assert.equal(operations.getAttribute('aria-expanded'),'true');
  }finally{h.close();}
 });
 test('sidebar pointer/keyboard sizing is bounded and does not touch modal geometry or unsaved form/upload state',()=>{
@@ -137,7 +146,7 @@ test('sidebar pointer/keyboard sizing is bounded and does not touch modal geomet
 });
 test('sidebar width/collapse/group preferences reopen, while mobile navigation does not overwrite desktop state',async()=>{
  const h=harness();try{
-  h.key('Home');h.doc.querySelector('[data-visa-group-toggle=crm]').click();h.doc.querySelector('[data-visa-sidebar-toggle]').click();const preference=h.w.localStorage.getItem('gary-visa:staff-sidebar:v1');h.controller.destroy();const reopened=mountStaffSidebar(h.doc);assert.equal(reopened.getState().width,220);assert.equal(reopened.getState().collapsed,true);assert.equal(reopened.getState().groups.crm,false);
+  h.key('Home');h.doc.querySelector('[data-visa-group-toggle=content]').click();h.doc.querySelector('[data-visa-sidebar-toggle]').click();const preference=h.w.localStorage.getItem('gary-visa:staff-sidebar:v1');h.controller.destroy();const reopened=mountStaffSidebar(h.doc);assert.equal(reopened.getState().width,220);assert.equal(reopened.getState().collapsed,true);assert.equal(reopened.getState().groups.content,false);
   h.w.innerWidth=375;h.w.dispatchEvent(new h.w.Event('resize'));assert.equal(reopened.getState().mobile,true);assert.equal(h.doc.querySelector('[data-visa-sidebar-resize]').hidden,true);assert.equal(h.trigger.getAttribute('aria-label'),'Open staff navigation');h.trigger.click();assert.ok(h.doc.getElementById('workspace').classList.contains('visa-sidebar-mobile-open'));assert.equal(h.w.localStorage.getItem('gary-visa:staff-sidebar:v1'),preference);h.doc.querySelector('[data-view=applications]').click();await settle();assert.equal(reopened.getState().mobileExpanded,false);assert.equal(h.doc.activeElement,h.doc.querySelector('#applications-view h1'),'mobile navigation returns focus to the selected content');
   h.trigger.click();h.w.innerWidth=1000;h.w.dispatchEvent(new h.w.Event('resize'));assert.equal(reopened.getState().mobileExpanded,false);assert.equal(h.trigger.hidden,true);assert.equal(reopened.getState().collapsed,true);assert.ok(h.doc.getElementById('workspace').classList.contains('visa-sidebar-collapsed'));assert.equal(h.doc.querySelector('.visa-staff-sidebar').parentElement.id,'workspace');assert.equal(h.doc.body.classList.contains('visa-sidebar-scroll-locked'),false);reopened.destroy();
  }finally{h.dom.window.close();}

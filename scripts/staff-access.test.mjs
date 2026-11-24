@@ -262,7 +262,7 @@ test('Team Access edits atomically, confirms No Access and refreshes conflicts',
   if(name!=='gary_edit_staff_member'||!concurrentEdit)return null;
   concurrentEdit=false;
   h.updateMember(ids.staff,{operations_role:'staff'});
-  return failure('40001','AGENCY_ROLE_CONFLICT');
+  return failure('PT409','AGENCY_ROLE_CONFLICT');
  }});
  try{
   await h.controller.enter();

@@ -256,7 +256,7 @@ function renderStaffAccountMenu(){
 }
 function openAccountView(view){
  if(!staff()||!viewAllowed(view))return;
- $(`.workspace-nav [data-view="${view}"]`).click();
+ $(`#workspace .workspace-sidebar [data-view="${view}"]`)?.click();
  if(view==='profile'&&state.view===view&&!$('.visa-mobile-nav-drawer[open]'))$('#profile-title').focus();
 }
 $('#sidebar-profile-button').addEventListener('click',()=>{

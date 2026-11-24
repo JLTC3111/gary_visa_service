@@ -10,11 +10,9 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  if(!workspace||!sidebar||!nav||!trigger)return {refresh(){},destroy(){},getState(){return null;}};
  const buttons=[...nav.querySelectorAll(':scope > [data-view]')],label=sidebar.querySelector('.workspace-label');
  const groups=[
-  {id:'operations',en:'Operations',vi:'Nghiệp vụ',icon:'briefcase-business',views:['applications']},
-  {id:'crm',en:'CRM',vi:'Quan hệ khách hàng',icon:'users-round',views:['customers','inbox']},
+  {id:'operations',en:'Client Operations',vi:'Nghiệp vụ khách hàng',icon:'briefcase-business',views:['applications','customers','inbox']},
   {id:'content',en:'Content & Media',vi:'Nội dung & tư liệu',icon:'panels-top-left',views:['cms','news-guides','trash']},
-  {id:'administration',en:'Administration',vi:'Quản trị',icon:'shield-check',views:['staff-access']},
-  {id:'account',en:'Account',vi:'Tài khoản',icon:'id-card',views:['profile']}
+  {id:'administration',en:'Administration',vi:'Quản trị',icon:'shield-check',views:['staff-access','profile']}
  ];
  const staffIconUpdates={inbox:'message-circle-more',trash:'trash-2',profile:'user-round'};
  const preferenceKey='gary-visa:staff-sidebar:v1';
@@ -67,6 +65,16 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   heading=doc.createElement('div');heading.className='visa-sidebar-heading';if(label)heading.append(label);
   toggle=doc.createElement('button');toggle.type='button';toggle.className='visa-sidebar-toggle';toggle.dataset.visaSidebarToggle='';toggle.setAttribute('aria-controls','visa-staff-navigation');heading.append(toggle);sidebar.prepend(heading);
   nav.id='visa-staff-navigation';nav.tabIndex=0;
+  for(const button of buttons){
+   const icon=button.querySelector('svg.icon'),use=icon?.querySelector('use');
+   if(icon){
+    icon.classList.add('branched-menu__icon');
+    icon.setAttribute('aria-hidden','true');
+    icon.setAttribute('focusable','false');
+   }
+   if(use&&staffIconUpdates[button.dataset.view])use.setAttribute('href',branchedIconHref(staffIconUpdates[button.dataset.view]));
+   button.querySelector('span')?.classList.add('branched-menu__label');
+  }
   for(const group of groups){
    const section=doc.createElement('section');section.className='visa-nav-group branched-menu__section';section.dataset.visaNavGroup=group.id;
    const control=doc.createElement('button');control.type='button';control.className='visa-nav-group-toggle branched-menu__head';control.dataset.visaGroupToggle=group.id;control.setAttribute('aria-controls',`visa-nav-${group.id}`);
@@ -78,16 +86,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
    const destinations=doc.createElement('div');destinations.className='visa-nav-destinations branched-menu__tree';
    for(const view of group.views){
     const button=buttons.find(item=>item.dataset.view===view);
-    if(!button)continue;
-    const icon=button.querySelector('svg.icon'),use=icon?.querySelector('use');
-    if(icon){
-     icon.classList.add('branched-menu__icon');
-     icon.setAttribute('aria-hidden','true');
-     icon.setAttribute('focusable','false');
-    }
-    if(use&&staffIconUpdates[view])use.setAttribute('href',branchedIconHref(staffIconUpdates[view]));
-    button.querySelector('span')?.classList.add('branched-menu__label');
-    destinations.append(button);
+    if(button)destinations.append(button);
    }
    fold.append(destinations);body.append(fold);section.append(control,body);nav.append(section);
   }

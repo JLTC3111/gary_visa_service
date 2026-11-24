@@ -14,6 +14,7 @@ const intakeMigration='20261124115604_visa_application_intake.sql';
 const crmMigration='20261124115915_visa_crm_relationships.sql';
 const teamManagementMigration='20261124151500_visa_team_access_management.sql';
 const trashLifecycleMigration='20261124170509_visa_trash_lifecycle.sql';
+const conflictMigration='20261124202613_visa_postgrest_conflict_sqlstates.sql';
 const sql=name=>readFile(new URL(`../supabase/${name}`,import.meta.url),'utf8');
 const denied=(fn,code='42501')=>assert.rejects(fn,error=>error.code===code);
 
@@ -77,6 +78,12 @@ async function installTrashLifecycle(h){
  await h.db.exec(`create function storage.allow_only_operation(p text) returns boolean language sql stable as $$
    select coalesce(current_setting('test.storage_operation',true)=p,false) $$`);
  await h.db.exec(await sql(`migrations/${trashLifecycleMigration}`));
+ await installConflictHotfix(h);
+}
+
+async function installConflictHotfix(h){
+ await h.owner();
+ await h.db.exec(await sql(`migrations/${conflictMigration}`));
 }
 
 test('Application Trash preserves workflow status and resumes safe permanent deletion after partial Storage cleanup',async()=>{
@@ -147,12 +154,17 @@ test('News Trash is distinct from Archive, restores as a draft and preserves sha
   await h.q("insert into public.gary_cms_media(object_path,file_name,mime_type,size_bytes,uploaded_by) values($1,'cover.png','image/png',12,$2)",[path,uid.editor]);
   await h.q("insert into storage.objects(bucket_id,name) values('gary-cms-media',$1)",[path]);
   await h.as('editor');const sibling=await save({...base,slug:'shared-cover-guide'});let article=await transition(await save(base),'review');
+  const saveVersion=(record,version)=>h.one('select * from public.gary_cms_save($1::jsonb,$2)',[JSON.stringify(record),version]);
+  await denied(()=>saveVersion({...base,slug:'new-conflict'},1),'PT409');
+  await denied(()=>saveVersion({...article,title_en:'Stale edit'},article.version-1),'PT409');
+  await denied(()=>transition({...article,version:article.version-1},'review'),'PT409');
   await h.as('publisher');await denied(()=>save({...base,slug:'publisher-draft'}));article=await transition(article,'published');
   await denied(()=>h.rpc('gary_trash_record',['cms',article.id,article.version]));
   await h.as(null);assert.equal((await directory()).total,1);
   await h.as('publisher');article=await transition(article,'archived');
   await h.as('cmsAdmin');assert.equal((await h.rpc('gary_trash_directory',['article','','',0,20])).total,0);
   article=await transition(await transition(article,'review'),'published');
+  await denied(()=>h.rpc('gary_trash_record',['cms',article.id,article.version-1]),'PT409');
   const marked=await h.rpc('gary_trash_record',['cms',article.id,article.version]);
   const purge=mark=>h.rpc('gary_permanently_delete_trash',['article',article.id,mark,true]);
   const found=(await h.rpc('gary_trash_directory',['article','hướng dẫn','published',0,20])).records[0];
@@ -161,11 +173,12 @@ test('News Trash is distinct from Archive, restores as a draft and preserves sha
   assert.equal((await h.rpc('gary_cms_article_directory',['hướng dẫn','',1])).total,0);
   assert.equal(await h.count('select 1 from public.gary_cms_public where slug=$1',[article.slug]),0);
   await h.as('publisher');await denied(()=>h.rpc('gary_restore_record',['cms',article.id,marked.version]));await denied(()=>purge(marked.deleted_at));
-  await h.as('cmsAdmin');await h.rpc('gary_restore_record',['cms',article.id,marked.version]);
+  await h.as('cmsAdmin');await denied(()=>h.rpc('gary_restore_record',['cms',article.id,marked.version-1]),'PT409');
+  await h.rpc('gary_restore_record',['cms',article.id,marked.version]);
   const draft=await h.one('select * from public.gary_cms_entries where id=$1',[article.id]);assert.equal(draft.status,'draft');
   assert.equal(await h.count('select 1 from public.gary_cms_public where entry_id=$1',[draft.id]),0);
   const newer=await h.rpc('gary_trash_record',['cms',draft.id,draft.version]);
-  await assert.rejects(()=>purge(marked.deleted_at),/AGENCY_TRASH_CHANGED/);
+  await assert.rejects(()=>purge(marked.deleted_at),error=>error.code==='PT409'&&error.message==='AGENCY_TRASH_CHANGED');
   await h.owner();await h.q("insert into gary_private.trash_retention values('article',0)");
   await h.as('admin');await denied(()=>purge(newer.deleted_at));
   await h.as('cmsAdmin');assert.deepEqual(await purge(newer.deleted_at),{id:article.id,deleted:true});
@@ -310,6 +323,7 @@ test('Public news and editorial images use the real CMS lifecycle with separated
  const asset=path=>`https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/${bucket}/${path}`;
  const snapshot=record=>h.one('select content from public.gary_cms_public where entry_id=$1',[record.id]);
  try{
+  await installConflictHotfix(h);
   await h.as(null);
   assert.equal(await h.count('select 1 from public.gary_cms_public'),19,'existing homepage publication snapshots survive the upgrade');
   await h.as('editor');
@@ -325,7 +339,7 @@ test('Public news and editorial images use the real CMS lifecycle with separated
   const changed=await update(old);
   assert.deepEqual([changed.alt_en,changed.alt_vi,changed.caption_en,changed.caption_vi],
    ['Updated alt','Văn bản thay thế','Updated caption','Chú thích']);
-  await denied(()=>update(old),'40001');
+  await denied(()=>update(old),'PT409');
   assert.equal((await remove(oldPath)).rows.length,0,'new uploads require an explicit, guarded removal');
   assert.equal(await h.count("select 1 from storage.objects where bucket_id='gary-documents'"),0);
 
@@ -713,12 +727,16 @@ test('Visa Team Management looks up verified identities and edits scoped roles a
   await denied(()=>edit('Unexpected Name','Visa Staff Name','manager','staff','editor',null));
   assert.equal((await listed()).display_name,'Visa Staff Name','wrong-area roles roll back the name and other role');
   assert.equal((await listed()).operations_role,'staff');
-  await denied(()=>edit('Name','stale name','manager','staff',null,null),'40001');
+  await installConflictHotfix(h);
+  await h.as('admin');
+  await denied(()=>edit('Name','stale name','manager','staff',null,null),'PT409');
+  await denied(()=>h.rpc('gary_set_operations_role',[uid.newcomer,'staff','manager']),'PT409');
   await edit(null,'Visa Staff Name','manager','staff',null,null);
   assert.deepEqual([(await listed()).display_name,(await listed()).display_name_override,(await listed()).operations_role],['Verified Staff Name',null,'manager']);
 
   await h.as('cmsAdmin');
   assert.equal((await listed()).manage_membership,false);
+  await denied(()=>h.rpc('gary_set_cms_role',[uid.newcomer,'editor','publisher']),'PT409');
   await denied(()=>edit('Other Scope',null,'manager','manager','publisher',null));
   await edit(null,null,'manager','manager','publisher',null);
   await h.as('newcomer');
@@ -764,7 +782,9 @@ test('Visa Team Management requires reassignment and revokes access in place',as
   await h.q("insert into gary_private.cms_members(user_id,role) values($1,'editor')",[uid.staff]);
   const identity=await h.one('select * from auth.users where id=$1',[uid.staff]);
   await h.as('admin');
-  await denied(()=>remove('staff','staff',null),'40001');
+  await installConflictHotfix(h);
+  await h.as('admin');
+  await denied(()=>remove('staff','staff',null),'PT409');
   await denied(()=>remove('staff','staff','editor'));
   await h.owner();await h.q("insert into gary_private.cms_members(user_id,role) values($1,'admin')",[uid.admin]);
   await h.as('admin');await remove('staff','staff','editor');

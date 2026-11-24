@@ -1,4 +1,5 @@
 import {workspaceUI} from './workspace-ui.js';
+import {isConflictResponse} from './conflict-response.js';
 import {initFormControls} from './form-controls.js';
 import {avatarBucket,avatarPath,renderAvatar} from './profile-avatar.js';
 
@@ -26,9 +27,10 @@ const staffErrors = new Map([
 ]);
 const errorsByCode = new Map([
  ['PGRST202','staffAccessMigrationRequired'],['42883','staffAccessMigrationRequired'],
- ['40001','staffRoleConflict'],['23505','staffAddExists'],['22023','staffAddInvalid'],['42501','staffAdminRequired']
+ ['23505','staffAddExists'],['22023','staffAddInvalid'],['42501','staffAdminRequired']
 ]);
-const errorKey = (error,fallback) => staffErrors.get(error?.message)||errorsByCode.get(error?.code)||fallback;
+const errorKey = (error,fallback) => staffErrors.get(error?.message)||errorsByCode.get(error?.code)
+ || (isConflictResponse(error)?'staffRoleConflict':fallback);
 const emailErrors = ['staffAddInvalidEmail','staffAddUnavailable','staffAddExists'];
 
 
