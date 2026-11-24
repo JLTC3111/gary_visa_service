@@ -1,19 +1,37 @@
 // Published Agency snapshots only. Render text, never authored HTML.
-import {renderLatestArticles} from './cms-articles.js';
+import {publicCmsImage,renderLatestArticles,validArticleSlug} from './cms-articles.js';
 
 const copy=(entry,key,language)=>String(entry?.[`${key}_${language}`]??'');
 const lines=value=>Array.isArray(value)?value:String(value??'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
 const el=(doc,tag,text,attrs={})=>{const node=doc.createElement(tag);if(text)node.textContent=text;for(const [key,value]of Object.entries(attrs))node.setAttribute(key,value);return node};
 const items=(entries,kind)=>entries.filter(e=>e.kind===kind).sort((a,b)=>(Number(a.data?.position)||0)-(Number(b.data?.position)||0)||a.slug.localeCompare(b.slug));
-export async function loadPublishedCms(db,{kind,slug}={}){
- const result=[];const batch=200,now=new Date().toISOString();for(let page=0;page<100;page++){
-  let query=db.from('gary_cms_public').select('entry_id,kind,slug,content,published_at').lte('published_at',now).order('entry_id');
+export async function loadPublishedCms(db,{kind,slug,excludeKind,newest}={}){
+ const result=[];const batch=newest??200,now=new Date().toISOString();for(let page=0;page<100;page++){
+  let query=db.from('gary_cms_public').select('entry_id,kind,slug,content,published_at').lte('published_at',now);
+  query=newest?query.order('published_at',{ascending:false}).order('slug'):query.order('entry_id');
   if(kind)query=query.eq('kind',kind);
+  if(excludeKind)query=query.neq('kind',excludeKind);
   if(slug)query=query.eq('slug',slug);
-  const response=await query.range(page*batch,(page+1)*batch-1);
-  if(response.error)throw response.error;const records=response.data??[];result.push(...records.map(row=>({...row.content,id:row.entry_id,kind:row.kind,slug:row.slug,published_at:row.published_at})));if(records.length<batch)return result;
+  query=query.range(page*batch,(page+1)*batch-1);
+  const response=await (query.abortSignal?query.abortSignal(AbortSignal.timeout(8000)):query);
+  if(response.error)throw response.error;const records=response.data??[];result.push(...records.map(row=>({...row.content,id:row.entry_id,kind:row.kind,slug:row.slug,published_at:row.published_at})));if(newest||records.length<batch)return result;
  }
  throw new Error('CMS_PUBLIC_FEED_TOO_LARGE');
+}
+export async function loadHomepageCms(db){
+ const [content,articles]=await Promise.all([
+  loadPublishedCms(db,{excludeKind:'article'}),
+  loadPublishedCms(db,{kind:'article',newest:3})
+ ]);
+ return [...content,...articles];
+}
+export async function loadArticleData(db,{slug=null,filters}){
+ if(slug!==null)return {entries:validArticleSlug(slug)?await loadPublishedCms(db,{kind:'article',slug}):[]};
+ const query=db.rpc('gary_cms_article_directory',{p_search:filters.q,p_category:filters.category,p_page:filters.page});
+ const {data,error}=await (query.abortSignal?query.abortSignal(AbortSignal.timeout(8000)):query);
+ if(error)throw error;
+ if(!Array.isArray(data?.entries)||!Number.isSafeInteger(data.total)||!Number.isSafeInteger(data.page))throw new Error('Invalid article directory response');
+ return {entries:data.entries,total:data.total,filters:{...filters,page:data.page}};
 }
 export function cmsCopyOverrides(entries){
  const result={en:{},vi:{}};
@@ -37,7 +55,7 @@ export function renderPublicCms({doc,entries,language='en'}){
  if(cards){cards.replaceChildren(...services.map((entry,index)=>{
   const card=el(doc,'article','',{class:'service-card','data-category':entry.data?.category||'documents','data-service':entry.slug});
   card.append(el(doc,'div',String(index+1).padStart(2,'0'),{class:'service-number'}),el(doc,'h3',copy(entry,'title',language)),el(doc,'p',copy(entry,'summary',language)));
-  if(entry.data?.image_url){const image=el(doc,'img','',{src:entry.data.image_url,alt:entry.data?.[`image_alt_${language}`]||copy(entry,'title',language),loading:'lazy'});card.prepend(image)}
+  const url=publicCmsImage(entry.data?.image_url,doc.location.origin);if(url){const image=el(doc,'img','',{src:url,alt:entry.data?.[`image_alt_${language}`]||copy(entry,'title',language),loading:'lazy'});card.prepend(image)}
   const ul=el(doc,'ul','',{class:'service-list'});for(const value of lines(entry.data?.[`includes_${language}`]))ul.append(el(doc,'li',value));card.append(ul,el(doc,'button',t('Explore service','Xem dịch vụ'),{class:'service-link',type:'button','data-open-cms-service':entry.slug}));return card;
  }));const active=doc.querySelector('[data-filter][aria-pressed=true]')?.dataset.filter||'all';for(const card of cards.children)card.hidden=active!=='all'&&card.dataset.category!==active;const filterStatus=doc.querySelector('#filter-status');if(filterStatus)filterStatus.textContent=t(`${[...cards.children].filter(c=>!c.hidden).length} services shown`,`${[...cards.children].filter(c=>!c.hidden).length} dịch vụ đang hiển thị`);}
  const faq=doc.querySelector('.faq-list');if(faq){const rows=items(entries,'faq');faq.replaceChildren(...rows.map((entry,index)=>{const node=el(doc,'details');if(index===0)node.open=true;node.append(el(doc,'summary',copy(entry,'title',language)),el(doc,'p',copy(entry,'body',language)));return node}));doc.querySelector('#faq').hidden=!rows.length||!activeSlot('faq')}

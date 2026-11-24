@@ -2,5 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "functions": {"api/news.js": {"includeFiles": "dist/articles.html"}},
+  "rewrites": [
+    {"source": "/:locale(en|vi)/news/:slug", "destination": "/api/news?locale=:locale&slug=:slug"},
+    {"source": "/:locale(en|vi)/news", "destination": "/api/news?locale=:locale"}
+  ]
 }

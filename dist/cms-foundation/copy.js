@@ -11,6 +11,27 @@ const additional = {
 
   editor: ['Editor', 'Biên tập viên'], publisher: ['Publisher', 'Người duyệt đăng'], admin: ['Administrator', 'Quản trị viên'], recruiter: ['Recruiter', 'Chuyên viên tuyển dụng'],
   reviewFirst: ['Submit this saved draft for review before publishing.', 'Gửi bản nháp đã lưu để duyệt trước khi đăng.'],
+  viewEntry: ['View entry', 'Xem nội dung'],
+  publishedAddress: ['The URL stays fixed after the first publication.', 'Đường dẫn được giữ nguyên sau lần đăng đầu tiên.'],
+  cover: ['Article cover', 'Ảnh bìa bài viết'],
+  chooseCover: ['Choose or replace from the public media library', 'Chọn hoặc thay bằng ảnh từ thư viện công khai'],
+  removeCover: ['Remove cover', 'Bỏ ảnh bìa'],
+  coverHint: ['Save and publish the entry to update its cover on the website.', 'Lưu và đăng nội dung để cập nhật ảnh bìa trên trang web.'],
+  publicImages: ['Public editorial images', 'Ảnh biên tập công khai'],
+  onlyPublicImages: ['Anyone with the link can see these images. Keep applicant documents and other private files in the appropriate case.', 'Bất kỳ ai có đường dẫn đều có thể xem các ảnh này. Hãy lưu giấy tờ của khách hàng và các tệp riêng tư trong hồ sơ tương ứng.'],
+  publicConfirmation: ['I confirm this image is approved for public use.', 'Tôi xác nhận ảnh này được phép sử dụng công khai.'],
+  captionEn: ['English caption', 'Chú thích tiếng Anh'],
+  captionVi: ['Vietnamese caption', 'Chú thích tiếng Việt'],
+  mediaDetails: ['Edit alt text and captions', 'Sửa văn bản thay thế và chú thích'],
+  finishMedia: ['Verify upload', 'Xác minh ảnh tải lên'],
+  retryUpload: ['Retry with the original file', 'Thử lại với tệp gốc'],
+  removeMedia: ['Delete unused file', 'Xóa tệp không còn sử dụng'],
+  retryRemoval: ['Retry file deletion', 'Thử xóa tệp lại'],
+  mediaRemoveConfirm: ['Permanently delete this file from public media? Files referenced by content or revision history are protected.', 'Xóa vĩnh viễn tệp này khỏi thư viện công khai? Tệp còn được nội dung hoặc lịch sử chỉnh sửa tham chiếu sẽ được bảo vệ.'],
+  mediaRemoved: ['Unused file removed.', 'Đã xóa tệp không còn sử dụng.'],
+  mediaAwaiting: ['Upload setup saved. Verify the file or retry with the original.', 'Đã lưu lượt tải lên. Hãy xác minh hoặc thử lại bằng tệp gốc.'],
+  mediaDeletionPending: ['File deletion pending', 'Đang chờ xóa tệp'],
+  savingMedia: ['Saving image…', 'Đang lưu ảnh…'],
 };
 export function cmsText(key, language = 'en') { return copy[language === 'vi' ? 'vi' : 'en'][key] || additional[key]?.[language === 'vi' ? 1 : 0] || key; }
 export function validationText(issue, language) {

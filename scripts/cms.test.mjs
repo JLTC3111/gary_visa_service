@@ -2,9 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
-import {loadPublishedCms,renderPublicCms,renderServiceCms,cmsCopyOverrides} from '../dist/cms-public.js';
-import {createAgencyCmsAdapter} from '../dist/cms.js';
+import {bindFeedbackDom} from './feedback-test-dom.mjs';
+import {loadHomepageCms,loadPublishedCms,renderPublicCms,renderServiceCms,cmsCopyOverrides} from '../dist/cms-public.js';
+import {agencyCollections,createAgencyCmsAdapter} from '../dist/cms.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
+import {mountCms} from '../dist/cms-foundation/index.js';
+import {publicCmsImage} from '../dist/cms-articles.js';
 const fixture=async()=>new JSDOM(await readFile(new URL('../dist/index.html',import.meta.url),'utf8'),{url:'https://visa.example/'});
 const entry=(kind,slug,extra={})=>({id:slug,kind,slug,title_en:'English '+slug,title_vi:'Tiếng Việt '+slug,summary_en:'English summary',summary_vi:'Tóm tắt tiếng Việt',body_en:'English body',body_vi:'Nội dung tiếng Việt',published_at:'2026-01-08T09:00:00Z',data:{},...extra});
 const landing=['hero','services','process','about','faq','contact'].map(slot=>entry('landing',slot,{data:{slot,accent_en:'Second line',accent_vi:'Dòng thứ hai',third_line_en:'Third line',third_line_vi:'Dòng thứ ba'}}));
@@ -26,6 +29,18 @@ test('public loader reads snapshots only and surfaces missing/unavailable backen
  const db={from(table){calls.push(table);assert.equal(table,'gary_cms_public');return {select(){return this},lte(){return this},order(){return this},async range(from,to){page++;assert.equal(from,(page-1)*200);return {data:page===1?Array.from({length:200},(_,i)=>({entry_id:'id-'+i,kind:'faq',slug:'question-'+i,content:{title_en:'Question'}})):[{entry_id:'final',kind:'faq',slug:'last',content:{title_en:'Last'}}],error:null}}}}};
  const entries=await loadPublishedCms(db);assert.equal(entries.length,201);assert.equal(entries[200].id,'final');assert.equal(calls.length,2);
  const failure={from(){return {select(){return this},lte(){return this},order(){return this},async range(){return {error:{code:'42P01'}}}}}};await assert.rejects(()=>loadPublishedCms(failure),e=>e.code==='42P01');
+});
+test('homepage reads three newest article snapshots alongside the rest of its content',async()=>{
+ const queries=[];
+ const db={from(table){
+  assert.equal(table,'gary_cms_public');
+  const trace=[];queries.push(trace);
+  return {select(){return this;},lte(){return this;},order(field){trace.push(field);return this;},
+   neq(field,value){trace.push('neq',field,value);return this;},eq(field,value){trace.push('eq',field,value);return this;},
+   async range(from,to){trace.push(from,to);return {data:[]};}};
+ }};
+ await loadHomepageCms(db);
+ assert.deepEqual(queries,[['entry_id','neq','kind','article',0,199],['published_at','slug','eq','kind','article',0,2]]);
 });
 test('published landing SEO synchronizes declared page, Open Graph and Twitter metadata in both languages',async()=>{
  const dom=await fixture(),doc=dom.window.document;
@@ -92,4 +107,105 @@ test('workspace refuses unverified staff and explains missing setup in Vietnames
  const db={async rpc(){calls++;return {error:{code:'PGRST202'}}}};
  const workspace=createAgencyCms({doc:dom.window.document,db,isStaff:()=>allowed,getUser:()=>({id:'staff'}),getLanguage:()=> 'vi'});
  try{await workspace.enter();assert.equal(calls,0);allowed=true;await workspace.enter();assert.match(dom.window.document.querySelector('#cms-root').textContent,/hoàn tất thiết lập/);assert.equal(calls,1);workspace.reset();assert.equal(dom.window.document.querySelector('#cms-root').children.length,0)}finally{dom.window.close()}
+});
+
+test('agency media adapter reserves before upload and reconciles a retried removal',async()=>{
+ const calls=[];
+ let removalError=true;
+ const stored={id:'media-id',file_name:'cover.png',mime_type:'image/png',size_bytes:3,alt_en:'Cover',alt_vi:'Ảnh bìa'};
+ const db={
+  async rpc(name,args){
+   calls.push(name);
+   if(name==='gary_cms_reserve_media') {
+    assert.equal(args.p_public_confirmed,true);
+    assert.equal(args.p_caption_vi,'Chú thích');
+    stored.object_path=args.p_path;
+   }
+   if(name==='gary_cms_confirm_media_removal')return {data:true};
+   return {data:stored};
+  },
+  storage:{from(bucket){
+   assert.equal(bucket,'gary-cms-media');
+   return {
+    async upload(path,file,options){assert.equal(path,stored.object_path);assert.equal(options.upsert,false);calls.push('Storage upload');return {data:{path}};},
+    async remove(paths){assert.deepEqual(paths,[stored.object_path]);calls.push('Storage remove');return removalError?{error:new Error('timeout')}:{data:[]};}
+   };
+  }}
+ };
+ const adapter=createAgencyCmsAdapter({db,isStaff:()=>true,getUser:()=>({id:'20000000-0000-4000-8000-000000000001'})});
+ await adapter.uploadMedia({name:'cover.png',size:3,type:'image/png'},{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_vi:'Chú thích',publicConfirmed:true});
+ assert.deepEqual(calls,['gary_cms_reserve_media','Storage upload','gary_cms_register_media']);
+ await assert.rejects(()=>adapter.removeMedia(stored.id),/CMS_MEDIA_PENDING/);
+ assert.equal(calls.includes('gary_cms_confirm_media_removal'),false);
+ removalError=false;
+ await adapter.removeMedia(stored.id);
+ assert.deepEqual(calls.slice(-3),['gary_cms_prepare_media_removal','Storage remove','gary_cms_confirm_media_removal']);
+});
+
+test('article editor previews and replaces covers; media metadata is bilingual and Publisher controls stay read-only',async()=>{
+ const {window}=new JSDOM('<div id="cms"></div>',{url:'https://visa.garyhome.vn/'});
+ bindFeedbackDom(window);
+ const root=window.document.getElementById('cms');
+ window.confirm=()=>true;
+ const base='https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/gary-cms-media/80000000-0000-4000-8000-000000000008/';
+ const makeItem=(number)=>({id:String(number),file_name:`cover-${number}.png`,mime_type:'image/png',owned:true,state:'ready',version:2,alt_en:'Cover',alt_vi:'Ảnh bìa',
+  caption_en:'English caption',caption_vi:'Chú thích ảnh',url:base+`11111111-1111-4111-8111-11111111111${number}.png`});
+ let media=[makeItem(1),makeItem(2)],role='editor';
+ let article=entry('article','work-guide',{version:4,status:'published',data:{image_url:media[0].url}});
+ const writes=[];
+ const adapter={
+  mediaPolicy:{publicImages:true,mimeTypes:['image/png'],maxBytes:5242880},
+  capabilities:async()=>({role,read:true,edit:role==='editor',media:role==='editor',publish:role==='publisher'}),
+  list:async()=>({records:[article],total:1}),listMedia:async()=>media,coverUrl:publicCmsImage,
+  save:async record=>{article={...record,version:record.version+1,status:'draft'};writes.push(article);return article;},
+  uploadMedia:async(file,metadata)=>writes.push({file,metadata}),
+  updateMedia:async(id,metadata)=>writes.push({id,metadata}),
+  removeMedia:async id=>{media=media.filter(item=>item.id!==id);}
+ };
+ const cms=mountCms(root,{adapter,collections:agencyCollections.filter(item=>item.kind==='article'),language:'vi'});
+ const settle=()=>new Promise(resolve=>setImmediate(resolve));
+ const select=selector=>root.querySelector(selector);
+ const submit=selector=>select(selector).dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+ try{
+  await cms.ready;
+  select('[data-action=edit]').click();await settle();
+  assert.equal(select('[data-field=slug]').disabled,true);
+  assert.equal(select('[data-cover-preview] img').alt,'Ảnh bìa');
+  const chooser=select('[data-cover-select]');
+  chooser.value=media[1].url;
+  chooser.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.equal(select('[data-cover-preview] img').src,media[1].url);
+  submit('[data-cms-editor]');await settle();
+  assert.equal(writes[0].data.image_url,media[1].url);
+  select('[data-action=remove-cover]').click();
+  assert.equal(select('[data-cover-preview] img'),null);
+  submit('[data-cms-editor]');await settle();
+  assert.equal(writes[1].data.image_url,'');
+  select('[data-action=close]').click();await settle();
+  select('[data-action=media]').click();await settle();
+  const editing=select('[data-cms-media-metadata]');
+  editing.elements.caption_en.value='Updated English';
+  editing.elements.caption_vi.value='Đã cập nhật';
+  submit('[data-cms-media-metadata]');await settle();
+  assert.deepEqual(writes[2],{id:'1',metadata:{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_en:'Updated English',caption_vi:'Đã cập nhật',version:2}});
+  const upload=select('[data-cms-upload]');
+  Object.defineProperty(upload.elements.file,'files',{value:[new window.File(['png'],'new.png',{type:'image/png'})]});
+  upload.elements.alt_en.value='New image';upload.elements.alt_vi.value='Ảnh mới';
+  submit('[data-cms-upload]');await settle();
+  assert.equal(writes.length,3);
+  upload.elements.public_approval.checked=true;
+  submit('[data-cms-upload]');await settle();
+  assert.equal(writes[3].metadata.publicConfirmed,true);
+  select('[data-action=remove-media]').click();await settle();
+  assert.equal(select('.cms-media-grid').children.length,1);
+  role='publisher';await cms.refresh();
+  assert.equal(select('[data-cms-upload]'),null);
+  assert.equal(select('[data-action=remove-media]'),null);
+  assert.equal(select('[data-cms-media-metadata]'),null);
+  select('[data-action=collection]').click();await settle();
+  select('[data-action=edit]').click();
+  assert.equal(select('[data-field=title_en]').disabled,true);
+  assert.equal(select('[data-cover-select]'),null);
+  assert.ok(select('[data-action=publish]'));
+ }finally{cms.destroy({force:true});window.close();}
 });

@@ -4,33 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; img-src 'self' https://duyiihsmaqfgwezmsnjs.supabase.co; connect-src 'self' https://duyiihsmaqfgwezmsnjs.supabase.co; object-src 'none'; base-uri 'self'">
-  <script src="./appearance-init.js"></script>
-  <title>News &amp; Insights | Gary Agency</title>
+  <script src="/appearance-init.js"></script>
+  <!-- news head -->
+  <title>News &amp; Guides | Gary Agency</title>
   <meta name="description" content="News and guides on visas, work permits and residence in Vietnam.">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="News &amp; Insights | Gary Agency">
-  <meta property="og:description" content="News and guides on visas, work permits and residence in Vietnam.">
-  <meta property="og:image" content="./assets/vietnam-city.jpg">
-  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css">
-  <link rel="stylesheet" href="./public-design.css">
-  <link rel="stylesheet" href="./cms-public.css">
-  <script type="module" src="./article-public-bootstrap.js"></script>
+  <meta name="robots" content="noindex, follow">
+  <!-- end news head -->
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/public-design.css">
+  <link rel="stylesheet" href="/cms-public.css">
+  <script type="module" src="/article-public-bootstrap.js"></script>
 </head>
 <body class="visa-public">
   <a class="skip-link" href="#article-content">Skip to content</a>
   <header class="cms-article-header"><div class="container">
     <a class="wordmark" id="article-home" href="/" aria-label="Gary Agency home">gary<span class="wordmark-dot">.</span><span class="wordmark-label">Agency</span></a>
     <div class="cms-article-controls">
-      <nav aria-label="Language" id="article-languages"><a href="/articles.html?lang=en" data-article-lang="en" lang="en">English</a><a href="/articles.html?lang=vi" data-article-lang="vi" lang="vi">Tiếng Việt</a></nav>
+      <nav aria-label="Language" id="article-languages"><a href="/en/news" data-article-lang="en" lang="en">English</a><a href="/vi/news" data-article-lang="vi" lang="vi">Tiếng Việt</a></nav>
       <label><span id="article-theme-label">Appearance</span><select id="article-theme">
         <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
       </select></label>
     </div>
   </div></header>
-  <main id="article-content" class="section container cms-article-page" tabindex="-1">
-    <h1>News &amp; Insights</h1>
-    <noscript><p>Enable JavaScript to load articles from Gary Agency.</p></noscript>
+  <main id="article-content" class="section container cms-article-page" tabindex="-1" data-news-initial="static">
+    <!-- news content -->
+    <h1>News &amp; Guides</h1>
+    <p><a class="service-link" href="/en/news">Browse the article directory</a></p>
+    <!-- end news content -->
   </main>
 </body>
 </html>

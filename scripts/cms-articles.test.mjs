@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
-import {articlePath, renderArticlePage, renderLatestArticles, validArticleSlug} from '../dist/cms-articles.js';
+import {articleFilters, articlePath, bindArticleFallbacks, newsOrigin, renderArticleDocument, renderArticlePage, renderLatestArticles, validArticleSlug} from '../dist/cms-articles.js';
 import {loadPublishedCms} from '../dist/cms-public.js';
+import {createNewsHandler} from '../api/news.js';
 
 const record=(slug,published_at,extra={})=>({
   id:slug,kind:'article',slug,published_at,title_en:`Title: ${slug}`,body_en:'The first paragraph.\n\nThe second paragraph.',
@@ -32,15 +33,16 @@ test('the homepage shows three newest eligible articles with covers, dates and a
     assert.deepEqual([...section.querySelectorAll('article')].map(node=>node.id),['article-newest','article-second','article-third']);
     assert.match(section.querySelector('h2').textContent,/Tin tức/);
     assert.match(section.querySelector('h3').textContent,/Bài mới nhất/);
-    assert.equal(section.querySelector('.cms-news-header a').getAttribute('href'),'/articles.html?lang=vi');
-    assert.equal(section.querySelector('article a').getAttribute('href'),'/articles.html?article=newest&lang=vi');
+    assert.equal(section.querySelector('.cms-news-header a').getAttribute('href'),'/vi/news');
+    assert.equal(section.querySelector('article a').getAttribute('href'),'/vi/news/newest');
     assert.equal(section.querySelector('time').dateTime,'2026-01-05T00:00:00.000Z');
     assert.equal(section.querySelector('img').alt,'An approved cover');
     assert.match(section.querySelector('#article-second img').src,/\/assets\/vietnam-city.jpg$/);
     assert.match(section.querySelector('#article-second p').textContent,/short excerpt/);
     renderLatestArticles(doc,[],'en');
-    assert.equal(section.hidden,true);
+    assert.equal(section.hidden,false);
     assert.equal(section.querySelectorAll('article').length,0);
+    assert.match(section.textContent,/New articles will appear/);
   }finally{dom.window.close();}
 });
 
@@ -56,13 +58,13 @@ test('archive and detail render localized fallback copy, safe paragraphs and per
     assert.match(doc.querySelector('.cms-article-body p:last-of-type').textContent,/<img src=x/);
     assert.equal(doc.querySelector('meta[name=description]').content,'An approved description.');
     assert.equal(doc.querySelector('meta[property="og:type"]').content,'article');
-    assert.equal(doc.querySelector('link[rel=canonical]').href,'https://visa.example/articles.html?article=guide&lang=vi');
-    assert.equal(doc.querySelector('link[hreflang=en]').href,'https://visa.example/articles.html?article=guide&lang=en');
+    assert.equal(doc.querySelector('link[rel=canonical]').href,'https://visa.example/vi/news/guide');
+    assert.equal(doc.querySelector('link[hreflang=en]').href,'https://visa.example/en/news/guide');
     const structured=JSON.parse(doc.querySelector('script[type="application/ld+json"]').textContent);
     assert.equal(structured.headline,'Hướng dẫn');
     assert.equal(structured.inLanguage,'vi');
     renderArticlePage(doc,{entries:[guide],language:'en'});
-    assert.equal(doc.querySelector('h1').textContent,'News & Insights');
+    assert.equal(doc.querySelector('h1').textContent,'News & Guides');
     assert.equal(doc.querySelector('article h2').textContent,'Title: guide');
     assert.equal(doc.querySelector('script[type="application/ld+json"]'),null);
     renderArticlePage(doc,{entries:[],slug:'guide'});
@@ -71,14 +73,14 @@ test('archive and detail render localized fallback copy, safe paragraphs and per
   }finally{dom.window.close();}
 });
 
-test('direct article routes reread the published snapshot on return and remove unpublished content',async()=>{
-  const dom=new JSDOM(await html('articles.html'),{
-    url:'https://visa.example/articles.html?article=guide&lang=en',runScripts:'outside-only',pretendToBeVisual:true
+test('direct article pages trust server-rendered HTML on load and recheck publication on refocus',async()=>{
+  const guide = record('guide','2026-01-05T00:00Z');
+  const dom=new JSDOM(renderArticleDocument(await html('articles.html'),{entries:[guide],slug:'guide'}),{
+    url:`${newsOrigin}/en/news/guide`,runScripts:'outside-only',pretendToBeVisual:true
   });
   const w=dom.window;
   const calls=[];
-  const guide = record('guide','2026-01-05T00:00Z');
-  let rows=[{entry_id:'public-guide',kind:'article',slug:'guide',published_at:guide.published_at,content:guide}];
+  let rows=[];
   w.db={from(table){
     calls.push(['table',table]);
     return {
@@ -88,17 +90,18 @@ test('direct article routes reread the published snapshot on return and remove u
       async range(){return {data:rows};}
     };
   }};
-  Object.assign(w,{loadPublishedCms,articlePath,renderArticlePage,validArticleSlug});
+  Object.assign(w,{loadArticleData:(db,options)=>loadPublishedCms(db,{kind:'article',slug:options.slug}).then(entries=>({entries})),
+    articleFilters,articlePath,bindArticleFallbacks,newsOrigin,renderArticlePage,validArticleSlug});
   try{
     vm.runInContext(stripImports(await html('article-public-bootstrap.js')),dom.getInternalVMContext());
     await settle();
     assert.equal(w.document.querySelector('h1').textContent,'Title: guide');
-    assert.deepEqual(calls.filter(([key])=>key==='eq'),[['eq','kind','article'],['eq','slug','guide']]);
-    assert.ok(Number.isFinite(Date.parse(calls.find(([key])=>key==='lte')[2])));
-    rows=[];
+    assert.equal(calls.length,0);
     w.document.dispatchEvent(new w.Event('visibilitychange'));
     await settle();
-    assert.equal(calls.filter(([key,table])=>key==='table'&&table==='gary_cms_public').length,2);
+    assert.deepEqual(calls.filter(([key])=>key==='eq'),[['eq','kind','article'],['eq','slug','guide']]);
+    assert.ok(Number.isFinite(Date.parse(calls.find(([key])=>key==='lte')[2])));
+    assert.equal(calls.filter(([key,table])=>key==='table'&&table==='gary_cms_public').length,1);
     assert.equal(w.document.querySelector('.cms-article-body'),null);
     assert.equal(w.document.querySelector('meta[name=robots]').content,'noindex, follow');
   }finally{w.close();}
@@ -111,5 +114,57 @@ test('the legacy homepage article URL forwards to the same article and language'
     location:{href:'https://visa.example/?article=permit-guide&lang=vi',replace:value=>{forwarded=value;}},
     URL,articlePath
   });
-  assert.equal(forwarded,'/articles.html?article=permit-guide&lang=vi');
+  assert.equal(forwarded,'/vi/news/permit-guide');
+});
+
+test('Vercel news handler sends localized SEO and article text without JavaScript, and reports missing or unavailable pages',async()=>{
+  const cover='https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/gary-cms-media/80000000-0000-4000-8000-000000000008/11111111-1111-4111-8111-111111111111.png';
+  const guide=record('permit-guide','2026-01-01T00:00:00Z',{
+    title_vi:'Hướng dẫn hồ sơ',seo_title_vi:'Hồ sơ cần chuẩn bị',seo_description_vi:'Các bước chuẩn bị hồ sơ.',
+    body_vi:'Nội dung hướng dẫn.\n\nChi tiết tiếp theo.',data:{image_url:cover,image_alt_vi:'Giấy tờ mẫu',image_caption_vi:'Hồ sơ tham khảo'}
+  });
+  const load=async({slug,filters})=>{
+    if(slug==='failed')throw new Error('read failed');
+    if(slug==='future')return {entries:[record('future','2100-01-01T00:00:00Z')]};
+    if(slug==='private-image')return {entries:[record(slug,guide.published_at,{data:{
+      image_url:'https://example.test/storage/v1/object/sign/gary-documents/passport.png',
+      source_url:'https://example.test/storage/v1/object/sign/gary-documents/passport.png'
+    }})]};
+    assert.deepEqual(filters,slug===null?{q:'hồ sơ',category:'work',page:2}:{q:'',category:'',page:1});
+    return slug===null?{entries:[guide],total:20}:{entries:slug==='permit-guide'?[guide]:[]};
+  };
+  const handler=createNewsHandler(load);
+  async function request(url,method='GET',query){
+    let result={};
+    await handler({url,method,query},{writeHead(status,headers){result={status,headers};return this;},end(body){result.body=body;}});
+    return result;
+  }
+  const detail=await request('/vi/news/permit-guide');
+  assert.equal(detail.status,200);
+  assert.equal(detail.headers['Cache-Control'],'no-store');
+  const dom=new JSDOM(detail.body);
+  try{
+    const doc=dom.window.document;
+    assert.equal(doc.documentElement.lang,'vi');
+    assert.equal(doc.title,'Hồ sơ cần chuẩn bị');
+    assert.equal(doc.querySelector('meta[name=description]').content,'Các bước chuẩn bị hồ sơ.');
+    assert.equal(doc.querySelector('h1').textContent,'Hướng dẫn hồ sơ');
+    assert.match(doc.querySelector('.cms-article-body').textContent,/Chi tiết tiếp theo/);
+    assert.equal(doc.querySelector('link[rel=canonical]').href,`${newsOrigin}/vi/news/permit-guide`);
+    assert.equal(doc.querySelector('[hreflang="en"]').href,`${newsOrigin}/en/news/permit-guide`);
+    assert.equal(doc.querySelector('img[data-article-cover]').alt,'Giấy tờ mẫu');
+    assert.equal(doc.querySelector('figcaption').textContent,'Hồ sơ tham khảo');
+  }finally{dom.window.close();}
+  const english=await request('/api/news','GET',{locale:'en',slug:'permit-guide'});
+  assert.equal(english.status,200);
+  assert.match(english.body,/hreflang="vi" href="https:\/\/visa.garyhome.vn\/vi\/news\/permit-guide"/);
+  const archive=await request('/vi/news?q=h%E1%BB%93+s%C6%A1&category=work&page=2');
+  assert.match(archive.body,/\/vi\/news\?q=h%E1%BB%93\+s%C6%A1&amp;category=work&amp;page=3/);
+  assert.match(archive.body,/noindex, follow/);
+  const privateImage=await request('/en/news/private-image');
+  assert.match(privateImage.body,/vietnam-city\.jpg/);
+  assert.doesNotMatch(privateImage.body,/passport\.png/);
+  for(const slug of ['future','archived','a%2Fb'])assert.equal((await request('/en/news/'+slug)).status,404);
+  assert.equal((await request('/en/news/failed')).status,503);
+  assert.equal((await request('/vi/news/permit-guide','HEAD')).body,undefined);
 });

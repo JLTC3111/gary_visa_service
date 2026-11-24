@@ -13,7 +13,7 @@ const teamAccessMigrations=['20261117202944_staff_auth_eligibility.sql','2026111
 const sql=name=>readFile(new URL(`../supabase/${name}`,import.meta.url),'utf8');
 const denied=(fn,code='42501')=>assert.rejects(fn,error=>error.code===code);
 
-async function setup({assignRoles=true,teamAccess=false}={}){
+async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false}={}){
  const db=new PGlite();
  const q=(text,params=[])=>db.query(text,params),one=async(text,params)=>(await q(text,params)).rows[0];
  const count=async(text,params)=>Number((await one(`select count(*) n from (${text}) counted`,params)).n);
@@ -27,7 +27,7 @@ async function setup({assignRoles=true,teamAccess=false}={}){
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
   grant usage on schema auth,storage to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;
   create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
-  create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text);
+  create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb not null default '{}',unique(bucket_id,name));
   alter table storage.objects enable row level security;grant select,insert,update,delete on storage.objects to authenticated,anon;
   create policy unrelated_permissive_policy on storage.objects for all to authenticated,anon using(true) with check(true);`);
  for(const [name,value] of Object.entries(uid))await q('insert into auth.users(id,email) values($1,$2)',[value,`${name.toLowerCase()}@example.test`]);
@@ -62,8 +62,138 @@ async function setup({assignRoles=true,teamAccess=false}={}){
   await db.exec('alter table auth.users add column email_confirmed_at timestamptz default now(),add column deleted_at timestamptz,add column is_anonymous boolean not null default false,add column banned_until timestamptz');
   for(const name of teamAccessMigrations)await db.exec(await sql(`migrations/${name}`));
  }
+ if(cmsLifecycle)for(const name of ['20261124052852_agency_public_articles.sql','20261124053400_agency_cms_media_lifecycle.sql'])await db.exec(await sql(`migrations/${name}`));
  return {db,q,one,count,as,owner,rpc,ids:{assigned:assigned.id,queued:queued.id,other:other.id,contact,otherContact,guest,customerChat}};
 }
+
+test('Public news and editorial images use the real CMS lifecycle with separated roles',async()=>{
+ const h=await setup({teamAccess:true,cmsLifecycle:true});
+ const bucket='gary-cms-media';
+ const save=(record,version=null)=>h.one('select * from public.gary_cms_save($1::jsonb,$2)',[JSON.stringify(record),version]);
+ const transition=(record,status)=>h.one('select * from public.gary_cms_transition($1,$2,$3)',[record.id,status,record.version]);
+ const reserve=(path,approval=true)=>h.one('select * from public.gary_cms_reserve_media($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+   [path,'documents.png','image/png',120,'Sample forms','Mẫu giấy tờ','First cover','Ảnh đầu tiên',approval]);
+ const register=path=>h.one('select * from public.gary_cms_register_media($1,$2,$3,$4)',[path,'documents.png','image/png',120]);
+ const update=(item,alt='Updated alt')=>h.one('select * from public.gary_cms_update_media($1,$2,$3,$4,$5,$6)',
+   [item.id,item.version,alt,'Văn bản thay thế','Updated caption','Chú thích']);
+ const upload=(path,mime='image/png')=>h.q('insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3::jsonb)',
+   [bucket,path,JSON.stringify({mimetype:mime,size:120})]);
+ const prepare=item=>h.one('select * from public.gary_cms_prepare_media_removal($1)',[item.id]);
+ // The catalogue insert/delete stands in for the supported Storage API in
+ // this isolated fixture and exercises its RLS policies.
+ const remove=path=>h.q('delete from storage.objects where bucket_id=$1 and name=$2 returning id',[bucket,path]);
+ const confirm=item=>h.rpc('gary_cms_confirm_media_removal',[item.id]);
+ const directory=(query='',category='',page=1)=>h.rpc('gary_cms_article_directory',[query,category,page]);
+ const key=()=>`${uid.editor}/${randomUUID()}.png`;
+ const asset=path=>`https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/${bucket}/${path}`;
+ const snapshot=record=>h.one('select content from public.gary_cms_public where entry_id=$1',[record.id]);
+ try{
+  await h.as(null);
+  assert.equal(await h.count('select 1 from public.gary_cms_public'),19,'existing homepage publication snapshots survive the upgrade');
+  await h.as('editor');
+  const oldPath=key();
+  await denied(()=>upload(oldPath));
+  await assert.rejects(()=>reserve(oldPath,false),/CMS_MEDIA_PUBLIC_CONFIRMATION/);
+  let old=await reserve(oldPath);
+  await assert.rejects(()=>register(oldPath),/CMS_MEDIA_MISSING/);
+  await upload(oldPath);
+  old=await register(oldPath);
+  assert.equal(old.state,'ready');
+  assert.equal((await register(oldPath)).version,old.version);
+  const changed=await update(old);
+  assert.deepEqual([changed.alt_en,changed.alt_vi,changed.caption_en,changed.caption_vi],
+   ['Updated alt','Văn bản thay thế','Updated caption','Chú thích']);
+  await denied(()=>update(old),'40001');
+  assert.equal((await remove(oldPath)).rows.length,0,'new uploads require an explicit, guarded removal');
+  assert.equal(await h.count("select 1 from storage.objects where bucket_id='gary-documents'"),0);
+
+  const article={kind:'article',slug:'permit-guide',title_en:'Work permit guide',title_vi:'Hướng dẫn giấy phép',
+   summary_en:'Prepare your documents',summary_vi:'Chuẩn bị hồ sơ',body_en:'English guide',body_vi:'Hướng dẫn tiếng Việt',
+   data:{category:'work',image_url:asset(oldPath),internal_note:'Hidden note'}};
+  await assert.rejects(()=>save({...article,data:{image_url:'/portal/private.png'}}),/CMS_MEDIA_NOT_PUBLIC/);
+  let entry=await save(article);
+  await denied(()=>transition(entry,'published'));
+  await h.as(null);
+  assert.equal((await directory()).total,0);
+  await denied(()=>h.q('select * from public.gary_cms_entries'));
+  await denied(()=>h.q('select * from public.gary_cms_media'));
+  await h.as('publisher');
+  assert.deepEqual(await h.rpc('gary_cms_capabilities'),{role:'publisher',read:true,edit:false,publish:true,media:false,trash:false});
+  await denied(()=>save({...entry,title_en:'Unauthorized edit'},entry.version));
+  await denied(()=>transition(entry,'review'));
+  await denied(()=>update(changed));
+  await denied(()=>prepare(old));
+  await denied(()=>reserve(`${uid.publisher}/${randomUUID()}.png`));
+  await h.as('editor');entry=await transition(entry,'review');
+  await h.as('publisher');entry=await transition(entry,'published');
+  await denied(()=>transition(entry,'draft'));
+  await h.as(null);
+  const news=await directory('GIẤY PHÉP','work');
+  assert.equal(news.total,1);
+  assert.equal(news.entries[0].title_vi,article.title_vi);
+  assert.equal(news.entries[0].data.image_caption_vi,'Chú thích');
+  assert.equal(news.entries[0].data.image_alt_en,'Updated alt');
+  assert.equal(news.entries[0].data.internal_note,undefined);
+  assert.equal(news.entries[0].body_en,undefined);
+  assert.equal((await snapshot(entry)).content.body_en,article.body_en);
+  assert.equal((await directory('','visa')).total,0);
+
+  await h.as('editor');
+  await assert.rejects(()=>save({...entry,slug:'changed'},entry.version),/CMS_PUBLISHED_SLUG/);
+  const replacementPath=key();
+  let replacement=await reserve(replacementPath);
+  await upload(replacementPath);
+  replacement=await register(replacementPath);
+  entry=await save({...entry,data:{category:'work',image_url:asset(replacementPath)}},entry.version);
+  await assert.rejects(()=>prepare(old),/CMS_MEDIA_IN_USE/);
+  await h.as(null);assert.equal((await snapshot(entry)).content.data.image_url,asset(oldPath),'a working draft cannot change the published cover');
+  await h.as('editor');entry=await transition(entry,'review');
+  await h.as('publisher');entry=await transition(entry,'published');
+  await h.as(null);assert.equal((await snapshot(entry)).content.data.image_url,asset(replacementPath));
+  await h.as('publisher');entry=await transition(entry,'archived');
+  await h.as(null);assert.equal(await snapshot(entry),undefined);assert.equal((await directory()).total,0);
+  await h.as('editor');
+  entry=await save({...entry,data:{category:'work',image_url:''}},entry.version);
+  entry=await transition(entry,'review');
+  await h.as('publisher');entry=await transition(entry,'published');
+  await h.as(null);assert.equal((await snapshot(entry)).content.data.image_url,undefined);
+  await h.as('cmsAdmin');
+  await assert.rejects(()=>prepare(replacement),/CMS_MEDIA_IN_USE/,'revision history protects previously used files');
+  assert.equal(await h.count("select 1 from storage.objects where bucket_id='gary-documents'"),0);
+
+  await h.as('editor');
+  const unusedPath=key();
+  const unused=await reserve(unusedPath);
+  await upload(unusedPath,'image/jpeg');
+  await assert.rejects(()=>register(unusedPath),/CMS_MEDIA_INVALID/);
+  assert.equal((await prepare(unused)).state,'deleting');
+  assert.equal(await confirm(unused),false,'a failed Storage cleanup remains pending');
+  await denied(()=>upload(unusedPath));
+  await assert.rejects(()=>save({...entry,data:{image_url:asset(unusedPath)}},entry.version),/CMS_MEDIA_NOT_PUBLIC/);
+  assert.equal((await remove(unusedPath)).rows.length,1);
+  assert.equal(await confirm(unused),true);
+  assert.equal(await confirm(unused),true);
+  assert.equal((await prepare(unused)).state,'removed');
+  const abandoned=await reserve(key());
+  assert.equal((await prepare(abandoned)).state,'removed');
+  await denied(()=>upload(abandoned.object_path));
+
+  await h.owner();
+  await h.q("update public.gary_cms_public set published_at='2100-01-01' where entry_id=$1",[entry.id]);
+  await h.as(null);
+  assert.equal(await snapshot(entry),undefined,'future snapshots are invisible even via the direct REST table');
+  await h.owner();
+  await h.q(`with entries as (
+   insert into public.gary_cms_entries(kind,slug,title_en,title_vi,status,published_at,data)
+   select 'article','page-guide-'||n,'A new planning guide','Hướng dẫn mới','published',now(),jsonb_build_object('category','visa')
+   from generate_series(1,11) n returning *
+  ) insert into public.gary_cms_public(entry_id,kind,slug,content,published_at)
+   select id,kind,slug,gary_private.cms_public_payload(entries),published_at from entries`);
+  await h.as(null);
+  const pages=await directory('','visa',2);
+  assert.deepEqual([pages.total,pages.page,pages.entries.length],[11,2,2]);
+ }finally{await h.db.close();}
+});
 
 test('upgrade keeps records, makes legacy members Operations Admins, and guards owner SQL and the old installer',async()=>{
  const h=await setup({assignRoles:false});
