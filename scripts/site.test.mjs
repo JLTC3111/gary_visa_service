@@ -373,6 +373,40 @@ test('portal areas and case controls follow each Operations and CMS role',async(
  }finally{env.dom.window.close()}
 });
 
+test('Visa staff branches follow browser history and reveal the active route', {timeout:5000}, async()=>{
+ let canLeave=true;
+ const cms=()=>({enter(){},canLeave:()=>canLeave,reset(){},translate(){}});
+ const {w,doc,dom}=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff&view=applications',cms);
+ const $=selector=>doc.querySelector(selector);
+ async function history(direction){
+  const changed=new Promise(resolve=>w.addEventListener('popstate',resolve,{once:true}));
+  w.history[direction]();await changed;await flush();
+ }
+ try{
+  $('#auth-email').value='team@example.test';$('#auth-password').value='Password12345';
+  $('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
+  const crm=$('[data-visa-group-toggle=crm]'),inbox=$('[data-view=inbox]');
+  const marker=$('.workspace-nav .branched-menu__marker');
+  inbox.click();await flush();
+  assert.equal(new URL(w.location.href).searchParams.get('view'),'inbox');
+  $('[data-view=cms]').click();await flush();
+  assert.equal(new URL(w.location.href).searchParams.get('view'),'cms');
+  crm.click();assert.equal(crm.getAttribute('aria-expanded'),'false');
+  canLeave=false;
+  await history('back');
+  assert.equal(new URL(w.location.href).searchParams.get('view'),'cms');
+  assert.equal($('[data-view=cms]').getAttribute('aria-current'),'page');
+  canLeave=true;await history('back');
+  assert.equal($('#inbox-view').hidden,false);
+  assert.equal(crm.getAttribute('aria-expanded'),'true');
+  assert.equal(inbox.getAttribute('aria-current'),'page');
+  assert.equal($('.workspace-nav .branched-menu__marker'),marker);
+  await history('forward');
+  assert.equal($('#cms-view').hidden,false);
+  assert.equal($('[data-view=cms]').getAttribute('aria-current'),'page');
+ }finally{dom.window.close();}
+});
+
 test('customer sessions cannot open Trash or delete a visa case through hidden controls',async()=>{
  const {dom,w,doc,calls}=await portalEnvironment('customer');
  try{

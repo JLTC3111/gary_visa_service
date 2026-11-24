@@ -175,7 +175,7 @@ export function createStaffAccess({
   const avatar=el('span',{class:'user-avatar staff-access-avatar account-avatar','aria-hidden':'true','data-staff-avatar':id});
   renderAvatar(avatar,name,state.photos.get(id));
   const actions=canEdit(member)?el('div',{class:'staff-access-row-actions'},[
-   el('button',{type:'button',class:'button button-outline button-small','data-staff-action':'edit',
+   el('button',{type:'button',class:'button button-small','data-button-variant':'edit','data-staff-action':'edit',
     'aria-label':t('staffEditAccess').replace('{name}',()=>name),
     'aria-haspopup':'dialog','aria-controls':drawer.id,disabled:blocked()?'':null},t('staffEdit')),
    member.manage_membership?el('div',{class:'staff-access-menu'},[

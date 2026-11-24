@@ -178,7 +178,7 @@
 .staff-access-status.is-active { background: var(--vp-success-soft, #e6f1dc); color: var(--vp-success, #38612d); }
 .staff-access-status.is-unavailable { background: var(--vp-warning-soft, #fff4db); color: var(--vp-warning, #755417); }
 .staff-access-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-.staff-access-row-actions .button { min-height: 36px; padding: 6px 9px; font-size: 12px; text-align: center; }
+.staff-access-row-actions .button { min-height: 36px; padding: 6px 9px; font-size: 12px; font-weight: 400; text-align: center; }
 .staff-access-menu { position: relative; }
 .staff-access-menu > .icon-button {
   display: grid;

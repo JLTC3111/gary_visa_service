@@ -17,6 +17,7 @@ const english={};
 $$('[data-p]').forEach(node=>{english[node.dataset.p]??=node.textContent.trim()});
 $$('[data-p-placeholder]').forEach(node=>{english[node.dataset.pPlaceholder]??=node.placeholder});
 const params=new URL(location.href).searchParams;
+let currentStaffViewUrl=location.href;
 let language='en';try{language=localStorage.getItem('gary-language')==='vi'?'vi':'en'}catch{}
 if(params.get('lang'))language=params.get('lang')==='vi'?'vi':'en';
 const state={user:null,role:null,access:null,profile:null,mode:'signin',area:params.get('area')==='staff'?'staff':'customer',view:'applications',page:0,total:0,cases:[],customerPage:0,customerTotal:0,customers:[],caseId:null,currentCase:null,caseData:null,tab:'overview',editingId:null,generation:0,loading:false,recovery:params.get('flow')==='recovery'};
@@ -59,7 +60,7 @@ async function getRoster(){
  if(generation!==state.generation||!operations())return [];rosterCache={data,expires:Date.now()+60000};return data;
 }
 const {staffOptions}=workspaceUI(document,t);
-const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,canTrash:()=>operationsRole()==='admin',getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:id=>{setView('inbox',false);inbox.enter(id)}});
+const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,canTrash:()=>operationsRole()==='admin',getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:id=>{if(navigateView('inbox',false))inbox.enter(id)}});
 const cms=createAgencyCms({doc:document,db,isStaff:()=>cmsRole()!==null,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
 const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
@@ -163,7 +164,7 @@ function signOut(){
  return signOutFlight;
 }
 for(const button of [$('#signout'),$('#error-signout')])button.addEventListener('click',()=>signOut().catch(()=>toast('genericError','error')));
-async function loadWorkspace(requested=params.get('view')){
+async function loadWorkspace(requested){
  if(state.loading)return;state.loading=true;const generation=++state.generation;setScreen('workspace-loading');
  try{
   const {data,error}=await db.auth.getUser();if(generation!==state.generation)return;if(error)throw error;if(!data.user){resetWorkspace();return}state.user=data.user;
@@ -178,7 +179,9 @@ async function loadWorkspace(requested=params.get('view')){
   const profile=await ensureProfile(data.user);if(generation!==state.generation)return;
   state.profile=profile;renderIdentity();void profileAvatar.load(data.user.id);renderProfile();const home=homeView();setView(home,false);
   if(home==='applications')await Promise.all([loadApplications(),loadStats()]);if(generation!==state.generation)return;setScreen('workspace');
+  requested??=new URL(location.href).searchParams.get('view');
   if(requested!==home&&VIEWS.includes(requested)&&viewAllowed(requested))setView(requested);else if(home!=='applications')setView(home);
+  syncStaffViewUrl();
  }catch(error){if(generation===state.generation){setScreen('workspace-error');$('#signout').hidden=!state.user}}
  finally{if(generation===state.generation)state.loading=false}
 }
@@ -257,7 +260,7 @@ function openAccountView(view){
  if(view==='profile'&&state.view===view&&!$('.visa-mobile-nav-drawer[open]'))$('#profile-title').focus();
 }
 $('#sidebar-profile-button').addEventListener('click',()=>{
- setView('profile');
+ navigateView('profile');
  if(state.view==='profile')$('#profile-title').focus();
 });
 
@@ -277,8 +280,39 @@ function setView(view,load=true){
  $$('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
  if(staff())renderStaffAccountMenu();
  if(view==='applications'&&load)void Promise.all([loadApplications(),loadStats()]).catch(()=>toast('refreshFailed','error'));if(view==='staff-access'&&load)void staffAccess.enter();if(view==='trash'&&load)void trash.enter();if(contentViews.includes(view)&&load)void cms.enter();if(view==='profile'){renderProfile();if(load)schedulePermissionRefresh()}if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
+ return true;
 }
-$$('[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
+function syncStaffViewUrl(){
+ if(!staff())return;
+ const url=new URL(location.href);
+ if(url.searchParams.has('view')&&url.searchParams.get('view')!==state.view){
+  url.searchParams.set('view',state.view);
+  history.replaceState(history.state,'',url);
+ }
+ currentStaffViewUrl=location.href;
+}
+function navigateView(view,load=true){
+ const previous=state.view;
+ if(!setView(view,load))return false;
+ if(staff()&&previous!==view){
+  const url=new URL(location.href);
+  url.searchParams.set('view',view);
+  if(url.href!==location.href)history.pushState(history.state,'',url);
+ }
+ syncStaffViewUrl();
+ return true;
+}
+$$('[data-view]').forEach(button=>button.addEventListener('click',()=>navigateView(button.dataset.view)));
+window.addEventListener('popstate',()=>{
+ if(!staff()||$('#workspace').hidden)return;
+ const requested=new URL(location.href).searchParams.get('view');
+ const view=VIEWS.includes(requested)&&viewAllowed(requested)?requested:homeView();
+ if(view!==state.view&&!setView(view)){
+  history.pushState(history.state,'',currentStaffViewUrl);
+  return;
+ }
+ syncStaffViewUrl();
+});
 function renderProfile(){if(!state.profile)return;for(const key of ['full_name','contact_email','phone','nationality','preferred_language'])$('#profile-form').elements.namedItem(key).value=state.profile[key]??''}
 $('#profile-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;feedback('#profile-notice','');await busy(form,async()=>{try{const values=Object.fromEntries(new FormData(form));for(const key of Object.keys(values))values[key]=String(values[key]).trim();const data=unwrap(await db.from('gary_profiles').update(values).eq('id',state.user.id).select().single());state.profile=data;renderIdentity();toast('profileSaved')}catch(error){feedback('#profile-notice',errorKey(error),true)}})});
 

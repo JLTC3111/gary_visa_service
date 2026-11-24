@@ -1,3 +1,5 @@
+import {mountBranchedMenu} from './branched-menu.js';
+
 const mountedSidebars=new WeakMap();
 
 /** Visa staff navigation only. Existing destination nodes own routes/permissions. */
@@ -12,8 +14,8 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  const defaults={width:256,collapsed:false,groups:Object.fromEntries(groups.map(group=>[group.id,true]))};
  let preference={...defaults,groups:{...defaults.groups}};
  try{const stored=JSON.parse(win.localStorage.getItem(preferenceKey)||'null');if(stored?.version===1){if(Number.isFinite(stored.width)&&stored.width>=180&&stored.width<=1000)preference.width=stored.width;if(typeof stored.collapsed==='boolean')preference.collapsed=stored.collapsed;for(const group of groups)if(typeof stored.groups?.[group.id]==='boolean')preference.groups[group.id]=stored.groups[group.id];}}catch{}
- const oldAttributes=new Map(buttons.map(button=>[button,new Map(['aria-label','title','aria-current'].map(name=>[name,button.getAttribute(name)]))]));
- let enabled=false,heading,toggle,handle,drawer,drag=null,disposed=false;
+ const oldAttributes=new Map(buttons.map(button=>[button,new Map(['aria-label','title','aria-current','tabindex'].map(name=>[name,button.getAttribute(name)]))]));
+ let enabled=false,heading,toggle,handle,drawer,branches,drag=null,disposed=false;
  const save=()=>{try{win.localStorage.setItem(preferenceKey,JSON.stringify({version:1,...preference}));}catch{}};
  const mobile=()=>win.innerWidth<=900;
  const maximum=()=>Math.min(380,Math.max(220,(win.innerWidth||1200)-520));
@@ -41,9 +43,8 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  }
  function openDrawer(){
   if(!enabled||!isStaff()||workspace.hidden||!mobile()||drawer.open)return;
-  refresh({revealActive:true});
   drawer.showModal();
-  syncDrawer();
+  refresh({revealActive:true});
   toggle.focus({preventScroll:true});
  }
  function stopDrag(){if(!drag)return;doc.body.style.cursor=drag.cursor;doc.body.style.userSelect=drag.select;try{if(handle.hasPointerCapture?.(drag.pointerId))handle.releasePointerCapture(drag.pointerId);}catch{}drag=null;workspace.removeAttribute('data-gary-resizing');}
@@ -53,13 +54,20 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   toggle=doc.createElement('button');toggle.type='button';toggle.className='visa-sidebar-toggle';toggle.dataset.visaSidebarToggle='';toggle.setAttribute('aria-controls','visa-staff-navigation');heading.append(toggle);sidebar.prepend(heading);
   nav.id='visa-staff-navigation';nav.tabIndex=0;
   for(const group of groups){
-   const section=doc.createElement('section');section.className='visa-nav-group';section.dataset.visaNavGroup=group.id;
-   const control=doc.createElement('button');control.type='button';control.className='visa-nav-group-toggle';control.dataset.visaGroupToggle=group.id;control.setAttribute('aria-controls',`visa-nav-${group.id}`);
-   const title=doc.createElement('span');title.dataset.visaGroupLabel='';const chevron=doc.createElement('span');chevron.className='visa-nav-chevron';chevron.setAttribute('aria-hidden','true');chevron.textContent='⌄';control.append(title,chevron);
-   const destinations=doc.createElement('div');destinations.className='visa-nav-destinations';destinations.id=`visa-nav-${group.id}`;
-   for(const view of group.views){const button=buttons.find(item=>item.dataset.view===view);if(button)destinations.append(button);}
-   section.append(control,destinations);nav.append(section);
+   const section=doc.createElement('section');section.className='visa-nav-group branched-menu__section';section.dataset.visaNavGroup=group.id;
+   const control=doc.createElement('button');control.type='button';control.className='visa-nav-group-toggle branched-menu__head';control.dataset.visaGroupToggle=group.id;control.setAttribute('aria-controls',`visa-nav-${group.id}`);
+   const title=doc.createElement('span');title.className='branched-menu__label';title.dataset.visaGroupLabel='';
+   const chevron=doc.createElement('span');chevron.className='branched-menu__chevron';chevron.setAttribute('aria-hidden','true');control.append(title,chevron);
+   const body=doc.createElement('div');body.className='branched-menu__body';body.id=`visa-nav-${group.id}`;
+   const fold=doc.createElement('div');fold.className='branched-menu__fold';
+   const destinations=doc.createElement('div');destinations.className='visa-nav-destinations branched-menu__tree';
+   for(const view of group.views){
+    const button=buttons.find(item=>item.dataset.view===view);
+    if(button){button.querySelector('span')?.classList.add('branched-menu__label');destinations.append(button);}
+   }
+   fold.append(destinations);body.append(fold);section.append(control,body);nav.append(section);
   }
+  branches=mountBranchedMenu(nav);
   handle=doc.createElement('button');handle.type='button';handle.className='visa-sidebar-resize';handle.dataset.visaSidebarResize='';handle.setAttribute('role','separator');handle.setAttribute('aria-orientation','vertical');sidebar.append(handle);
   drawer=doc.createElement('dialog');drawer.id='visa-mobile-nav';drawer.className='visa-mobile-nav-drawer';
   drawer.setAttribute('aria-modal','true');
@@ -80,7 +88,8 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   trigger.hidden=true;closeDrawer(null,false);
   if(sidebar.parentElement===drawer)workspace.prepend(sidebar);
   drawer.remove();drawer=null;syncDrawer();
-  for(const button of buttons){nav.append(button);for(const [name,value]of oldAttributes.get(button))if(value===null)button.removeAttribute(name);else button.setAttribute(name,value);}
+  branches.destroy();branches=null;
+  for(const button of buttons){button.querySelector('span')?.classList.remove('branched-menu__label');nav.append(button);for(const [name,value]of oldAttributes.get(button))if(value===null)button.removeAttribute(name);else button.setAttribute(name,value);}
   for(const group of nav.querySelectorAll('.visa-nav-group'))group.remove();if(label)sidebar.insertBefore(label,nav);heading?.remove();handle?.remove();
   nav.inert=false;nav.removeAttribute('id');nav.removeAttribute('tabindex');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');
  }
@@ -103,8 +112,12 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   else{toggle.setAttribute('aria-expanded',String(!preference.collapsed));toggle.setAttribute('aria-controls',nav.id);}
   setText(toggle,phone?'×':preference.collapsed?'›':'‹');
   handle.hidden=phone||preference.collapsed;handle.setAttribute('aria-label',strings.resize);handle.title=strings.resize;handle.setAttribute('aria-valuemin','220');handle.setAttribute('aria-valuemax',String(maximum()));handle.setAttribute('aria-valuenow',String(effectiveWidth()));handle.setAttribute('aria-valuetext',`${Math.round(effectiveWidth())} px`);
-  for(const group of groups){const section=nav.querySelector(`[data-visa-nav-group="${group.id}"]`),control=section.querySelector('[data-visa-group-toggle]'),active=[...section.querySelectorAll('[data-view]')].some(button=>button.classList.contains('active')&&!button.hidden);section.hidden=![...section.querySelectorAll('[data-view]')].some(button=>!button.hidden);if(revealActive&&active)preference.groups[group.id]=true;section.classList.toggle('visa-nav-group-active',active);setText(control.querySelector('[data-visa-group-label]'),language()==='vi'?group.vi:group.en);control.setAttribute('aria-expanded',String(preference.groups[group.id]));const destinations=section.querySelector('.visa-nav-destinations');destinations.hidden=!preference.groups[group.id]&&!(!phone&&preference.collapsed);destinations.inert=destinations.hidden;}
-  for(const button of buttons){const title=button.querySelector('span')?.textContent.trim()||button.textContent.trim();button.setAttribute('aria-label',title);button.title=title;if(button.classList.contains('active'))button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
+  for(const group of groups)setText(nav.querySelector(`[data-visa-nav-group="${group.id}"] [data-visa-group-label]`),language()==='vi'?group.vi:group.en);
+  for(const button of buttons){const title=button.querySelector('span')?.textContent.trim()||button.textContent.trim();button.setAttribute('aria-label',title);button.title=title;if(button.classList.contains('active')&&!button.hidden)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
+  branches.refresh({rail:!phone&&preference.collapsed,revealActive,
+   expanded:section=>preference.groups[section.dataset.visaNavGroup],
+   reveal:section=>{preference.groups[section.dataset.visaNavGroup]=true;}
+  });
  }
  function click(event){
   const target=event.target.closest?.('button');if(!target||!sidebar.contains(target)||!enabled)return;
