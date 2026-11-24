@@ -196,7 +196,7 @@ export function mountCms(root, options) {
   function editorNotice(text, failed = true) { const target = root.querySelector('[data-editor-notice]'); if (target) { target.textContent = text; target.setAttribute('role', failed ? 'alert' : 'status'); } }
   function renderHistory() {
     const target = root.querySelector('[data-cms-history]'); if (!target) return;
-    target.innerHTML = revisions.length ? revisions.map((revision, index) => `<div class="cms-revision"><span>${escape(date(revision.created_at))} · v${escape(revision.version || index + 1)} · ${escape(t(revision.status || 'draft'))}</span>${capabilities.edit ? button('restore', t('restore'), `data-index="${index}"`) : ''}</div>`).join('') : `<p>${t('revisionsEmpty')}</p>`;
+    target.innerHTML = revisions.length ? revisions.map((revision, index) => `<div class="cms-revision"><span>${escape(date(revision.created_at))} · v${escape(revision.version || index + 1)} · ${escape(t(revision.action === 'trashed' ? 'trashed' : revision.status || 'draft'))}</span>${capabilities.edit ? button('restore', t('restore'), `data-index="${index}"`) : ''}</div>`).join('') : `<p>${t('revisionsEmpty')}</p>`;
   }
   function showIssues(issues) {
     for (const target of root.querySelectorAll('[data-error-for]')) target.textContent = '';

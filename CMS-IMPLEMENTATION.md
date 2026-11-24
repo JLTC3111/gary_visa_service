@@ -53,6 +53,14 @@ Alternative text is stored in both languages and copied into published image met
 
 Deletion/replacement is deliberately unavailable until usage/lifecycle tracking is defined; this prevents removing an image still referenced by a publication. A successful upload with failed metadata registration can leave an orphan editorial object for owner reconciliation. No automatic destructive cleanup runs.
 
+## Applications and News & Guides Trash
+
+Review and apply the Visa Trash lifecycle migration before releasing the portal. Operations Admins manage application Trash. CMS Admins manage News & Guides Trash. Restoring an application retains its workflow status. Restoring an article creates a draft and requires a separate publication action.
+
+Set the approved minimum days from the Trash date in `gary_private.trash_retention` for `case` and `article`. Keep any applicable record holds in `gary_private.trash_holds`. Permanent deletion is unavailable for a kind until its retention rule is configured. Staff can restore records while retention or holds prevent permanent deletion.
+
+Case cleanup uses the Storage API for the prepared keys in `gary-documents`. Once cleanup starts, finish it from Trash. A partial or unconfirmed cleanup keeps the row available for retry and locks Restore to protect document references. CMS library images use their separate media lifecycle. Permanent deletion keeps only the operational deletion audit fields, including the record identifier, action, acting staff identifier and timestamp.
+
 ## Local verification
 
 ```sh

@@ -6,7 +6,7 @@
   --account-muted: var(--visa-muted);
   --account-line: var(--visa-line);
   --account-focus: var(--visa-focus);
-  --account-danger: color-mix(in srgb, var(--color-red-500, #fb2c36) 75%, var(--account-text));
+  --account-danger: #D51212;
   --account-danger-bg: #f9eae7;
   position: relative;
   flex: none;
@@ -26,7 +26,7 @@
 }
 
 html[data-visa-theme="dark"] .visa-account-menu {
-  --account-danger: #E99491;
+  --account-danger: #EC8686;
   --account-danger-bg: var(--vp-danger-soft, #482b31);
 }
 

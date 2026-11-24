@@ -33,7 +33,7 @@ const staff=()=>state.role==='staff';
 const operationsRole=()=>staff()?state.access?.operations??null:null,cmsRole=()=>staff()?state.access?.cms??null:null;
 const operations=()=>operationsRole()!==null,oversees=()=>['manager','admin'].includes(operationsRole());
 const canEditStaffCase=application=>Boolean(application&&operations()&&(operationsRole()!=='manager'||application.assigned_staff_id===state.user?.id));
-const trashKinds=()=>[...(operationsRole()==='admin'?['case','contact']:[]),...(cmsRole()==='admin'?['cms']:[])];
+const trashKinds=()=>[...(operationsRole()==='admin'?['case','contact']:[]),...(cmsRole()==='admin'?['article','cms']:[])];
 const managesStaff=()=>operationsRole()==='admin'||cmsRole()==='admin';
 const contentViews=['cms','news-guides'];
 const VIEWS=['applications','profile','customers','inbox',...contentViews,'trash','staff-access'];
@@ -63,7 +63,7 @@ const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,can
 const cms=createAgencyCms({doc:document,db,isStaff:()=>cmsRole()!==null,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
 const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
-const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,notify:toast,onSaved:()=>{rosterCache=null;schedulePermissionRefresh()}});
+const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,showDialog,closeDialog,notify:toast,onSaved:()=>{rosterCache=null;schedulePermissionRefresh()}});
 let staffAccountPhoto='';
 const staffAccountMenu=mountAccountMenu($('#staff-account-menu'),{
  staff:true,
@@ -268,7 +268,9 @@ function renderIdentity(){
 function setView(view,load=true){
  if(!viewAllowed(view))return;
  if(contentViews.includes(state.view)&&view!==state.view){if(!cms.canLeave())return;cms.reset();}
- if(state.view==='inbox'&&view!=='inbox')inbox.leave();state.view=view;
+ if(state.view==='inbox'&&view!=='inbox')inbox.leave();
+ if(state.view==='staff-access'&&view!=='staff-access')staffAccess.leave();
+ state.view=view;
  document.body.dataset.visaView=view;
  updateDocumentTitle();
  for(const name of VIEWS)$(`#${name}-view`).hidden=name!==view;
@@ -334,7 +336,7 @@ async function renderCaseAssignee(application){const roster=await getRoster().ca
 function showTab(tab){if(tab==='notes'&&!operations())return;state.tab=tab;$$('[data-tab]').forEach(button=>{const selected=button.dataset.tab===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;$(`#case-${button.dataset.tab}`).hidden=!selected})}
 $$('[data-tab]').forEach(button=>{button.addEventListener('click',()=>showTab(button.dataset.tab));button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=$$('[data-tab]').filter(tab=>!tab.hidden),index=tabs.indexOf(button);const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;showTab(tabs[next].dataset.tab);tabs[next].focus()})});
 $('#edit-application').addEventListener('click',()=>{const application=state.currentCase;if(application&&(staff()?canEditStaffCase(application):EDITABLE_STATUSES.includes(application.status)))openRequest(application)});
-$('#trash-case').addEventListener('click',async event=>{const application=state.currentCase,generation=state.generation,button=event.currentTarget;if(operationsRole()!=='admin'||!application||button.disabled||!window.confirm(t('trashCaseConfirm')))return;button.disabled=true;try{unwrap(await db.rpc('gary_trash_record',{p_kind:'case',p_id:application.id,p_expected_version:null}));if(generation!==state.generation||operationsRole()!=='admin')return;if(state.caseId===application.id){closeDialog($('#case-dialog'));state.caseId=null;state.currentCase=null;state.caseData=null;}state.page=0;toast('recordTrashed');await refreshApplications()}catch(error){if(generation===state.generation)feedback('#case-feedback',errorKey(error),true)}finally{button.disabled=false}});
+$('#trash-case').addEventListener('click',async event=>{const application=state.currentCase,generation=state.generation,button=event.currentTarget;if(operationsRole()!=='admin'||!application||button.disabled||!window.confirm(t('trashCaseConfirm')))return;button.disabled=true;try{const result=unwrap(await db.rpc('gary_trash_record',{p_kind:'case',p_id:application.id,p_expected_version:null}));if(result?.id!==application.id||!result.deleted_at)throw new Error('Incomplete Trash confirmation');if(generation!==state.generation||operationsRole()!=='admin')return;if(state.caseId===application.id){closeDialog($('#case-dialog'));state.caseId=null;state.currentCase=null;state.caseData=null;}state.page=0;toast('recordTrashed');await refreshApplications()}catch(error){if(generation===state.generation)feedback('#case-feedback',errorKey(error),true)}finally{button.disabled=false}});
 $('#cancel-application').addEventListener('click',async event=>{const application=state.currentCase,button=event.currentTarget;if(button.disabled||!application||!EDITABLE_STATUSES.includes(application.status)||!window.confirm(t('cancelConfirm')))return;button.disabled=true;try{unwrap(await db.from('gary_applications').update({status:'cancelled'}).eq('id',application.id).select().single());feedback('#case-feedback','');toast('applicationCancelled');await refreshCase(application.id);await refreshApplications()}catch(error){feedback('#case-feedback',errorKey(error),true)}finally{button.disabled=false}});
 $('#case-intake-form').addEventListener('submit',async event=>{
  event.preventDefault();

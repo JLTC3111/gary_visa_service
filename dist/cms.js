@@ -92,7 +92,11 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
    const result=await request.range((page-1)*pageSize,page*pageSize-1);if(result.error)throw result.error;
    return {records:result.data??[],total:result.count??0};
   },
-  remove:async(id,{expectedVersion}={})=>rpc('gary_trash_record',{p_kind:'cms',p_id:id,p_expected_version:expectedVersion}),
+  async remove(id,{expectedVersion}={}){
+   const moved=await rpc('gary_trash_record',{p_kind:'cms',p_id:id,p_expected_version:expectedVersion});
+   if(moved?.id!==id||!moved.deleted_at)throw new Error('Incomplete Trash confirmation');
+   return moved;
+  },
   async save(record,{expectedVersion}={}){
    if(record?.kind==='article'&&!record.id){
     const payload=structuredClone(record),rejected=new Set();

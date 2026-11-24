@@ -13,6 +13,7 @@ const teamAccessMigrations=['20261117202944_staff_auth_eligibility.sql','2026111
 const intakeMigration='20261124115604_visa_application_intake.sql';
 const crmMigration='20261124115915_visa_crm_relationships.sql';
 const teamManagementMigration='20261124151500_visa_team_access_management.sql';
+const trashLifecycleMigration='20261124170509_visa_trash_lifecycle.sql';
 const sql=name=>readFile(new URL(`../supabase/${name}`,import.meta.url),'utf8');
 const denied=(fn,code='42501')=>assert.rejects(fn,error=>error.code===code);
 
@@ -69,6 +70,111 @@ async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false,teamM
  if(teamManagement)for(const name of [intakeMigration,crmMigration,teamManagementMigration])await db.exec(await sql(`migrations/${name}`));
  return {db,q,one,count,as,owner,rpc,ids:{assigned:assigned.id,queued:queued.id,other:other.id,contact,otherContact,guest,customerChat}};
 }
+
+async function installTrashLifecycle(h){
+ await h.owner();
+ // Model the Storage API operation tag for the isolated catalogue fixture.
+ await h.db.exec(`create function storage.allow_only_operation(p text) returns boolean language sql stable as $$
+   select coalesce(current_setting('test.storage_operation',true)=p,false) $$`);
+ await h.db.exec(await sql(`migrations/${trashLifecycleMigration}`));
+}
+
+test('Application Trash preserves workflow status and resumes safe permanent deletion after partial Storage cleanup',async()=>{
+ const h=await setup({teamManagement:true,cmsLifecycle:true});
+ const app=h.ids.assigned,linked=`${app}/${uid.customer}/passport.pdf`,orphan=`${app}/${uid.customer}/orphan.pdf`,other=`${h.ids.other}/${uid.customer2}/keep.pdf`;
+ const storageOperation=name=>h.q("select set_config('test.storage_operation',$1,false)",[name]);
+ const store=path=>h.q("insert into storage.objects(bucket_id,name) values('gary-documents',$1)",[path]);
+ const remove=async(...paths)=>(await h.q("delete from storage.objects where bucket_id='gary-documents' and name=any($1::text[]) returning name",[paths])).rows.map(row=>row.name);
+ const trash=()=>h.rpc('gary_trash_record',['case',app,null]);
+ const restore=()=>h.rpc('gary_restore_record',['case',app,null]);
+ const purge=(mark,confirmed=true)=>h.rpc('gary_permanently_delete_trash',['case',app,mark,confirmed]);
+ try{
+  await installTrashLifecycle(h);
+  await h.as('customer');await store(orphan);
+  await h.as('customer2');await store(other);
+  await h.as('admin');await h.q("insert into public.gary_profiles(full_name) values('Operations Admin')");
+  await h.q("update public.gary_applications set status='processing' where id=$1",[app]);
+  let {deleted_at:mark}=await trash();
+  const entry=(await h.rpc('gary_trash_directory',['case','ASSIGNED VISA','processing',0,20])).records[0];
+  assert.deepEqual([entry.id,entry.deleted_by_name,entry.previous_status,entry.purge_blocker],[app,'Operations Admin','processing','AGENCY_PURGE_POLICY_MISSING']);
+  assert.equal(await h.count('select 1 from public.gary_applications'),2);
+  await h.as('customer');assert.equal(await h.count('select 1 from public.gary_applications where id=$1',[app]),0);
+  await denied(()=>store(`${app}/${uid.customer}/late.pdf`));
+  await h.as('admin');await restore();assert.equal((await h.one('select status from public.gary_applications where id=$1',[app])).status,'processing');
+  assert.equal(await h.count('select 1 from public.gary_documents where application_id=$1',[app]),1);
+  ({deleted_at:mark}=await trash());
+  await assert.rejects(()=>purge(mark,false),/AGENCY_PURGE_CONFIRMATION/);
+  await assert.rejects(()=>purge(mark),/AGENCY_PURGE_POLICY_MISSING/);
+  await h.owner();await h.q("insert into gary_private.trash_retention values('case',7)");
+  await h.as('admin');await assert.rejects(()=>purge(mark),/AGENCY_PURGE_RETENTION_ACTIVE/);
+  await h.owner();await h.q("update gary_private.trash_retention set minimum_days=0 where kind='case'");
+  await h.q("insert into gary_private.trash_holds values('case',$1)",[app]);
+  await h.as('admin');await assert.rejects(()=>purge(mark),/AGENCY_PURGE_HOLD/);
+  await h.owner();await h.q("delete from gary_private.trash_holds where kind='case' and record_id=$1",[app]);
+  await h.db.exec('create table gary_private.fixture_dependency(case_id uuid references public.gary_applications(id))');
+  await h.as('admin');await assert.rejects(()=>purge(mark),/AGENCY_PURGE_DEPENDENCY/);
+  await h.owner();await h.db.exec('drop table gary_private.fixture_dependency');
+  await h.as('cmsAdmin');await denied(()=>purge(mark));
+  await h.as('admin');assert.deepEqual(await purge(mark),{id:app,deleted:false,paths:[orphan,linked]});
+  await assert.rejects(restore,/AGENCY_PURGE_IN_PROGRESS/);
+  assert.deepEqual(await remove(linked),[],'purge rules do not grant ordinary Storage reads or deletes');
+  await storageOperation('object.get_authenticated');assert.equal(await h.count('select 1 from storage.objects where name=$1',[linked]),0);
+  await storageOperation('object.delete_many');await h.as('manager');assert.deepEqual(await remove(linked),[]);
+  await h.as('admin');assert.deepEqual(await remove(linked,other),[linked]);
+  assert.deepEqual(await purge(mark),{id:app,deleted:false,paths:[orphan]},'pending storage keeps the application in Trash');
+  assert.deepEqual(await remove(orphan),[orphan]);
+  assert.deepEqual(await purge(mark),{id:app,deleted:true});assert.deepEqual(await purge(mark),{id:app,deleted:true});
+  await h.owner();
+  assert.equal(await h.count('select 1 from public.gary_applications where id=$1',[app]),0);
+  assert.equal(await h.count('select 1 from public.gary_documents where application_id=$1',[app]),0);
+  assert.equal(await h.count('select 1 from storage.objects where name=$1',[other]),1);
+  assert.equal(await h.count('select 1 from gary_private.application_purge_objects'),0);
+  assert.equal(await h.count('select 1 from auth.users where id=$1',[uid.customer]),1);
+  assert.equal(await h.count('select 1 from public.gary_crm_contacts where id=$1',[h.ids.contact]),1);
+  assert.deepEqual(await h.one("select kind,record_id,actor_id from gary_private.deletion_events where record_id=$1 and action='permanently_deleted'",[app]),{kind:'case',record_id:app,actor_id:uid.admin});
+ }finally{await h.db.close();}
+});
+
+test('News Trash is distinct from Archive, restores as a draft and preserves shared CMS images',async()=>{
+ const h=await setup({teamManagement:true,cmsLifecycle:true});
+ const path=`${uid.editor}/${randomUUID()}.png`,url=`https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/gary-cms-media/${path}`;
+ const base={kind:'article',slug:'visa-trash-guide',title_en:'Visa deletion guide',title_vi:'Hướng dẫn thị thực',summary_en:'A summary',summary_vi:'Tóm tắt',body_en:'Guide body',body_vi:'Nội dung',data:{image_url:url}};
+ const save=record=>h.one('select * from public.gary_cms_save($1::jsonb,null)',[JSON.stringify(record)]);
+ const transition=(row,status)=>h.one('select * from public.gary_cms_transition($1,$2,$3)',[row.id,status,row.version]);
+ const directory=()=>h.rpc('gary_cms_article_directory',['','',1]);
+ try{
+  await installTrashLifecycle(h);
+  await h.q("insert into public.gary_cms_media(object_path,file_name,mime_type,size_bytes,uploaded_by) values($1,'cover.png','image/png',12,$2)",[path,uid.editor]);
+  await h.q("insert into storage.objects(bucket_id,name) values('gary-cms-media',$1)",[path]);
+  await h.as('editor');const sibling=await save({...base,slug:'shared-cover-guide'});let article=await transition(await save(base),'review');
+  await h.as('publisher');await denied(()=>save({...base,slug:'publisher-draft'}));article=await transition(article,'published');
+  await denied(()=>h.rpc('gary_trash_record',['cms',article.id,article.version]));
+  await h.as(null);assert.equal((await directory()).total,1);
+  await h.as('publisher');article=await transition(article,'archived');
+  await h.as('cmsAdmin');assert.equal((await h.rpc('gary_trash_directory',['article','','',0,20])).total,0);
+  article=await transition(await transition(article,'review'),'published');
+  const marked=await h.rpc('gary_trash_record',['cms',article.id,article.version]);
+  const purge=mark=>h.rpc('gary_permanently_delete_trash',['article',article.id,mark,true]);
+  const found=(await h.rpc('gary_trash_directory',['article','hướng dẫn','published',0,20])).records[0];
+  assert.equal(found.previous_status,'published');assert.equal(found.id,article.id);
+  await h.as(null);assert.equal((await directory()).total,0);
+  assert.equal((await h.rpc('gary_cms_article_directory',['hướng dẫn','',1])).total,0);
+  assert.equal(await h.count('select 1 from public.gary_cms_public where slug=$1',[article.slug]),0);
+  await h.as('publisher');await denied(()=>h.rpc('gary_restore_record',['cms',article.id,marked.version]));await denied(()=>purge(marked.deleted_at));
+  await h.as('cmsAdmin');await h.rpc('gary_restore_record',['cms',article.id,marked.version]);
+  const draft=await h.one('select * from public.gary_cms_entries where id=$1',[article.id]);assert.equal(draft.status,'draft');
+  assert.equal(await h.count('select 1 from public.gary_cms_public where entry_id=$1',[draft.id]),0);
+  const newer=await h.rpc('gary_trash_record',['cms',draft.id,draft.version]);
+  await assert.rejects(()=>purge(marked.deleted_at),/AGENCY_TRASH_CHANGED/);
+  await h.owner();await h.q("insert into gary_private.trash_retention values('article',0)");
+  await h.as('admin');await denied(()=>purge(newer.deleted_at));
+  await h.as('cmsAdmin');assert.deepEqual(await purge(newer.deleted_at),{id:article.id,deleted:true});
+  await h.owner();assert.equal(await h.count('select 1 from public.gary_cms_revisions where entry_id=$1',[article.id]),0);
+  assert.equal(await h.count('select 1 from public.gary_cms_entries where id=$1',[sibling.id]),1);
+  assert.equal(await h.count('select 1 from public.gary_cms_media where object_path=$1',[path]),1);
+  assert.equal(await h.count('select 1 from storage.objects where name=$1',[path]),1);
+ }finally{await h.db.close();}
+});
 
 test('Application intake preserves existing cases and lets Operations oversight review them in place',async()=>{
  const h=await setup({teamAccess:true});
