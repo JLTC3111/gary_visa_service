@@ -1,4 +1,4 @@
-import {mountBranchedMenu} from './branched-menu.js';
+import {branchedIconHref,mountBranchedMenu} from './branched-menu.js';
 
 const mountedSidebars=new WeakMap();
 
@@ -9,12 +9,26 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  const trigger=doc.getElementById('visa-mobile-nav-trigger');
  if(!workspace||!sidebar||!nav||!trigger)return {refresh(){},destroy(){},getState(){return null;}};
  const buttons=[...nav.querySelectorAll(':scope > [data-view]')],label=sidebar.querySelector('.workspace-label');
- const groups=[{id:'operations',en:'Operations',vi:'Nghiệp vụ',views:['applications']},{id:'crm',en:'CRM',vi:'Quan hệ khách hàng',views:['customers','inbox']},{id:'content',en:'Content & Media',vi:'Nội dung & tư liệu',views:['cms','news-guides','trash']},{id:'administration',en:'Administration',vi:'Quản trị',views:['staff-access']},{id:'account',en:'Account',vi:'Tài khoản',views:['profile']}];
+ const groups=[
+  {id:'operations',en:'Operations',vi:'Nghiệp vụ',icon:'briefcase-business',views:['applications']},
+  {id:'crm',en:'CRM',vi:'Quan hệ khách hàng',icon:'users-round',views:['customers','inbox']},
+  {id:'content',en:'Content & Media',vi:'Nội dung & tư liệu',icon:'panels-top-left',views:['cms','news-guides','trash']},
+  {id:'administration',en:'Administration',vi:'Quản trị',icon:'shield-check',views:['staff-access']},
+  {id:'account',en:'Account',vi:'Tài khoản',icon:'id-card',views:['profile']}
+ ];
+ const staffIconUpdates={inbox:'message-circle-more',trash:'trash-2',profile:'user-round'};
  const preferenceKey='gary-visa:staff-sidebar:v1';
  const defaults={width:256,collapsed:false,groups:Object.fromEntries(groups.map(group=>[group.id,true]))};
  let preference={...defaults,groups:{...defaults.groups}};
  try{const stored=JSON.parse(win.localStorage.getItem(preferenceKey)||'null');if(stored?.version===1){if(Number.isFinite(stored.width)&&stored.width>=180&&stored.width<=1000)preference.width=stored.width;if(typeof stored.collapsed==='boolean')preference.collapsed=stored.collapsed;for(const group of groups)if(typeof stored.groups?.[group.id]==='boolean')preference.groups[group.id]=stored.groups[group.id];}}catch{}
- const oldAttributes=new Map(buttons.map(button=>[button,new Map(['aria-label','title','aria-current','tabindex'].map(name=>[name,button.getAttribute(name)]))]));
+ const oldAttributes=new Map();
+ const remember=(node,names)=>oldAttributes.set(node,names.map(name=>[name,node.getAttribute(name)]));
+ for(const button of buttons){
+  remember(button,['aria-label','title','aria-current','tabindex']);
+  const icon=button.querySelector('svg.icon'),use=icon?.querySelector('use');
+  if(icon)remember(icon,['class','aria-hidden','focusable']);
+  if(use&&staffIconUpdates[button.dataset.view])remember(use,['href']);
+ }
  let enabled=false,heading,toggle,handle,drawer,branches,drag=null,disposed=false;
  const save=()=>{try{win.localStorage.setItem(preferenceKey,JSON.stringify({version:1,...preference}));}catch{}};
  const mobile=()=>win.innerWidth<=900;
@@ -56,6 +70,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   for(const group of groups){
    const section=doc.createElement('section');section.className='visa-nav-group branched-menu__section';section.dataset.visaNavGroup=group.id;
    const control=doc.createElement('button');control.type='button';control.className='visa-nav-group-toggle branched-menu__head';control.dataset.visaGroupToggle=group.id;control.setAttribute('aria-controls',`visa-nav-${group.id}`);
+   control.dataset.branchedIcon=group.icon;
    const title=doc.createElement('span');title.className='branched-menu__label';title.dataset.visaGroupLabel='';
    const chevron=doc.createElement('span');chevron.className='branched-menu__chevron';chevron.setAttribute('aria-hidden','true');control.append(title,chevron);
    const body=doc.createElement('div');body.className='branched-menu__body';body.id=`visa-nav-${group.id}`;
@@ -63,7 +78,16 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
    const destinations=doc.createElement('div');destinations.className='visa-nav-destinations branched-menu__tree';
    for(const view of group.views){
     const button=buttons.find(item=>item.dataset.view===view);
-    if(button){button.querySelector('span')?.classList.add('branched-menu__label');destinations.append(button);}
+    if(!button)continue;
+    const icon=button.querySelector('svg.icon'),use=icon?.querySelector('use');
+    if(icon){
+     icon.classList.add('branched-menu__icon');
+     icon.setAttribute('aria-hidden','true');
+     icon.setAttribute('focusable','false');
+    }
+    if(use&&staffIconUpdates[view])use.setAttribute('href',branchedIconHref(staffIconUpdates[view]));
+    button.querySelector('span')?.classList.add('branched-menu__label');
+    destinations.append(button);
    }
    fold.append(destinations);body.append(fold);section.append(control,body);nav.append(section);
   }
@@ -89,7 +113,10 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(sidebar.parentElement===drawer)workspace.prepend(sidebar);
   drawer.remove();drawer=null;syncDrawer();
   branches.destroy();branches=null;
-  for(const button of buttons){button.querySelector('span')?.classList.remove('branched-menu__label');nav.append(button);for(const [name,value]of oldAttributes.get(button))if(value===null)button.removeAttribute(name);else button.setAttribute(name,value);}
+  for(const button of buttons){button.querySelector('span')?.classList.remove('branched-menu__label');nav.append(button);}
+  for(const [node,attributes] of oldAttributes){
+   for(const [name,value] of attributes)if(value===null)node.removeAttribute(name);else node.setAttribute(name,value);
+  }
   for(const group of nav.querySelectorAll('.visa-nav-group'))group.remove();if(label)sidebar.insertBefore(label,nav);heading?.remove();handle?.remove();
   nav.inert=false;nav.removeAttribute('id');nav.removeAttribute('tabindex');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');
  }

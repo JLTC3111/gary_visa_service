@@ -41,6 +41,33 @@ test('Visa staff groups retain original destination nodes, listeners, permission
 test('customer navigation retains its original ungrouped layout and no staff controls',()=>{
  const h=harness({role:'customer',width:320});try{assert.equal(h.controller.getState().enabled,false);assert.equal(h.trigger.hidden,true);assert.equal(h.doc.querySelector('[data-visa-sidebar-toggle]'),null);assert.equal(h.doc.querySelectorAll('.workspace-nav > [data-view]').length,8);assert.equal(h.doc.querySelector('#cms-nav').hidden,true);}finally{h.close();}
 });
+test('Visa headings and destinations have distinct icons in the staff sidebar',async()=>{
+ const sprite=new JSDOM(await readFile(new URL('../dist/assets/staff-nav-icons.svg',import.meta.url),'utf8'),{contentType:'image/svg+xml'});
+ const h=harness({width:375,access:{operations:'admin',cms:'admin'}});
+ try{
+  h.trigger.click();
+  const nav=h.doc.querySelector('.workspace-nav');
+  const controls=[...nav.querySelectorAll('.branched-menu__head, [data-view]')];
+  assert.equal(controls.length,13);
+  const refs=controls.map(button=>{
+   const icons=button.querySelectorAll(':scope > svg.branched-menu__icon');
+   assert.equal(icons.length,1);
+   assert.equal(icons[0],button.firstElementChild);
+   assert.equal(icons[0].getAttribute('aria-hidden'),'true');
+   assert.equal(icons[0].getAttribute('focusable'),'false');
+   const href=icons[0].querySelector('use').getAttribute('href');
+   const symbol=href.startsWith('#')?h.doc.getElementById(href.slice(1)):sprite.window.document.getElementById(href.split('#')[1]);
+   assert.ok(symbol?.children.length);
+   return href;
+  });
+  assert.equal(new Set(refs).size,controls.length);
+  assert.equal(nav.querySelector('[data-view=cms] use').getAttribute('href'),'#p-file-pen-line');
+  const profile=nav.querySelector('[data-view=profile] use');
+  assert.equal(profile.getAttribute('href'),'./assets/staff-nav-icons.svg#user-round');
+  h.doc.body.dataset.role='customer';await settle();
+  assert.equal(profile.getAttribute('href'),'#p-person');
+ }finally{h.close();sprite.window.close();}
+});
 test('groups collapse independently and localized labels follow the existing page language',()=>{
  const h=harness();try{
   const crm=h.doc.querySelector('[data-visa-group-toggle=crm]');crm.click();assert.equal(crm.getAttribute('aria-expanded'),'false');assert.equal(h.doc.querySelector('#visa-nav-crm').inert,true);assert.equal(h.doc.querySelector('#visa-nav-operations').inert,false);
@@ -55,11 +82,11 @@ test('Visa SVG elbows track wrapped rows and animate selection without rebuildin
   const customers=tree.querySelector('[data-view=customers]'),inbox=tree.querySelector('[data-view=inbox]');
   const box=(node,top,height)=>{node.getBoundingClientRect=()=>({top,height,width:210});};
   box(nav,100,350);box(header,160,38);box(tree,198,126);box(customers,204,66);box(inbox,274,44);
-  nav.style.setProperty('--branched-indent','32px');nav.scrollTop=15;
+  nav.style.setProperty('--branched-indent','32px');nav.style.setProperty('--branched-trunk','17px');nav.scrollTop=15;
   const marker=nav.querySelector('.branched-menu__marker'),paths=crm.querySelectorAll('.branched-menu__reach');
   h.route('customers');await settle();
-  assert.equal(paths[0].getAttribute('d'),'M 10 0 V 31 A 8 8 0 0 0 18 39 H 32');
-  assert.equal(paths[1].getAttribute('d'),'M 10 0 V 90 A 8 8 0 0 0 18 98 H 32');
+  assert.equal(paths[0].getAttribute('d'),'M 17 0 V 31 A 8 8 0 0 0 25 39 H 32');
+  assert.equal(paths[1].getAttribute('d'),'M 17 0 V 90 A 8 8 0 0 0 25 98 H 32');
   assert.deepEqual([...paths].map(path=>path.getAttribute('stroke-dashoffset')),['0','1']);
   assert.equal(marker.style.getPropertyValue('--branched-marker-y'),'94px');
   box(h.doc.querySelector('[data-visa-group-toggle=content]'),326,38);

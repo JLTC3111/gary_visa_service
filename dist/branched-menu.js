@@ -1,6 +1,7 @@
 // BranchedMenu geometry and timing adapted from React Bits by David Haz and Gary Home's sidebar.
 // https://github.com/DavidHDev/react-bits/tree/main/src/ts-default/Micro/BranchedMenu
 const SVG = 'http://www.w3.org/2000/svg';
+export const branchedIconHref = name => './assets/staff-nav-icons.svg#'+name;
 
 function attribute(node, name, value) {
   if (node.getAttribute(name) !== value) node.setAttribute(name, value);
@@ -16,6 +17,22 @@ export function mountBranchedMenu(nav) {
   let selection, currentGroup, compact = false;
   const observer = win.ResizeObserver ? new win.ResizeObserver(measure) : null;
   observer?.observe(nav);
+
+  function renderIcon(button) {
+    const name = button.dataset.branchedIcon;
+    const previous = button.firstElementChild;
+    if (!name || previous?.getAttribute('data-lucide') === name) return;
+    const icon = svgNode('svg'), use = svgNode('use');
+    icon.setAttribute('class', 'branched-menu__icon lucide lucide-'+name);
+    icon.setAttribute('data-lucide', name);
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.setAttribute('focusable', 'false');
+    use.setAttribute('href', branchedIconHref(name));
+    icon.append(use);
+    if (previous?.matches('svg.branched-menu__icon')) previous.replaceWith(icon);
+    else button.prepend(icon);
+  }
 
   function add(section) {
     const head = section.querySelector('.branched-menu__head');
@@ -131,7 +148,9 @@ export function mountBranchedMenu(nav) {
       attribute(group.body, 'aria-hidden', String(!open));
       group.body.inert = !open;
       group.body.toggleAttribute('inert', !open);
+      renderIcon(group.head);
       for (const button of group.rows) {
+        renderIcon(button);
         if (open) button.removeAttribute('tabindex');
         else attribute(button, 'tabindex', '-1');
       }
