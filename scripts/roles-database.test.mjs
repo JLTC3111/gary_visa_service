@@ -12,10 +12,11 @@ const migrations=['20261022180819_gary_customer_staff_portal.sql','2026102304032
 const teamAccessMigrations=['20261117202944_staff_auth_eligibility.sql','20261118034500_visa_team_access.sql'];
 const intakeMigration='20261124115604_visa_application_intake.sql';
 const crmMigration='20261124115915_visa_crm_relationships.sql';
+const teamManagementMigration='20261124151500_visa_team_access_management.sql';
 const sql=name=>readFile(new URL(`../supabase/${name}`,import.meta.url),'utf8');
 const denied=(fn,code='42501')=>assert.rejects(fn,error=>error.code===code);
 
-async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false}={}){
+async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false,teamManagement=false}={}){
  const db=new PGlite();
  const q=(text,params=[])=>db.query(text,params),one=async(text,params)=>(await q(text,params)).rows[0];
  const count=async(text,params)=>Number((await one(`select count(*) n from (${text}) counted`,params)).n);
@@ -59,12 +60,13 @@ async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false}={}){
  await q("insert into public.gary_staff_notes(application_id,body) values($1,'Assigned note'),($2,'Other note')",[assigned.id,other.id]);
  await owner();await db.exec(await sql('migrations/20261117190000_visa_operations_cms_roles.sql'));
  if(assignRoles)for(const [name,role] of Object.entries(operationsRoles))await q('update gary_private.staff_members set operations_role=$1 where user_id=$2',[role,uid[name]]);
- if(teamAccess){
+ if(teamAccess||teamManagement){
   // Supabase Auth columns read by staff identity eligibility; every fixture starts confirmed.
   await db.exec('alter table auth.users add column email_confirmed_at timestamptz default now(),add column deleted_at timestamptz,add column is_anonymous boolean not null default false,add column banned_until timestamptz');
   for(const name of teamAccessMigrations)await db.exec(await sql(`migrations/${name}`));
  }
  if(cmsLifecycle)for(const name of ['20261124052852_agency_public_articles.sql','20261124053400_agency_cms_media_lifecycle.sql'])await db.exec(await sql(`migrations/${name}`));
+ if(teamManagement)for(const name of [intakeMigration,crmMigration,teamManagementMigration])await db.exec(await sql(`migrations/${name}`));
  return {db,q,one,count,as,owner,rpc,ids:{assigned:assigned.id,queued:queued.id,other:other.id,contact,otherContact,guest,customerChat}};
 }
 
@@ -579,6 +581,130 @@ test('Team Access adds verified existing accounts with a lower role from each Ad
   assert.deepEqual(await h.one('select role,active from gary_private.cms_members where user_id=$1',[uid.outsider]),{role:'admin',active:false});
   assert.deepEqual((await h.q('select * from auth.users order by id')).rows,accounts,'accounts, confirmations and suspensions are never changed');
  }finally{await h.db.close()}
+});
+
+test('Visa Team Management looks up verified identities and edits scoped roles atomically',async()=>{
+ const h=await setup({teamManagement:true,cmsLifecycle:true});
+ const lookup=email=>h.rpc('gary_lookup_staff_account',[email]);
+ const edit=(name,oldName,operations,oldOperations,cms,oldCms)=>h.rpc('gary_edit_staff_member',[
+  uid.newcomer,name,oldName,operations,oldOperations,cms,oldCms
+ ]);
+ const listed=async()=>(await h.rpc('gary_staff_access_list')).members.find(member=>member.user_id===uid.newcomer);
+ try{
+  await h.as('newcomer');await h.q("insert into public.gary_profiles(full_name) values('Verified Staff Name')");
+  await h.owner();
+  const identity=await h.one('select * from auth.users where id=$1',[uid.newcomer]);
+  const profile=await h.one('select * from public.gary_profiles where id=$1',[uid.newcomer]);
+  await h.q('update auth.users set email_confirmed_at=null where id=$1',[uid.customer2]);
+  for(const actor of [null,'customer','manager','publisher']){await h.as(actor);await denied(()=>lookup('newcomer@example.test'));}
+  await h.as('admin');
+  assert.deepEqual(await lookup(' Newcomer@Example.TEST '),{email:'newcomer@example.test',full_name:'Verified Staff Name'});
+  await denied(()=>lookup('customer2@example.test'),'P0002');
+  await denied(()=>lookup('missing@example.test'),'P0002');
+  await h.rpc('gary_add_staff_member',['newcomer@example.test','staff',null,'Visa Staff Name']);
+  assert.equal((await listed()).display_name,'Visa Staff Name');
+  assert.equal((await listed()).display_name_override,'Visa Staff Name');
+  await denied(()=>edit('Unexpected Name','Visa Staff Name','manager','staff','editor',null));
+  assert.equal((await listed()).display_name,'Visa Staff Name','wrong-area roles roll back the name and other role');
+  assert.equal((await listed()).operations_role,'staff');
+  await denied(()=>edit('Name','stale name','manager','staff',null,null),'40001');
+  await edit(null,'Visa Staff Name','manager','staff',null,null);
+  assert.deepEqual([(await listed()).display_name,(await listed()).display_name_override,(await listed()).operations_role],['Verified Staff Name',null,'manager']);
+
+  await h.as('cmsAdmin');
+  assert.equal((await listed()).manage_membership,false);
+  await denied(()=>edit('Other Scope',null,'manager','manager','publisher',null));
+  await edit(null,null,'manager','manager','publisher',null);
+  await h.as('newcomer');
+  assert.deepEqual(await h.rpc('gary_my_access'),{member:true,operations:'manager',cms:'publisher'});
+  assert.equal((await h.rpc('gary_cms_capabilities')).edit,false);
+  assert.equal((await h.rpc('gary_cms_capabilities')).publish,true);
+  const record={kind:'faq',slug:'review-permissions',title_en:'Hours',title_vi:'Giờ làm việc',
+   summary_en:'Our opening hours',summary_vi:'Giờ mở cửa',body_en:'Weekdays',body_vi:'Các ngày trong tuần'};
+  const save=(payload,version=null)=>h.one('select * from public.gary_cms_save($1::jsonb,$2)',[JSON.stringify(payload),version]);
+  const transition=(entry,status)=>h.one('select * from public.gary_cms_transition($1,$2,$3)',[entry.id,status,entry.version]);
+  await denied(()=>save(record));
+  await h.as('editor');const review=await transition(await save(record),'review');
+  await h.as('newcomer');
+  assert.equal((await h.one('select status from public.gary_cms_entries where id=$1',[review.id])).status,'review');
+  await denied(()=>save({...record,id:review.id,title_en:'Publisher edit'},review.version));
+  const published=await transition(review,'published');
+  assert.equal((await transition(published,'archived')).status,'archived');
+  assert.equal(await h.count(`select 1 from public.gary_cms_public where slug='review-permissions'`),0);
+  await h.owner();
+  assert.deepEqual(await h.one('select * from auth.users where id=$1',[uid.newcomer]),identity);
+  assert.deepEqual(await h.one('select * from public.gary_profiles where id=$1',[uid.newcomer]),profile);
+ }finally{await h.db.close();}
+});
+
+test('Visa Team Management requires reassignment and revokes access in place',async()=>{
+ const h=await setup({teamManagement:true}),{ids}=h;
+ const remove=(user,operations,cms)=>h.rpc('gary_remove_staff_member',[uid[user],operations,cms]);
+ const assignments=error=>error.code==='23514'&&error.message==='AGENCY_STAFF_CASES_ASSIGNED';
+ try{
+  await h.as('manager');await denied(()=>remove('staff','staff',null));
+  await h.as('cmsAdmin');await denied(()=>remove('staff','staff',null));
+  await h.as('admin');
+  await denied(()=>remove('admin','admin',null));
+  await denied(()=>remove('admin2','admin',null));
+  await denied(()=>remove('cmsAdmin',null,'admin'));
+  await assert.rejects(()=>remove('staff','staff',null),assignments);
+  await assert.rejects(()=>h.rpc('gary_set_operations_role',[uid.staff,null,'staff']),assignments);
+  await h.q("update public.gary_applications set assigned_staff_id=$1,status='completed' where id=$2",[uid.staff,ids.queued]);
+  await h.q('update public.gary_applications set assigned_staff_id=$1 where id=$2',[uid.staff2,ids.assigned]);
+  await h.q('update public.gary_applications set assigned_staff_id=$1 where id=$2',[uid.staff,ids.other]);
+  await h.rpc('gary_trash_record',['case',ids.other,null]);
+  await h.owner();
+  await h.q("insert into gary_private.cms_members(user_id,role) values($1,'editor')",[uid.staff]);
+  const identity=await h.one('select * from auth.users where id=$1',[uid.staff]);
+  await h.as('admin');
+  await denied(()=>remove('staff','staff',null),'40001');
+  await denied(()=>remove('staff','staff','editor'));
+  await h.owner();await h.q("insert into gary_private.cms_members(user_id,role) values($1,'admin')",[uid.admin]);
+  await h.as('admin');await remove('staff','staff','editor');
+  assert.ok(!(await h.rpc('gary_staff_access_list')).members.some(member=>member.user_id===uid.staff));
+  await denied(()=>h.rpc('gary_set_operations_role',[uid.staff,'staff',null]),'P0002');
+  await denied(()=>h.rpc('gary_set_cms_role',[uid.staff,'editor',null]),'P0002');
+  await denied(()=>h.q('update public.gary_applications set assigned_staff_id=$1 where id=$2',[uid.staff,ids.assigned]),'23514');
+  const roster=(await h.q('select * from public.gary_staff_directory()')).rows;
+  assert.equal(roster.find(member=>member.user_id===uid.staff).assignable,false);
+
+  await h.as('staff');
+  assert.deepEqual(await h.rpc('gary_my_access'),{member:false,operations:null,cms:null});
+  assert.equal((await h.rpc('gary_cms_capabilities')).read,false);
+  assert.deepEqual(await h.one('select full_name from public.gary_profiles where id=$1',[uid.staff]),{full_name:'Sam Staff'});
+  await h.owner();
+  assert.deepEqual(await h.one('select * from auth.users where id=$1',[uid.staff]),identity);
+  assert.deepEqual(await h.one('select assigned_staff_id,status from public.gary_applications where id=$1',[ids.queued]),{assigned_staff_id:uid.staff,status:'completed'});
+  assert.equal((await h.one('select assigned_staff_id from public.gary_crm_contacts where id=$1',[ids.contact])).assigned_staff_id,uid.staff);
+  assert.equal((await h.one('select assigned_staff_id from public.gary_chat_conversations where id=$1',[ids.guest])).assigned_staff_id,uid.staff);
+  assert.deepEqual((await h.q("select scope,from_role,to_role,actor_id from gary_private.access_events where member_id=$1 and source='portal' order by scope",[uid.staff])).rows,[
+   {scope:'cms',from_role:'editor',to_role:null,actor_id:uid.admin},
+   {scope:'membership',from_role:'member',to_role:null,actor_id:uid.admin},
+   {scope:'operations',from_role:'staff',to_role:null,actor_id:uid.admin}
+  ]);
+  await h.as('admin');await h.rpc('gary_restore_record',['case',ids.other,null]);
+  assert.equal((await h.one('select assigned_staff_id from public.gary_applications where id=$1',[ids.other])).assigned_staff_id,uid.staff);
+  await h.q('update public.gary_applications set assigned_staff_id=$1 where id=$2',[uid.staff2,ids.other]);
+  await h.rpc('gary_add_staff_member',['staff@example.test','staff',null]);
+  await h.as('staff');assert.deepEqual(await h.rpc('gary_my_access'),{member:true,operations:'staff',cms:null});
+ }finally{await h.db.close();}
+});
+
+test('Visa Team Management lets Managers route every case and edit assigned case details only',async()=>{
+ const h=await setup({teamManagement:true}),{ids}=h;
+ try{
+  await h.as('manager');assert.equal(await h.count('select id from public.gary_applications'),3);
+  for(const change of ["status='in_review'","subject='Revised case title'","intake_kind='editorial'","assigned_staff_id=$2,details='Combined change'"]){
+   const params=change.includes('$2')?[ids.assigned,uid.manager]:[ids.assigned];
+   await assert.rejects(()=>h.q(`update public.gary_applications set ${change} where id=$1`,params),
+    error=>error.code==='42501'&&error.message==='AGENCY_CASE_EDIT_ASSIGNED_ONLY');
+  }
+  await h.q('update public.gary_applications set assigned_staff_id=$2 where id=$1',[ids.assigned,uid.manager]);
+  assert.deepEqual(await h.one("update public.gary_applications set details='Reviewed details',status='in_review' where id=$1 returning details,status",[ids.assigned]),
+   {details:'Reviewed details',status:'in_review'});
+  await h.as('admin');assert.equal((await h.one("update public.gary_applications set status='completed' where id=$1 returning status",[ids.other])).status,'completed');
+ }finally{await h.db.close();}
 });
 
 test('Visa profile pictures are readable by their owner and authorized Team Access admins and writable only by the avatar service',async()=>{

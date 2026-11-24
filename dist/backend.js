@@ -7,7 +7,7 @@ async function permissionFetch(input,options){
  if([401,403].includes(response.status)&&url.origin===new URL(config.supabaseUrl).origin&&/^\/(rest|storage)\/v1\//.test(url.pathname)){
   // Team Access can reject a protected target even when the caller still has access.
   // Recheck the caller's roles without erasing the form's specific error.
-  const recheckOnly=response.status===403&&/^\/rest\/v1\/rpc\/gary_(staff_access_list|add_staff_member|set_operations_role|set_cms_role)$/.test(url.pathname);
+  const recheckOnly=response.status===403&&/^\/rest\/v1\/rpc\/gary_(staff_access_list|lookup_staff_account|add_staff_member|edit_staff_member|remove_staff_member|set_operations_role|set_cms_role)$/.test(url.pathname);
   globalThis.dispatchEvent?.(new CustomEvent('gary:access-denied',{detail:{recheckOnly}}));
  }
  return response;

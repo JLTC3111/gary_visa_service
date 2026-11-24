@@ -6,7 +6,7 @@
   --account-muted: var(--visa-muted);
   --account-line: var(--visa-line);
   --account-focus: var(--visa-focus);
-  --account-danger: #a13a32;
+  --account-danger: color-mix(in srgb, var(--color-red-500, #fb2c36) 75%, var(--account-text));
   --account-danger-bg: #f9eae7;
   position: relative;
   flex: none;
@@ -26,7 +26,7 @@
 }
 
 html[data-visa-theme="dark"] .visa-account-menu {
-  --account-danger: var(--vp-danger, #ffb7ae);
+  --account-danger: #E99491;
   --account-danger-bg: var(--vp-danger-soft, #482b31);
 }
 
@@ -114,7 +114,31 @@ html[data-visa-theme="dark"] .visa-account-menu {
 }
 .visa-account-destinations > :is(:hover, :focus-visible), .visa-account-retry:hover { background: var(--account-hover); }
 .visa-account-destinations > :is(:active, [aria-current="page"]) { background: var(--account-active); }
+.visa-account-item-label { position: relative; display: inline-block; }
+.visa-account-item-label::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -2px;
+  block-size: 1px;
+  background: currentColor;
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 200ms ease-out;
+}
+.visa-account-panel :is(a, button:not(:disabled)):focus-visible > .visa-account-item-label::after { transform: scaleX(1); }
+@media (hover: hover) {
+  .visa-account-panel :is(a, button:not(:disabled)):hover > .visa-account-item-label::after { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .visa-account-item-label::after { transition: none; }
+}
 .visa-account-footer { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--account-line); }
+.visa-account-footer .visa-account-signout-description {
+  margin: 0 8px 4px;
+  font-size: .75rem;
+}
 .visa-account-menu .visa-account-signout { color: var(--account-danger); }
 .visa-account-menu .visa-account-signout:is(:hover, :focus-visible, :active):not(:disabled) { color: var(--account-danger); background: var(--account-danger-bg); }
 .visa-account-signout:disabled { opacity: .7; cursor: progress; }

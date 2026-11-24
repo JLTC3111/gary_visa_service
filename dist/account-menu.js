@@ -6,14 +6,16 @@ const copy = {
     customerLogin: 'Customer Login', staffLogin: 'Staff Login', customerDashboard: 'Customer Dashboard',
     staffDashboard: 'Staff Dashboard', profile: 'My Profile', staffProfile: 'My Staff Profile',
     restoring: 'Checking session…', checking: 'Checking portal access…', unavailable: 'Portal access couldn’t be verified.', retry: 'Try again',
-    signout: 'Sign Out', signingOut: 'Signing out…', signoutFailed: 'Couldn’t sign out. Try again.'
+    signout: 'Sign Out', signingOut: 'Signing out…', signoutDescription: 'End your session on this website.',
+    signoutFailed: 'Couldn’t sign out. Try again.'
   },
   vi: {
     signin: 'Đăng nhập', account: 'Tài khoản của tôi', staff: 'Tài khoản nhân viên', destinations: 'Điều hướng tài khoản',
     customerLogin: 'Đăng nhập khách hàng', staffLogin: 'Đăng nhập nhân viên', customerDashboard: 'Bảng điều khiển khách hàng',
     staffDashboard: 'Bảng điều khiển nhân viên', profile: 'Hồ sơ của tôi', staffProfile: 'Hồ sơ nhân viên của tôi',
     restoring: 'Đang kiểm tra phiên…', checking: 'Đang kiểm tra quyền truy cập cổng…', unavailable: 'Chưa thể xác minh quyền truy cập cổng.', retry: 'Thử lại',
-    signout: 'Đăng xuất', signingOut: 'Đang đăng xuất…', signoutFailed: 'Chưa thể đăng xuất. Vui lòng thử lại.'
+    signout: 'Đăng xuất', signingOut: 'Đang đăng xuất…', signoutDescription: 'Kết thúc phiên đăng nhập trên trang web này.',
+    signoutFailed: 'Chưa thể đăng xuất. Vui lòng thử lại.'
   }
 };
 
@@ -45,11 +47,12 @@ export function mountAccountMenu(root, {staff = false, destinations, onOpen, onR
       </div>
       <nav class="visa-account-destinations"></nav>
       <p class="visa-account-status" role="status" hidden></p>
-      <button class="visa-account-retry" type="button" hidden></button>
+      <button class="visa-account-retry" type="button" hidden><span class="visa-account-item-label"></span></button>
       <div class="visa-account-footer" hidden>
-        <button class="visa-account-signout" type="button">
-          ${icon('<path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5m5-13 5 5-5 5m-7-5h12"/>')}<span></span>
+        <button class="visa-account-signout" type="button" aria-describedby="${root.id}-signout-description">
+          ${icon('<path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5m5-13 5 5-5 5m-7-5h12"/>')}<span class="visa-account-item-label"></span>
         </button>
+        <p class="visa-account-signout-description" id="${root.id}-signout-description"></p>
         <p class="visa-account-status" role="alert" hidden></p>
       </div>
     </div>`);
@@ -58,10 +61,11 @@ export function mountAccountMenu(root, {staff = false, destinations, onOpen, onR
   const identity = find('.visa-account-identity'), nav = find('nav'), status = find('[role=status]');
   const retry = find('.visa-account-retry'), footer = find('.visa-account-footer');
   const signout = find('.visa-account-signout'), signoutError = find('[role=alert]');
+  const signoutDescription = find('.visa-account-signout-description');
   root.querySelector('.portal-link')?.setAttribute('hidden', '');
   const entries = Object.entries(destinations).map(([key, action]) => {
     const node = doc.createElement(typeof action === 'function' ? 'button' : 'a');
-    node.innerHTML = `${icon(icons[key])}<span></span>`;
+    node.innerHTML = `${icon(icons[key])}<span class="visa-account-item-label"></span>`;
     node.dataset.accountDestination = key;
     if (typeof action === 'function') node.type = 'button';
     else node.href = action;
@@ -117,11 +121,12 @@ export function mountAccountMenu(root, {staff = false, destinations, onOpen, onR
     status.hidden = !restoring && !checking && !failed;
     status.textContent = restoring ? t.restoring : checking ? t.checking : failed ? t.unavailable : '';
     retry.hidden = !failed;
-    retry.textContent = t.retry;
+    retry.firstElementChild.textContent = t.retry;
     footer.hidden = !signedIn;
     signout.disabled = signingOut;
     signout.setAttribute('aria-busy', String(signingOut));
     signout.querySelector('span').textContent = signingOut ? t.signingOut : t.signout;
+    signoutDescription.textContent = t.signoutDescription;
     signoutError.hidden = !signoutFailed;
     signoutError.textContent = signoutFailed ? t.signoutFailed : '';
   }

@@ -108,8 +108,17 @@ test('Visa public account menu keeps sign-in and verified routes distinct', asyn
   await flush();
   assert.deepEqual(destinations(), ['staffDashboard', 'staffProfile']);
   assert.equal(destination('staffProfile').search, '?area=staff&view=profile');
+  assert.equal(destination('staffProfile').querySelector('.visa-account-item-label').textContent, 'Hồ sơ nhân viên của tôi');
   assert.match(panel.querySelector('.visa-account-badges').textContent, /Biên tập/);
   const signout = panel.querySelector('.visa-account-signout');
+  const description = doc.getElementById(signout.getAttribute('aria-describedby'));
+  assert.equal(signout.nextElementSibling, description);
+  assert.equal(description.textContent, 'Kết thúc phiên đăng nhập trên trang web này.');
+  doc.documentElement.lang = 'en';
+  doc.dispatchEvent(new w.Event('gary:language'));
+  assert.equal(description.textContent, 'End your session on this website.');
+  description.click();
+  assert.equal(signoutOptions, undefined);
   signoutError = {status: 503};
   signout.click();
   await flush();
@@ -163,7 +172,8 @@ test('Visa staff account menu opens the permitted dashboard and profile from the
   assert.equal(profile.getAttribute('aria-current'), 'page');
   dashboard.click();
   await flush();
-  assert.equal(doc.querySelector('#cms-view').hidden, false);
+  assert.equal(doc.querySelector('#news-guides-view').hidden, false);
+  assert.equal(doc.querySelector('#news-guides-nav').classList.contains('active'), true);
   assert.equal(doc.querySelector('#visa-mobile-nav').open, false);
   assert.equal(dashboard.getAttribute('aria-current'), 'page');
   doc.querySelector('#visa-mobile-nav-trigger').click();
@@ -276,8 +286,8 @@ test('Shared menu activates only when ready, follows language and keeps a usable
  }
 });
 test('Staff portal requires a server-confirmed staff role',async()=>{
- const customer=await portalEnvironment('customer','http://localhost:4173/portal.html?area=staff');customer.doc.querySelector('#auth-email').value='alex@example.test';customer.doc.querySelector('#auth-password').value='Asecurepassword123';customer.doc.querySelector('#auth-form').dispatchEvent(new customer.w.Event('submit',{cancelable:true}));await flush();assert.equal(customer.doc.querySelector('#workspace').hidden,true);assert.match(customer.doc.querySelector('#auth-notice').textContent,/does not have staff access/);customer.dom.window.close();
- const staff=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff');staff.doc.querySelector('#auth-email').value='staff@example.test';staff.doc.querySelector('#auth-password').value='Asecurepassword123';staff.doc.querySelector('#auth-form').dispatchEvent(new staff.w.Event('submit',{cancelable:true}));await flush();assert.equal(staff.doc.querySelector('#workspace').hidden,false);assert.equal(staff.doc.querySelector('#customers-nav').hidden,false);assert.equal(staff.doc.querySelector('#new-application').hidden,true);staff.doc.querySelector('[data-case]').click();await flush();assert.equal(staff.doc.querySelector('#tab-notes').hidden,false);assert.equal(staff.doc.querySelector('#staff-status-form').hidden,false);staff.dom.window.close();
+ const customer=await portalEnvironment('customer','http://localhost:4173/portal.html?area=staff');customer.doc.querySelector('#auth-email').value='alex@example.test';customer.doc.querySelector('#auth-password').value='Asecurepassword123';customer.doc.querySelector('#auth-form').dispatchEvent(new customer.w.Event('submit',{cancelable:true}));await flush();assert.equal(customer.doc.querySelector('#workspace').hidden,true);assert.match(customer.doc.querySelector('#auth-notice').textContent,/Team Access/);customer.dom.window.close();
+ const staff=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff');staff.doc.querySelector('#auth-email').value='staff@example.test';staff.doc.querySelector('#auth-password').value='Asecurepassword123';staff.doc.querySelector('#auth-form').dispatchEvent(new staff.w.Event('submit',{cancelable:true}));await flush();assert.equal(staff.doc.querySelector('#workspace').hidden,false);assert.equal(staff.doc.querySelector('#news-guides-view').hidden,false);assert.equal(staff.doc.querySelector('#news-guides-nav').classList.contains('active'),true);assert.equal(staff.doc.querySelector('#customers-nav').hidden,false);assert.equal(staff.doc.querySelector('#new-application').hidden,true);staff.doc.querySelector('[data-view=applications]').click();await flush();staff.doc.querySelector('[data-case]').click();await flush();assert.equal(staff.doc.querySelector('#tab-notes').hidden,false);assert.equal(staff.doc.querySelector('#staff-status-form').hidden,false);staff.dom.window.close();
 });
 
 
@@ -292,9 +302,9 @@ test('leaving CMS keeps a rejected dirty draft, but confirmed discard resets it 
  try{
   doc.querySelector('#auth-email').value='staff@example.test';doc.querySelector('#auth-password').value='Asecurepassword123';
   doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
-  doc.querySelector('[data-view=cms]').click();await flush();const before=resets;
-  assert.equal(enters,1);assert.equal(doc.querySelector('#cms-view').hidden,false);
-  doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#cms-view').hidden,false);assert.equal(resets,before);assert.match(doc.querySelector('#cms-root').textContent,/Private unsaved/);
+  const before=resets;
+  assert.equal(enters,1);assert.equal(doc.querySelector('#news-guides-view').hidden,false);
+  doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#news-guides-view').hidden,false);assert.equal(resets,before);assert.match(doc.querySelector('#cms-root').textContent,/Private unsaved/);
   consent=true;doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#cms-view').hidden,true);assert.equal(doc.querySelector('#profile-view').hidden,false);assert.equal(resets,before+1);assert.equal(doc.querySelector('#cms-root').children.length,0);
   doc.querySelector('[data-view=cms]').click();await flush();assert.equal(enters,2,'a later visit initializes clean CMS state');
   consent=false;const previousChecks=checks;doc.querySelector('#signout').click();await flush();assert.equal(doc.querySelector('#cms-root').textContent,'');assert.equal(checks,previousChecks,'signout clears private drafts without a dirty-leave veto');assert.equal(resets,before+2);
@@ -306,6 +316,7 @@ test('staff Trash actions confirm case deletion, remove active rows and open the
  try{
   doc.querySelector('#auth-email').value='staff@example.test';doc.querySelector('#auth-password').value='Password12345';doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
   assert.equal(doc.querySelector('#trash-nav').hidden,false);
+  doc.querySelector('[data-view=applications]').click();await flush();
   doc.querySelector('.application-row').click();await flush();assert.equal(doc.querySelector('#trash-case').hidden,false);assert.equal(doc.querySelector('#case-trash-hint').hidden,false);
   w.confirm=()=>false;doc.querySelector('#trash-case').click();await flush();assert.equal(calls.filter(call=>call.name==='gary_trash_record').length,0);
   w.confirm=()=>true;doc.querySelector('#trash-case').click();await flush();
@@ -331,11 +342,22 @@ test('portal areas and case controls follow each Operations and CMS role',async(
  }finally{env.dom.window.close()}
  env=await portalEnvironment('staff',url,stubCms,{member:true,operations:'manager',cms:'publisher'});
  try{
-  await signIn(env);const {doc}=env;
+  await signIn(env);const {doc,w,calls,application}=env;
   assert.deepEqual(visible(doc),['[data-view=applications]','#customers-nav','#inbox-nav','#cms-nav']);assert.equal(doc.querySelector('#dashboard-title').textContent,'All applications');
+  assert.equal(doc.querySelector('#news-guides-view').hidden,false);
+  doc.querySelector('[data-view=applications]').click();await flush();
   doc.querySelector('.application-row').click();await flush();
   assert.deepEqual(['#trash-case','#assign-to-me','#case-assignee-field'].map(selector=>doc.querySelector(selector).hidden),[true,false,false]);
   assert.equal(doc.querySelector('#case-assignee').options[0].value,'');
+  const editControls=['#edit-application','#staff-status-form','#case-intake-form'];
+  assert.ok(editControls.every(selector=>doc.querySelector(selector).hidden),'unassigned case content is view only');
+  doc.querySelector('#edit-application').click();
+  doc.querySelector('#staff-status-form').dispatchEvent(new w.Event('submit',{cancelable:true}));
+  assert.equal(doc.querySelector('#request-dialog').open,false);
+  assert.equal(calls.some(call=>call.operation==='update'&&call.table==='gary_applications'),false);
+  application.assigned_staff_id='customer-id';
+  doc.querySelector('#refresh-messages').click();await flush();
+  assert.ok(editControls.every(selector=>!doc.querySelector(selector).hidden),'assigned case content can be edited');
  }finally{env.dom.window.close()}
  env=await portalEnvironment('staff',url,stubCms,{member:true,operations:null,cms:'admin'});
  try{

@@ -32,19 +32,20 @@ const reference=id=>`GA-${id.slice(0,8).toUpperCase()}`;
 const staff=()=>state.role==='staff';
 const operationsRole=()=>staff()?state.access?.operations??null:null,cmsRole=()=>staff()?state.access?.cms??null:null;
 const operations=()=>operationsRole()!==null,oversees=()=>['manager','admin'].includes(operationsRole());
+const canEditStaffCase=application=>Boolean(application&&operations()&&(operationsRole()!=='manager'||application.assigned_staff_id===state.user?.id));
 const trashKinds=()=>[...(operationsRole()==='admin'?['case','contact']:[]),...(cmsRole()==='admin'?['cms']:[])];
 const managesStaff=()=>operationsRole()==='admin'||cmsRole()==='admin';
 const contentViews=['cms','news-guides'];
 const VIEWS=['applications','profile','customers','inbox',...contentViews,'trash','staff-access'];
 const viewAllowed=view=>view==='profile'||(view==='applications'?!staff()||operations():view==='customers'||view==='inbox'?operations():contentViews.includes(view)?cmsRole()!==null:view==='trash'?trashKinds().length>0:view==='staff-access'&&managesStaff());
-const homeView=()=>!staff()||operations()?'applications':cmsRole()?'cms':'profile';
+const homeView=()=>staff()&&cmsRole()?'news-guides':!staff()||operations()?'applications':'profile';
 const badge=status=>element('span',{class:`status-badge status-${status}`},t(`status_${status}`));
 let searchTimer,customerSearchTimer;
 const caseStatIds=['total','active','attention','completed'].map(key=>'stat-'+key);
 let caseStats={};
 function toast(key,tone='success'){showActionToast(document,t(key),{key,tone,language})}
 function feedback(target,key,error=false){const node=$(target);node.textContent=key?t(key):'';node.classList.toggle('error',error)}
-function errorKey(error){if(error?.message==='APPLICATION_SUBJECT_INVALID')return'applicationSubjectInvalid';if(['documentType','documentSize','roleError','weakPassword'].includes(error?.message))return error.message;if(error?.message==='AGENCY_ASSIGNEE_INVALID')return'assigneeUnavailable';if(error?.code==='invalid_credentials')return'invalidSignin';if(error?.code==='email_not_confirmed')return'confirmEmail';if(error?.code==='weak_password')return'weakPassword';if(error?.code?.includes('rate_limit'))return'rateLimited';if(error?.code==='42501'){schedulePermissionRefresh(true);return'permissionChanged'};return'genericError'}
+function errorKey(error){if(error?.message==='AGENCY_CASE_EDIT_ASSIGNED_ONLY')return'caseEditAssignedOnly';if(error?.message==='APPLICATION_SUBJECT_INVALID')return'applicationSubjectInvalid';if(['documentType','documentSize','roleError','weakPassword'].includes(error?.message))return error.message;if(error?.message==='AGENCY_ASSIGNEE_INVALID')return'assigneeUnavailable';if(error?.code==='invalid_credentials')return'invalidSignin';if(error?.code==='email_not_confirmed')return'confirmEmail';if(error?.code==='weak_password')return'weakPassword';if(error?.code?.includes('rate_limit'))return'rateLimited';if(error?.code==='42501'){schedulePermissionRefresh(true);return'permissionChanged'};return'genericError'}
 async function busy(form,callback){const buttons=[...form.querySelectorAll('button[type=submit]')];if(buttons.some(button=>button.getAttribute('aria-busy')==='true'))return;buttons.forEach(button=>{button.disabled=true;button.setAttribute('aria-busy','true')});try{return await callback()}finally{buttons.forEach(button=>{button.disabled=false;button.removeAttribute('aria-busy')})}}
 function showDialog(node){if(!node.open){node.showModal();document.body.classList.add('dialog-open')}}
 function closeDialog(node){node.close();if(!document.querySelector('dialog[open]'))document.body.classList.remove('dialog-open')}
@@ -62,7 +63,7 @@ const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,can
 const cms=createAgencyCms({doc:document,db,isStaff:()=>cmsRole()!==null,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
 const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
-const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,notify:toast,onSaved:()=>schedulePermissionRefresh()});
+const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,notify:toast,onSaved:()=>{rosterCache=null;schedulePermissionRefresh()}});
 let staffAccountPhoto='';
 const staffAccountMenu=mountAccountMenu($('#staff-account-menu'),{
  staff:true,
@@ -273,7 +274,7 @@ function setView(view,load=true){
  for(const name of VIEWS)$(`#${name}-view`).hidden=name!==view;
  $$('[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
  if(staff())renderStaffAccountMenu();
- if(view==='staff-access'&&load)void staffAccess.enter();if(view==='trash'&&load)void trash.enter();if(contentViews.includes(view)&&load)void cms.enter();if(view==='profile'){renderProfile();if(load)schedulePermissionRefresh()}if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
+ if(view==='applications'&&load)void Promise.all([loadApplications(),loadStats()]).catch(()=>toast('refreshFailed','error'));if(view==='staff-access'&&load)void staffAccess.enter();if(view==='trash'&&load)void trash.enter();if(contentViews.includes(view)&&load)void cms.enter();if(view==='profile'){renderProfile();if(load)schedulePermissionRefresh()}if(view==='customers'&&load)crm.enter();if(view==='inbox'&&load)inbox.enter();
 }
 $$('[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
 function renderProfile(){if(!state.profile)return;for(const key of ['full_name','contact_email','phone','nationality','preferred_language'])$('#profile-form').elements.namedItem(key).value=state.profile[key]??''}
@@ -305,6 +306,7 @@ $('#new-application').addEventListener('click',()=>openRequest());
 document.addEventListener('click',event=>{if(event.target.closest('[data-new-application]'))openRequest();const caseButton=event.target.closest('[data-case]');if(caseButton)openCase(caseButton.dataset.case)});
 $('#request-form').addEventListener('submit',async event=>{
  event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;feedback('#request-notice','');const editing=state.editingId;
+ if(editing&&staff()&&!canEditStaffCase(state.currentCase)){feedback('#request-notice','caseEditAssignedOnly',true);return;}
  await busy(form,async()=>{try{const fields=Object.fromEntries(new FormData(form));for(const key of Object.keys(fields))fields[key]=String(fields[key]).trim();if([...fields.subject].length<3||!/[\p{L}\p{N}]/u.test(fields.subject)||/[\u0000-\u001f\u007f]/u.test(fields.subject)){feedback('#request-notice','applicationSubjectInvalid',true);form.elements.subject.focus();return}if(!editing)fields.request_confirmed=$('#request-intent').checked;const query=editing?db.from('gary_applications').update(fields).eq('id',editing):db.from('gary_applications').insert(fields);const application=unwrap(await query.select().single());closeDialog($('#request-dialog'));form.reset();if(!editing)state.page=0;toast(editing?'applicationUpdated':'applicationCreated');await refreshApplications();await openCase(application.id)}catch(error){feedback('#request-notice',errorKey(error),true)}});
 });
 
@@ -320,8 +322,8 @@ async function refreshCase(id=state.caseId){
 }
 function renderCase(){
  const application=state.currentCase,data=state.caseData;if(!application||!data)return;$('#case-title').textContent=application.subject;$('#case-reference').textContent=`${reference(application.id)} · ${date(application.created_at)}`;$('#case-service').textContent=t(`service_${application.service}`);$('#case-status').replaceChildren(badge(application.status));$('#case-details').textContent=application.details||t('noDetails');
- $('#case-intake-form').hidden=!oversees();$('#case-intake').value=application.intake_kind;
- const editable=operations()||EDITABLE_STATUSES.includes(application.status);$('#edit-application').hidden=!editable;$('#cancel-application').hidden=staff()||!EDITABLE_STATUSES.includes(application.status);$('#trash-case').hidden=operationsRole()!=='admin';$('#case-trash-hint').hidden=operationsRole()!=='admin';$('#staff-status-form').hidden=!operations();$('#tab-notes').hidden=!operations();$('#case-customer').hidden=!operations();$('#case-assignee-field').hidden=!oversees();
+ $('#case-intake-form').hidden=!oversees()||!canEditStaffCase(application);$('#case-intake').value=application.intake_kind;
+ const editable=staff()?canEditStaffCase(application):EDITABLE_STATUSES.includes(application.status);$('#edit-application').hidden=!editable;$('#cancel-application').hidden=staff()||!EDITABLE_STATUSES.includes(application.status);$('#trash-case').hidden=operationsRole()!=='admin';$('#case-trash-hint').hidden=operationsRole()!=='admin';$('#staff-status-form').hidden=!canEditStaffCase(application);$('#tab-notes').hidden=!operations();$('#case-customer').hidden=!operations();$('#case-assignee-field').hidden=!oversees();
  if(operations()){$('#staff-status').value=application.status;$('#assignment-label').textContent=t(application.assigned_staff_id===state.user.id?'assignedToYou':application.assigned_staff_id?'assignedToTeam':'unassigned');$('#assign-to-me').hidden=!oversees()||application.assigned_staff_id===state.user.id;if(oversees())void renderCaseAssignee(application);const profile=data.customer;$('#case-customer').replaceChildren(element('p',{class:'case-section-label'},t('customerLabel')),element('strong',{},profile?.full_name||t('customer')),...[profile?.contact_email,profile?.phone,profile?.nationality].filter(Boolean).map(value=>element('div',{},value)))}
  $('#case-events').replaceChildren(...data.events.filter(event=>operations()||!event.intake_kind).map(event=>element('li',{},[element('strong',{},t(event.intake_kind?`intake_${event.intake_kind}`:`status_${event.status}`)),element('span',{},dateTime(event.created_at))])));
  const messages=$('#case-message-list');messages.replaceChildren(...(data.messages.length?data.messages.map(message=>element('article',{class:`message${message.sender_id===state.user.id?' own':''}`},[element('p',{},message.body),element('small',{},`${message.sender_id===state.user.id?t('you'):message.sender_id===application.customer_id?t('customer'):t('team')} · ${dateTime(message.created_at)}`)])):[element('p',{class:'panel-empty'},t('noMessages'))]));messages.scrollTop=messages.scrollHeight;
@@ -331,20 +333,20 @@ function renderCase(){
 async function renderCaseAssignee(application){const roster=await getRoster().catch(()=>[]);if(state.currentCase!==application||!oversees())return;staffOptions($('#case-assignee'),roster,application.assigned_staff_id??'')}
 function showTab(tab){if(tab==='notes'&&!operations())return;state.tab=tab;$$('[data-tab]').forEach(button=>{const selected=button.dataset.tab===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;$(`#case-${button.dataset.tab}`).hidden=!selected})}
 $$('[data-tab]').forEach(button=>{button.addEventListener('click',()=>showTab(button.dataset.tab));button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=$$('[data-tab]').filter(tab=>!tab.hidden),index=tabs.indexOf(button);const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;showTab(tabs[next].dataset.tab);tabs[next].focus()})});
-$('#edit-application').addEventListener('click',()=>{if(state.currentCase)openRequest(state.currentCase)});
+$('#edit-application').addEventListener('click',()=>{const application=state.currentCase;if(application&&(staff()?canEditStaffCase(application):EDITABLE_STATUSES.includes(application.status)))openRequest(application)});
 $('#trash-case').addEventListener('click',async event=>{const application=state.currentCase,generation=state.generation,button=event.currentTarget;if(operationsRole()!=='admin'||!application||button.disabled||!window.confirm(t('trashCaseConfirm')))return;button.disabled=true;try{unwrap(await db.rpc('gary_trash_record',{p_kind:'case',p_id:application.id,p_expected_version:null}));if(generation!==state.generation||operationsRole()!=='admin')return;if(state.caseId===application.id){closeDialog($('#case-dialog'));state.caseId=null;state.currentCase=null;state.caseData=null;}state.page=0;toast('recordTrashed');await refreshApplications()}catch(error){if(generation===state.generation)feedback('#case-feedback',errorKey(error),true)}finally{button.disabled=false}});
 $('#cancel-application').addEventListener('click',async event=>{const application=state.currentCase,button=event.currentTarget;if(button.disabled||!application||!EDITABLE_STATUSES.includes(application.status)||!window.confirm(t('cancelConfirm')))return;button.disabled=true;try{unwrap(await db.from('gary_applications').update({status:'cancelled'}).eq('id',application.id).select().single());feedback('#case-feedback','');toast('applicationCancelled');await refreshCase(application.id);await refreshApplications()}catch(error){feedback('#case-feedback',errorKey(error),true)}finally{button.disabled=false}});
 $('#case-intake-form').addEventListener('submit',async event=>{
  event.preventDefault();
  const application=state.currentCase,kind=$('#case-intake').value,generation=state.generation;
- if(!oversees()||!application||kind===application.intake_kind)return;
+ if(!oversees()||!canEditStaffCase(application)||kind===application.intake_kind)return;
  await busy(event.currentTarget,async()=>{try{
   unwrap(await db.from('gary_applications').update({intake_kind:kind}).eq('id',application.id).eq('intake_kind',application.intake_kind).select('id').single());
   if(generation!==state.generation)return;
   toast('intakeSaved');await Promise.all([refreshCase(application.id),refreshApplications()]);
  }catch(error){if(generation===state.generation)feedback('#case-feedback',errorKey(error),true)}});
 });
-$('#staff-status-form').addEventListener('submit',async event=>{event.preventDefault();if(!operations()||!state.currentCase)return;const id=state.currentCase.id;await busy(event.currentTarget,async()=>{try{unwrap(await db.from('gary_applications').update({status:$('#staff-status').value}).eq('id',id).select().single());feedback('#case-feedback','');toast('statusSaved');await refreshCase(id);await refreshApplications()}catch(error){feedback('#case-feedback',errorKey(error),true)}})});
+$('#staff-status-form').addEventListener('submit',async event=>{event.preventDefault();if(!canEditStaffCase(state.currentCase))return;const id=state.currentCase.id;await busy(event.currentTarget,async()=>{try{unwrap(await db.from('gary_applications').update({status:$('#staff-status').value}).eq('id',id).select().single());feedback('#case-feedback','');toast('statusSaved');await refreshCase(id);await refreshApplications()}catch(error){feedback('#case-feedback',errorKey(error),true)}})});
 $('#assign-to-me').addEventListener('click',async event=>{const button=event.currentTarget;if(!oversees()||!state.currentCase||button.disabled)return;button.disabled=true;try{const id=state.currentCase.id;unwrap(await db.from('gary_applications').update({assigned_staff_id:state.user.id}).eq('id',id).select().single());feedback('#case-feedback','');toast('assignmentSaved');await refreshCase(id)}catch(error){feedback('#case-feedback',errorKey(error),true)}finally{button.disabled=false}});
 $('#case-assignee').addEventListener('change',async event=>{const select=event.currentTarget,application=state.currentCase,value=select.value||null;if(!oversees()||!application||select.disabled||value===(application.assigned_staff_id??null))return;select.disabled=true;try{unwrap(await db.from('gary_applications').update({assigned_staff_id:value}).eq('id',application.id).select().single());feedback('#case-feedback','');toast('caseAssignmentSaved');await refreshCase(application.id);await refreshApplications()}catch(error){select.value=application.assigned_staff_id??'';feedback('#case-feedback',errorKey(error),true)}finally{select.disabled=false}});
 
