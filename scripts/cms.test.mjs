@@ -39,7 +39,7 @@ test('homepage reads three newest article snapshots alongside the rest of its co
    neq(field,value){trace.push('neq',field,value);return this;},eq(field,value){trace.push('eq',field,value);return this;},
    async range(from,to){trace.push(from,to);return {data:[]};}};
  }};
- await loadHomepageCms(db);
+ assert.deepEqual(await loadHomepageCms(db),{content:[],news:{entries:[],state:'ready'}});
  assert.deepEqual(queries,[['entry_id','neq','kind','article',0,199],['published_at','slug','eq','kind','article',0,2]]);
 });
 test('published landing SEO synchronizes declared page, Open Graph and Twitter metadata in both languages',async()=>{

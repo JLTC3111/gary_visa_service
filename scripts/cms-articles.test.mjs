@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
 import {articleFilters, articlePath, bindArticleFallbacks, newsOrigin, renderArticleDocument, renderArticlePage, renderLatestArticles, validArticleSlug} from '../dist/cms-articles.js';
-import {loadPublishedCms} from '../dist/cms-public.js';
+import {loadArticleData,loadHomepageCms,loadPublishedCms,renderPublicCms,renderServiceCms} from '../dist/cms-public.js';
 import {createNewsHandler} from '../api/news.js';
 
 const record=(slug,published_at,extra={})=>({
@@ -115,6 +115,106 @@ test('the legacy homepage article URL forwards to the same article and language'
     URL,articlePath
   });
   assert.equal(forwarded,'/vi/news/permit-guide');
+});
+
+test('a missing directory RPC reads existing public snapshots, while permission and transport failures still fail',async()=>{
+  const guide=record('work-permit-guide','2026-01-01T00:00:00Z',{
+    title_vi:'Hướng dẫn giấy phép lao động',body_vi:'Nội dung công khai.',data:{category:'work'}
+  });
+  const snapshot=entry=>({entry_id:entry.id,kind:entry.kind,slug:entry.slug,published_at:entry.published_at,content:entry});
+  let rows=[],error={code:'PGRST202'},feedError=null;
+  const reads=[];
+  const db={
+    async rpc(name,args){assert.equal(name,'gary_cms_article_directory');reads.push(['rpc',args]);return {error};},
+    from(table){
+      assert.equal(table,'gary_cms_public');
+      const conditions={};
+      return {
+        select(){return this;},order(){return this;},
+        lte(field,date){assert.equal(field,'published_at');assert.ok(Number.isFinite(Date.parse(date)));return this;},
+        eq(field,value){conditions[field]=value;return this;},
+        async range(){reads.push(['snapshots',conditions]);return {data:rows,error:feedError};}
+      };
+    }
+  };
+  const handler=createNewsHandler(options=>loadArticleData(db,options));
+  async function request(url){
+    let response={};
+    await handler({url,method:'GET'},{writeHead(status,headers){response={status,headers};return this;},end(body){response.body=body;}});
+    return response;
+  }
+  const empty=await request('/en/news');
+  assert.equal(empty.status,200);
+  assert.match(empty.body,/No articles have been published yet/);
+  assert.doesNotMatch(empty.body,/Try again/);
+  rows=[
+    snapshot(guide),snapshot(record('draft-guide',guide.published_at,{status:'draft'})),
+    snapshot(record('archived-guide',guide.published_at,{status:'archived'})),
+    snapshot(record('future-guide','2100-01-01T00:00:00Z')),
+    snapshot(record('ordinary-service',guide.published_at,{kind:'service'}))
+  ];
+  const route='/vi/news?q=gi%E1%BA%A5y+ph%C3%A9p&category=work';
+  const listed=await request(route);
+  assert.equal(listed.status,200);
+  assert.match(listed.body,/href="\/vi\/news\/work-permit-guide"/);
+  assert.match(listed.body,/Hướng dẫn giấy phép lao động/);
+  assert.doesNotMatch(listed.body,/draft-guide|archived-guide|future-guide|ordinary-service/);
+  assert.deepEqual(reads.at(-1),['snapshots',{kind:'article'}]);
+  assert.deepEqual(reads.at(-2)[1],{p_search:'giấy phép',p_category:'work',p_page:1});
+  const detail=await request('/vi/news/work-permit-guide');
+  assert.equal(detail.status,200);
+  assert.match(detail.body,/Nội dung công khai/);
+  assert.deepEqual(reads.at(-1),['snapshots',{kind:'article',slug:'work-permit-guide'}]);
+  assert.equal((await request('/vi/news/draft-guide')).status,404);
+  const readCount=reads.length;
+  error={code:'42501'};
+  const denied=await request(route);
+  assert.equal(denied.status,503);
+  assert.equal(reads.length,readCount+1,'permission failure never falls back');
+  assert.match(denied.body,/href="\/vi\/news\?q=gi%E1%BA%A5y\+ph%C3%A9p&amp;category=work">Thử lại/);
+  error={code:'PGRST202'};
+  feedError={code:'NETWORK'};
+  assert.equal((await request('/en/news')).status,503);
+  feedError=null;
+  rows=null;
+  assert.equal((await request('/en/news')).status,503,'malformed data is a request failure');
+});
+
+test('homepage retry restores the article feed independently of the other CMS content',async()=>{
+  const guide=record('retry-guide','2026-01-02T00:00:00Z',{title_vi:'Bài hướng dẫn đã đăng'});
+  const dom=new JSDOM(await html('index.html'),{url:'https://visa.example/',runScripts:'outside-only'});
+  const w=dom.window;
+  let newsAttempts=0;
+  const db={from(){
+    let articles=false;
+    return {
+      select(){return this;},lte(){return this;},order(){return this;},neq(){return this;},
+      eq(field,value){articles=field==='kind'&&value==='article';return this;},
+      async range(){
+        if(!articles)return {error:{code:'NETWORK'}};
+        if(++newsAttempts===1)return {error:{code:'NETWORK'}};
+        return {data:[{entry_id:guide.id,kind:guide.kind,slug:guide.slug,published_at:guide.published_at,content:guide}]};
+      }
+    };
+  }};
+  w.document.documentElement.lang='vi';
+  Object.assign(w,{db,loadHomepageCms,renderPublicCms,renderServiceCms,articlePath,renderLatestArticles});
+  try{
+    vm.runInContext(stripImports(await html('cms-public-bootstrap.js')),dom.getInternalVMContext());
+    await settle();
+    const section=w.document.getElementById('cms-articles'),retry=section.querySelector('[data-retry-articles]');
+    assert.match(section.textContent,/tạm thời không tải được/);
+    assert.doesNotMatch(section.textContent,/sau khi được xuất bản/);
+    assert.equal(retry.textContent,'Thử lại');
+    retry.focus();retry.click();
+    await settle();
+    assert.equal(newsAttempts,2);
+    assert.equal(section.querySelector('article a').getAttribute('href'),'/vi/news/retry-guide');
+    assert.match(section.textContent,/Bài hướng dẫn đã đăng/);
+    assert.equal(section.querySelector('[data-retry-articles]'),null);
+    assert.equal(w.document.activeElement.id,'cms-news-title');
+    assert.equal(w.document.querySelector('#services').hidden,false,'failure in separate CMS content preserves the existing homepage');
+  }finally{w.close();}
 });
 
 test('Vercel news handler sends localized SEO and article text without JavaScript, and reports missing or unavailable pages',async()=>{

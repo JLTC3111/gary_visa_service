@@ -66,6 +66,38 @@ async function setup({assignRoles=true,teamAccess=false,cmsLifecycle=false}={}){
  return {db,q,one,count,as,owner,rpc,ids:{assigned:assigned.id,queued:queued.id,other:other.id,contact,otherContact,guest,customerChat}};
 }
 
+test('Public news can publish with the original CMS schema before the directory RPC is installed',async()=>{
+ const h=await setup({teamAccess:true});
+ const article={kind:'article',slug:'bilingual-visa-guide',title_en:'Visa guide',title_vi:'Hướng dẫn thị thực',
+  summary_en:'How to prepare your documents',summary_vi:'Cách chuẩn bị giấy tờ',
+  body_en:'English public guide',body_vi:'Hướng dẫn công khai'};
+ const transition=(row,status)=>h.one('select * from public.gary_cms_transition($1,$2,$3)',[row.id,status,row.version]);
+ const publication=id=>h.one('select kind,slug,content from public.gary_cms_public where entry_id=$1',[id]);
+ try{
+  assert.equal((await h.one("select to_regprocedure('public.gary_cms_article_directory(text,text,integer)') is null absent")).absent,true);
+  await h.as('editor');
+  let row=await h.one('select * from public.gary_cms_save($1::jsonb,null)',[JSON.stringify(article)]);
+  assert.equal(row.kind,'article');
+  assert.equal(row.status,'draft');
+  await h.as(null);
+  assert.equal(await publication(row.id),undefined);
+  await h.as('editor');
+  row=await transition(row,'review');
+  await h.as('publisher');
+  row=await transition(row,'published');
+  await h.as(null);
+  const snapshot=await publication(row.id);
+  assert.equal(snapshot.kind,'article');
+  assert.equal(snapshot.slug,article.slug);
+  assert.equal(snapshot.content.body_en,article.body_en);
+  assert.equal(snapshot.content.body_vi,article.body_vi);
+  await h.as('publisher');
+  await transition(row,'archived');
+  await h.as(null);
+  assert.equal(await publication(row.id),undefined);
+ }finally{await h.db.close();}
+});
+
 test('Public news and editorial images use the real CMS lifecycle with separated roles',async()=>{
  const h=await setup({teamAccess:true,cmsLifecycle:true});
  const bucket='gary-cms-media';

@@ -2,7 +2,7 @@
 
 // Adapted from React Bits Swipe Toast (David Haz, MIT + Commons Clause).
 // https://reactbits.dev/micro/swipe-toast
-import { isValidElement, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { isValidElement, useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 
 export type ToastTone = "success" | "error" | "warning" | "info";
 
@@ -23,7 +23,11 @@ type Sample = { time: number; y: number };
 const swipeDistance = 40;
 const flickVelocity = 0.11;
 const rubberband = (offset: number) => (offset * 24 * 0.55) / (24 + 0.55 * Math.abs(offset));
-const toneMark = { success: "✓", warning: "!", error: "×", info: "i" };
+// Lucide "circle-check" icon (ISC): https://lucide.dev/icons/circle-check
+const circleCheck = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+  <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+</svg>;
+const toneMark = { success: circleCheck, warning: "!", error: "×", info: "i" };
 
 function textLength(node: ReactNode): number {
   if (typeof node === "string" || typeof node === "number") return String(node).length;
@@ -37,7 +41,6 @@ export function SwipeToast({
 }: Props) {
   const [readingDuration] = useState(() => 4500 + Math.min(3500, Math.max(0, textLength(children) - 120) * 22));
   const duration = durationOverride ?? readingDuration;
-  const fuseId = `toast-fuse-${useId().replace(/[^a-z0-9_-]/gi, "")}`;
   const card = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const drag = useRef<{ id: number; start: number; samples: Sample[] } | null>(null);
@@ -100,9 +103,15 @@ export function SwipeToast({
     if (!node || reduce || typeof node.animate !== "function") { close(); return; }
     exit.current = node.animate([
       { transform: `translateY(${offset}px)`, opacity: 1 },
-      { transform: `translateY(${offset + (offset ? node.offsetHeight : 8)}px)`, opacity: 0 }
-    ], { duration: 160, easing: "ease-out", fill: "forwards" });
+      { transform: `translateY(${offset + node.offsetHeight}px)`, opacity: 0 }
+    ], { duration: offset ? 200 : 280, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" });
     exit.current.finished.then(close, () => {});
+  }
+
+  // Keyboard activation reports a click detail of 0, so it closes at once like Escape.
+  function leave(detail: number) {
+    if (detail) slideOut(0);
+    else close();
   }
 
   function startSwipe(event: PointerEvent<HTMLDivElement>) {
@@ -171,13 +180,13 @@ export function SwipeToast({
     }}>
     <span className="action-toast-mark" aria-hidden="true">{toneMark[tone]}</span>
     <div className="action-toast-content" role={tone === "error" ? "alert" : "status"} aria-atomic="true">{children}</div>
-    {action && <button type="button" className="action-toast-undo" onClick={() => { close(); action.run(); }}>{action.label}</button>}
-    {closeButton && <button type="button" data-success-close onClick={close}>{vi ? "Đóng" : "Dismiss"}</button>}
-    {duration > 0 && <svg key={duration} aria-hidden="true" className="action-toast-fuse" data-paused={paused || undefined}
-      viewBox="0 0 360 12" preserveAspectRatio="none" style={{ "--toast-duration": `${duration}ms` } as CSSProperties}>
-      <defs><linearGradient id={fuseId}><stop offset="0%"/><stop offset="50%"/><stop offset="100%"/></linearGradient></defs>
-      <path d="M2 2 Q3 10 12 10 H348 Q357 10 358 2" pathLength={1} fill="none" stroke={`url(#${fuseId})`}
-        strokeWidth={2} strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
-    </svg>}
+    {action && <button type="button" className="action-toast-undo" onClick={event => {
+      if (exit.current) return;
+      leave(event.detail);
+      action.run();
+    }}>{action.label}</button>}
+    {closeButton && <button type="button" data-success-close onClick={event => leave(event.detail)}>{vi ? "Đóng" : "Dismiss"}</button>}
+    {duration > 0 && <span key={duration} aria-hidden="true" className="action-toast-fuse" data-paused={paused || undefined}
+      style={{ "--toast-duration": `${duration}ms` } as CSSProperties}/>}
   </div>;
 }

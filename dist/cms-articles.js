@@ -77,17 +77,20 @@ export function bindArticleFallbacks(root){
   }
 }
 
-export function renderLatestArticles(doc,entries,language,{unavailable=false}={}){
+export function renderLatestArticles(doc,entries,language,{state='ready'}={}){
   let section=doc.getElementById('cms-articles');
   if(!section){
     section=doc.createElement('section');section.id='cms-articles';section.className='section cms-public-articles';
     section.setAttribute('aria-labelledby','cms-news-title');doc.getElementById('faq')?.before(section);
   }
-  const rows=eligibleArticles(entries).slice(0,3),t=(en,vi)=>local(language,en,vi);
+  const rows=state==='ready'?eligibleArticles(entries).slice(0,3):[],t=(en,vi)=>local(language,en,vi);
   section.hidden=false;
-  const empty=unavailable?t('Articles are temporarily unavailable.','Bài viết hiện tạm thời không tải được.'):
+  section.setAttribute('aria-busy',String(state==='loading'));
+  const message=state==='error'?t('Articles are temporarily unavailable.','Bài viết hiện tạm thời không tải được.'):
+    state==='loading'?t('Loading articles…','Đang tải bài viết…'):
     t('New articles will appear here as they are published.','Bài viết mới sẽ xuất hiện tại đây sau khi được xuất bản.');
-  section.innerHTML=`<div class="container"><div class="cms-news-header"><h2 id="cms-news-title">${t('News &amp; Guides','Tin tức &amp; Hướng dẫn')}</h2><a href="${articlePath(language)}" class="service-link">${t('View all','Xem tất cả')}</a></div>${rows.length?cards(rows,language,doc.location.origin,'h3'):`<p class="cms-news-empty">${empty}</p>`}</div>`;
+  const retry=state==='error'?`<button type="button" class="service-link" data-retry-articles>${t('Try again','Thử lại')}</button>`:'';
+  section.innerHTML=`<div class="container"><div class="cms-news-header"><h2 id="cms-news-title" tabindex="-1">${t('News &amp; Guides','Tin tức &amp; Hướng dẫn')}</h2><a href="${articlePath(language)}" class="service-link">${t('View all','Xem tất cả')}</a></div>${rows.length?cards(rows,language,doc.location.origin,'h3'):`<div class="cms-news-empty"><p role="status">${message}</p>${retry}</div>`}</div>`;
   bindArticleFallbacks(section);
 }
 
@@ -124,7 +127,8 @@ export function articleView({entries=[],total=null,language='en',slug=null,state
     const status=missing?t('This article is no longer available.','Bài viết này hiện không còn khả dụng.'):state==='error'
       ?t('Articles are temporarily unavailable. Please try again shortly.','Bài viết tạm thời không tải được. Vui lòng thử lại sau.')
       :t('Loading articles…','Đang tải bài viết…');
-    content+=`<p class="cms-news-empty" role="status">${status}</p>`;
+    const retry=state==='error'?`<a class="service-link" href="${escape(articlePath(language,slug,filters))}">${t('Try again','Thử lại')}</a>`:'';
+    content+=`<div class="cms-news-empty"><p role="status">${status}</p>${retry}</div>`;
   }else if(entry){
     const cover=coverFor(entry,language,origin),summary=localized(entry,'summary',language),source=articleReference(entry.data?.source_url);
     const paragraphs=localized(entry,'body',language).split(/\n\s*\n/u).map(text=>text.trim()).filter(Boolean);
