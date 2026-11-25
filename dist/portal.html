@@ -18,7 +18,7 @@
     <div class="portal-header-brand">
       <button id="visa-mobile-nav-trigger" class="visa-mobile-nav-trigger" type="button" aria-label="Open staff navigation" aria-haspopup="dialog" aria-expanded="false" aria-controls="visa-mobile-nav" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <a class="wordmark" href="./index.html" aria-label="Gary Agency home">gary<span class="wordmark-dot">.</span><span class="wordmark-label">AGENCY</span></a>
-      <p class="portal-context" id="portal-context" hidden>STAFF WORKSPACE</p>
+      <p class="portal-context" id="portal-context" hidden>Staff Workspace</p>
     </div>
     <div class="portal-header-right">
       <div class="gary-apps-slot" data-gary-apps="header"></div>
@@ -48,13 +48,14 @@
       </div>
       <a href="./index.html" class="portal-home" aria-label="Back to website">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12h15m-6-6 6 6-6 6"/></svg>
-        <span class="portal-home-label" data-p="backWebsite">Back to website</span>
+        <span class="portal-home-label">Back to website</span>
       </a>
       <div data-squish-key="visa-portal-language" data-squish-ready>
         <button id="portal-language" class="squish-switch" type="button" role="switch" aria-label="Use Vietnamese" aria-checked="false" disabled>
           <span class="squish-switch__track" aria-hidden="true"><span class="squish-switch__options"><span>EN</span><span>VI</span></span><span class="squish-switch__thumb"><span>EN</span></span></span>
         </button>
       </div>
+      <div class="visa-account-menu visa-account-menu--staff" id="staff-account-menu" hidden></div>
       <button class="text-link" type="button" id="signout" data-p="signout" hidden>Sign out</button>
     </div>
   </header>
@@ -77,7 +78,7 @@
       <aside class="workspace-sidebar"><div class="workspace-label"><span class="status-dot"></span><span id="workspace-role" data-p="customerWorkspace">CUSTOMER WORKSPACE</span></div><nav aria-label="Workspace navigation" class="workspace-nav"><button type="button" class="active" data-view="applications"><svg class="icon"><use href="#p-grid"/></svg><span data-p="applications">Applications</span></button><button type="button" data-view="customers" id="customers-nav" hidden><svg class="icon"><use href="#p-contact-round"/></svg><span data-p="crmNav">Customers &amp; leads</span></button><button type="button" data-view="inbox" id="inbox-nav" hidden><svg class="icon"><use href="#p-chat"/></svg><span data-p="inboxNav">Chat inbox</span></button><button type="button" data-view="cms" id="cms-nav" hidden><svg class="icon"><use href="#p-file-pen-line"/></svg><span data-p="cmsNav">Content management</span></button><button type="button" data-view="news-guides" id="news-guides-nav" hidden><svg class="icon" aria-hidden="true"><use href="#p-newspaper"/></svg><span data-p="newsGuidesNav">News &amp; Guides</span></button><button type="button" data-view="trash" id="trash-nav" hidden><svg class="icon"><use href="#p-trash"/></svg><span data-p="trashNav">Trash</span></button><button type="button" data-view="staff-access" id="staff-access-nav" hidden><svg class="icon"><use href="#p-key-round"/></svg><span data-p="staffAccessNav">Team Access</span></button><button type="button" data-view="profile"><svg class="icon"><use href="#p-person"/></svg><span data-p="myProfile">My profile</span></button></nav><div class="sidebar-user" id="customer-sidebar-user">
         <button type="button" class="user-avatar sidebar-profile-button" id="sidebar-profile-button" aria-label="My profile" aria-controls="profile-view"><span class="account-avatar" id="user-avatar" aria-hidden="true">G</span></button>
         <div class="sidebar-user-details"><strong id="user-display-name"></strong><span id="user-signin-email" class="signed-in-email"></span><div id="user-role-label" class="account-roles" aria-live="polite"></div></div>
-      </div><div class="visa-account-menu visa-account-menu--staff" id="staff-account-menu" hidden></div></aside>
+      </div></aside>
       <div class="workspace-content">
         <section id="applications-view"><div class="dashboard-heading"><div><p class="eyebrow" id="dashboard-eyebrow" data-p="yourJourney">YOUR VIETNAM JOURNEY</p><h1 id="dashboard-title" data-p="yourApplications">Your applications</h1><p id="dashboard-intro" data-p="dashboardIntro">A clear view of your next steps, all in one place.</p></div><div class="dashboard-actions"><button type="button" class="icon-button" id="refresh-applications" aria-label="Refresh applications"><svg class="icon"><use href="#p-refresh"/></svg></button><button class="button button-small" type="button" id="new-application"><svg class="icon"><use href="#p-plus"/></svg><span data-p="newApplication">New application</span></button></div></div><div class="dashboard-stats"><div><span data-p="totalApplications">Total applications</span><strong id="stat-total">—</strong><small data-p="allYourPlans">All your plans</small></div><div><span data-p="inProgress">In progress</span><strong id="stat-active">—</strong><small data-p="movingForward">Moving forward</small></div><div class="attention-stat"><span data-p="documentsNeeded">Documents needed</span><strong id="stat-attention">—</strong><small data-p="yourNextStep">Your next step</small></div><div><span data-p="completed">Completed</span><strong id="stat-completed">—</strong><small data-p="readyForNext">Ready for what’s next</small></div></div><div class="applications-panel"><div class="list-toolbar"><div class="search-field"><label class="sr-only" for="application-search" data-p="searchApplications">Search applications by title</label><input type="search" id="application-search" placeholder="Search applications by title…" data-p-placeholder="searchPlaceholder" maxlength="100"></div><label class="sr-only" id="application-kind-label" for="application-kind-filter" data-p="applicationKind" hidden>Intake classification</label><select id="application-kind-filter" hidden><option value="" data-p="intakeRequests">Requests and unreviewed</option><option value="all" data-p="intakeAll">All intake</option><option value="unreviewed" data-p="intake_unreviewed">Unreviewed</option><option value="application" data-p="intake_application">Customer request</option><option value="editorial" data-p="intake_editorial">Editorial or service content</option><option value="internal_test" data-p="intake_internal_test">Internal or test</option></select><label class="sr-only" for="status-filter" data-p="filterStatus">Filter by status</label><select id="status-filter"><option value="" data-p="allStatuses">All statuses</option><option value="submitted" data-p="status_submitted">Submitted</option><option value="in_review" data-p="status_in_review">In review</option><option value="documents_needed" data-p="status_documents_needed">Documents needed</option><option value="processing" data-p="status_processing">Processing</option><option value="completed" data-p="status_completed">Completed</option><option value="cancelled" data-p="status_cancelled">Cancelled</option></select></div><div id="applications-list" aria-live="polite"></div><div class="list-pagination"><span id="page-summary"></span><div><button type="button" id="previous-page" class="pagination-button" data-p="previous" disabled>Previous</button><button type="button" id="next-page" class="pagination-button" data-p="next" disabled>Next</button></div></div></div></section>
 
@@ -151,7 +152,16 @@
               <button type="button" id="staff-access-clear" class="inline-button" data-p="clearFilters" hidden>Clear filters</button>
             </div>
             <p id="staff-access-notice" class="form-feedback workspace-feedback" role="status" tabindex="-1"></p>
-            <div id="staff-access-list"></div>
+            <div class="staff-access-grid">
+              <div class="staff-access-columns" aria-hidden="true" hidden>
+                <span data-col="identity" data-p="staffIdentityCol">Staff</span>
+                <span data-col="status" data-p="staffStatusLabel">Status</span>
+                <span data-col="operations" data-p="operationsAccess">Operations</span>
+                <span data-col="cms" data-p="cmsAccess">CMS</span>
+                <span data-col="actions" data-p="staffActionsCol">Actions</span>
+              </div>
+              <div id="staff-access-list" class="staff-access-list"></div>
+            </div>
           </section>
           <dialog id="staff-access-drawer" class="staff-access-drawer" aria-labelledby="staff-access-drawer-title">
             <header class="staff-access-drawer-header">

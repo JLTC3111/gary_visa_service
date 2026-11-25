@@ -15,14 +15,12 @@
 .visa-account-menu--staff {
   --account-surface: var(--vp-surface, var(--white));
   --account-hover: var(--vp-soft, var(--paper));
-  --account-active: var(--vp-hover, var(--visa-nav-active));
+  --account-active: var(--vp-hover, var(--paper));
   --account-text: var(--vp-text, var(--ink));
   --account-muted: var(--vp-muted, var(--muted));
   --account-line: var(--vp-line, var(--line));
   --account-focus: var(--vp-focus, var(--teal));
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--account-line);
+  position: static;
 }
 
 html[data-visa-theme="dark"] .visa-account-menu {
@@ -145,18 +143,10 @@ html[data-visa-theme="dark"] .visa-account-menu {
 .visa-account-status { margin: 0; padding: 6px 8px; }
 .visa-account-menu[hidden], .visa-account-menu [hidden], #customer-sidebar-user[hidden] { display: none; }
 
-.visa-staff-sidebar:has(.visa-account-trigger[aria-expanded="true"]) { z-index: 7; }
-.visa-account-menu--staff .visa-account-trigger { justify-content: flex-start; width: 100%; color: var(--account-text); }
-.visa-account-menu--staff .visa-account-trigger > svg { margin-inline-start: auto; transition: transform var(--gary-motion-chevron, 200ms) var(--gary-motion-out, ease-out); }
-.visa-account-menu--staff .visa-account-trigger[aria-expanded="true"] > svg { transform: rotate(-90deg); }
-.visa-account-menu--staff .visa-account-label { overflow: hidden; text-overflow: ellipsis; }
-.visa-account-menu--staff .visa-account-panel { inset-block: auto 0; inset-inline: calc(100% + 12px) auto; width: min(22rem, calc(100vw - var(--visa-sidebar-width, 256px) - 32px)); }
-.visa-sidebar-collapsed .visa-account-menu--staff .visa-account-trigger { justify-content: center; padding-inline: 0; }
-.visa-sidebar-collapsed .visa-account-trigger > :not(.visa-account-avatar) { display: none; }
+.visa-account-menu--staff .visa-account-trigger { color: var(--account-text); }
+.visa-account-menu--staff .visa-account-trigger[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.visa-account-menu--staff .visa-account-label { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; }
 
-@media (max-width: 900px) {
-  .visa-mobile-nav-drawer .visa-account-menu--staff .visa-account-panel { inset-block: auto calc(100% + 6px); inset-inline: 0; width: 100%; }
-}
 @media (max-width: 760px) {
   .visa-public .visa-account-trigger { width: 44px; padding: 0; }
   .visa-public .visa-account-trigger > :not(.visa-account-avatar) { display: none; }

@@ -28,6 +28,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(use&&staffIconUpdates[button.dataset.view])remember(use,['href']);
  }
  let enabled=false,heading,toggle,handle,drawer,branches,drag=null,disposed=false,overlay=false;
+ let tooltip,tooltipTarget;
  const save=()=>{try{win.localStorage.setItem(preferenceKey,JSON.stringify({version:1,...preference}));}catch{}};
  const mobile=()=>win.innerWidth<=900;
  const constrained=()=>!mobile()&&win.innerWidth<1100;
@@ -36,6 +37,33 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  const text=()=>language()==='vi'?{collapse:'Thu gọn thanh điều hướng',expand:'Mở rộng thanh điều hướng',show:'Mở điều hướng nhân viên',hide:'Đóng điều hướng nhân viên',resize:'Đổi chiều rộng thanh điều hướng. Dùng phím mũi tên trái/phải; giữ Shift để thay đổi nhiều hơn.',navigation:'Điều hướng không gian nhân viên'}:{collapse:'Collapse staff sidebar',expand:'Expand staff sidebar',show:'Open staff navigation',hide:'Close staff navigation',resize:'Resize staff sidebar. Use left/right arrow keys; hold Shift for larger steps.',navigation:'Staff workspace navigation'};
  const setText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
  function dismissOverlay(){if(!overlay)return;overlay=false;refresh();}
+ function hideTooltip(){tooltipTarget=null;if(tooltip)tooltip.hidden=true;}
+ function positionTooltip(){
+  if(!tooltipTarget)return;
+  if(!workspace.classList.contains('visa-sidebar-collapsed')||tooltipTarget.closest('[hidden]')){hideTooltip();return;}
+  const bounds=tooltipTarget.getBoundingClientRect(),viewport=nav.getBoundingClientRect();
+  const center=bounds.top+bounds.height/2;
+  if(nav.contains(tooltipTarget)&&viewport.height&&(center<viewport.top||center>viewport.bottom)){hideTooltip();return;}
+  setText(tooltip,tooltipTarget.getAttribute('aria-label'));
+  tooltip.hidden=false;
+  const rail=sidebar.getBoundingClientRect(),margin=tooltip.offsetHeight/2+4;
+  tooltip.style.top=Math.max(margin,Math.min(rail.height-margin,center-rail.top))+'px';
+ }
+ function showTooltip(event){
+  if(event.pointerType==='touch'||!workspace.classList.contains('visa-sidebar-collapsed'))return;
+  const button=event.target.closest('[data-view], [data-visa-sidebar-toggle]');
+  if(!button)return;
+  if(event.type==='pointerover'&&event.relatedTarget?.nodeType&&button.contains(event.relatedTarget))return;
+  tooltipTarget=button;positionTooltip();
+ }
+ function leaveTooltip(event){
+  if(!tooltipTarget)return;
+  const next=event.relatedTarget;
+  if(next?.nodeType&&(tooltipTarget.contains(next)||tooltip.contains(next)))return;
+  if(event.type==='pointerout'&&tooltipTarget===doc.activeElement)return;
+  if(event.type==='focusout'&&(tooltipTarget.matches(':hover')||tooltip.matches(':hover')))return;
+  hideTooltip();
+ }
  function syncDrawer(){
   const open=enabled&&Boolean(drawer?.open);
   trigger.setAttribute('aria-expanded',String(open));
@@ -93,6 +121,8 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
    fold.append(destinations);body.append(fold);section.append(control,body);nav.append(section);
   }
   branches=mountBranchedMenu(nav);
+  tooltip=doc.createElement('span');tooltip.className='visa-nav-tooltip';tooltip.hidden=true;
+  tooltip.setAttribute('aria-hidden','true');sidebar.append(tooltip);
   handle=doc.createElement('button');handle.type='button';handle.className='visa-sidebar-resize';handle.dataset.visaSidebarResize='';handle.setAttribute('role','separator');handle.setAttribute('aria-orientation','vertical');sidebar.append(handle);
   drawer=doc.createElement('dialog');drawer.id='visa-mobile-nav';drawer.className='visa-mobile-nav-drawer';
   drawer.setAttribute('aria-modal','true');
@@ -118,7 +148,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   for(const [node,attributes] of oldAttributes){
    for(const [name,value] of attributes)if(value===null)node.removeAttribute(name);else node.setAttribute(name,value);
   }
-  for(const group of nav.querySelectorAll('.visa-nav-group'))group.remove();if(label)sidebar.insertBefore(label,nav);heading?.remove();handle?.remove();
+  for(const group of nav.querySelectorAll('.visa-nav-group'))group.remove();if(label)sidebar.insertBefore(label,nav);heading?.remove();handle?.remove();hideTooltip();tooltip?.remove();
   overlay=false;nav.inert=false;nav.removeAttribute('id');nav.removeAttribute('tabindex');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed','visa-sidebar-constrained','visa-sidebar-overlay');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');sidebar.style.removeProperty('--visa-sidebar-expanded-width');
  }
  function refresh({revealActive=false}={}){
@@ -140,17 +170,18 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   sidebar.style.setProperty('--visa-sidebar-expanded-width',effectiveWidth()+'px');
   nav.setAttribute('aria-label',strings.navigation);
   const action=phone?strings.hide:collapsed?strings.expand:strings.collapse;
-  toggle.setAttribute('aria-label',action);toggle.title=action;
+  toggle.setAttribute('aria-label',action);if(collapsed)toggle.removeAttribute('title');else toggle.title=action;
   if(phone){toggle.removeAttribute('aria-expanded');toggle.removeAttribute('aria-controls');}
   else{toggle.setAttribute('aria-expanded',String(!collapsed));toggle.setAttribute('aria-controls',nav.id);}
   setText(toggle,phone?'×':collapsed?'›':'‹');
   handle.hidden=phone||collapsed||compact;handle.setAttribute('aria-label',strings.resize);handle.title=strings.resize;handle.setAttribute('aria-valuemin','220');handle.setAttribute('aria-valuemax',String(maximum()));handle.setAttribute('aria-valuenow',String(effectiveWidth()));handle.setAttribute('aria-valuetext',`${Math.round(effectiveWidth())} px`);
   for(const group of groups)setText(nav.querySelector(`[data-visa-nav-group="${group.id}"] [data-visa-group-label]`),language()==='vi'?group.vi:group.en);
-  for(const button of buttons){const title=button.querySelector('span')?.textContent.trim()||button.textContent.trim();button.setAttribute('aria-label',title);button.title=title;if(button.classList.contains('active')&&!button.hidden)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
+  for(const button of buttons){const title=button.querySelector('span')?.textContent.trim()||button.textContent.trim();button.setAttribute('aria-label',title);if(collapsed)button.removeAttribute('title');else button.title=title;if(button.classList.contains('active')&&!button.hidden)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
   branches.refresh({rail:collapsed,revealActive,
    expanded:section=>preference.groups[section.dataset.visaNavGroup],
    reveal:section=>{preference.groups[section.dataset.visaNavGroup]=true;}
   });
+  positionTooltip();
  }
  function click(event){
   const target=event.target.closest?.('button');if(!target||!sidebar.contains(target)||!enabled)return;
@@ -175,15 +206,18 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  function pointerUp(){if(drag){save();stopDrag();}}
  function keyDown(event){if(event.target!==handle||handle.hidden)return;if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const step=event.shiftKey?48:16;preference.width=event.key==='Home'?220:event.key==='End'?maximum():Math.max(220,Math.min(maximum(),effectiveWidth()+(event.key==='ArrowLeft'?-step:step)));save();refresh();}
  function viewportChanged(){
-  stopDrag();overlay=false;
-  const focusWasInNavigation=sidebar.contains(doc.activeElement)||doc.activeElement===trigger;
+  stopDrag();
+  const active=doc.activeElement,focusWasInNavigation=sidebar.contains(active)||active===trigger;
   refresh();
   if(!enabled||workspace.hidden||!focusWasInNavigation)return;
   if(mobile()&&!drawer.open)trigger.focus({preventScroll:true});
-  if(!mobile()&&!sidebar.contains(doc.activeElement))toggle.focus({preventScroll:true});
+  if(!mobile()&&(!sidebar.contains(doc.activeElement)||(active===handle&&handle.hidden)||
+   (active.matches('.visa-nav-group-toggle')&&workspace.classList.contains('visa-sidebar-collapsed'))))toggle.focus({preventScroll:true});
  }
  function onKey(event){
-  if(event.key==='Escape'&&overlay){event.preventDefault();event.stopPropagation();dismissOverlay();toggle.focus({preventScroll:true});}
+  if(event.key!=='Escape'||event.defaultPrevented)return;
+  if(tooltipTarget){event.preventDefault();hideTooltip();}
+  else if(overlay){event.preventDefault();event.stopPropagation();dismissOverlay();toggle.focus({preventScroll:true});}
  }
  function outside(event){if(overlay&&!sidebar.contains(event.target))dismissOverlay();}
  const workspaceObserver=new win.MutationObserver(entries=>{
@@ -198,7 +232,13 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  const navigationObserver=new win.MutationObserver(entries=>{if(entries.some(entry=>entry.target.matches?.('[data-view]')))refresh();});navigationObserver.observe(nav,{subtree:true,attributes:true,attributeFilter:['hidden','class']});
  trigger.addEventListener('click',openDrawer);
  sidebar.addEventListener('click',click);sidebar.addEventListener('pointerdown',pointerDown);sidebar.addEventListener('keydown',keyDown);doc.addEventListener('pointerdown',outside);doc.addEventListener('keydown',onKey);win.addEventListener('pointermove',pointerMove,{passive:false});win.addEventListener('pointerup',pointerUp);win.addEventListener('pointercancel',pointerUp);win.addEventListener('blur',pointerUp);win.addEventListener('resize',viewportChanged);
- const controller={refresh,getState:()=>({...preference,groups:{...preference.groups},mobile:mobile(),mobileExpanded:Boolean(drawer?.open),constrained:constrained(),overlay,enabled,width:effectiveWidth()}),destroy(){if(disposed)return;disposed=true;workspaceObserver.disconnect();languageObserver.disconnect();navigationObserver.disconnect();trigger.removeEventListener('click',openDrawer);sidebar.removeEventListener('click',click);sidebar.removeEventListener('pointerdown',pointerDown);sidebar.removeEventListener('keydown',keyDown);doc.removeEventListener('pointerdown',outside);doc.removeEventListener('keydown',onKey);win.removeEventListener('pointermove',pointerMove);win.removeEventListener('pointerup',pointerUp);win.removeEventListener('pointercancel',pointerUp);win.removeEventListener('blur',pointerUp);win.removeEventListener('resize',viewportChanged);disable();mountedSidebars.delete(doc);}};
+ sidebar.addEventListener('pointerover',showTooltip);sidebar.addEventListener('focusin',showTooltip);
+ sidebar.addEventListener('pointerout',leaveTooltip);sidebar.addEventListener('focusout',leaveTooltip);
+ nav.addEventListener('scroll',positionTooltip);doc.addEventListener('focusin',outside);
+ const controller={refresh,getState:()=>({...preference,groups:{...preference.groups},mobile:mobile(),mobileExpanded:Boolean(drawer?.open),constrained:constrained(),overlay,enabled,width:effectiveWidth()}),destroy(){if(disposed)return;disposed=true;workspaceObserver.disconnect();languageObserver.disconnect();navigationObserver.disconnect();trigger.removeEventListener('click',openDrawer);sidebar.removeEventListener('click',click);sidebar.removeEventListener('pointerdown',pointerDown);sidebar.removeEventListener('keydown',keyDown);doc.removeEventListener('pointerdown',outside);doc.removeEventListener('keydown',onKey);win.removeEventListener('pointermove',pointerMove);win.removeEventListener('pointerup',pointerUp);win.removeEventListener('pointercancel',pointerUp);win.removeEventListener('blur',pointerUp);win.removeEventListener('resize',viewportChanged);
+  sidebar.removeEventListener('pointerover',showTooltip);sidebar.removeEventListener('focusin',showTooltip);
+  sidebar.removeEventListener('pointerout',leaveTooltip);sidebar.removeEventListener('focusout',leaveTooltip);
+  nav.removeEventListener('scroll',positionTooltip);doc.removeEventListener('focusin',outside);disable();mountedSidebars.delete(doc);}};
  mountedSidebars.set(doc,controller);refresh();return controller;
 }
 if(typeof document!=='undefined')mountStaffSidebar(document);

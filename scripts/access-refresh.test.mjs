@@ -19,6 +19,7 @@ async function harness(){
  let next={member:true,operations:null,cms:'editor'},identity={data:{user}};
  const calls={reset:0,load:0,rpc:0};
  w.state={user,profile,role:'staff',access:{operations:null,cms:'editor'},generation:1,recovery:false,loading:false};
+ doc.getElementById('workspace').hidden=false;
  w.$=selector=>doc.querySelector(selector);
  w.t=key=>portalCopy[doc.documentElement.lang]?.[key]??portalCopy.en[key]??(key==='myProfile'?'My profile':key);
  w.profileAvatar=createProfileAvatar({
@@ -28,6 +29,7 @@ async function harness(){
  w.staff=()=>w.state.role==='staff';w.operationsRole=()=>w.state.access?.operations;w.cmsRole=()=>w.state.access?.cms;
  w.ownsSite=()=>w.staff()&&w.state.access?.site_owner===true;
  w.feedback=()=>{};w.toast=()=>{};w.setView=view=>{w.state.view=view;w.$('#workspace').hidden=false;w.$('#profile-view').hidden=view!=='profile'};
+ w.navigateView=view=>{if(!w.viewAllowed(view))return false;w.setView(view);return true;};
  w.accountRoleLabel=accountRoleLabel;w.staffAccountPhoto='';w.homeView=()=>w.operationsRole()?'applications':'cms';w.viewAllowed=view=>view==='profile';
  w.staffAccountMenu=mountAccountMenu(w.$('#staff-account-menu'),{staff:true,destinations:{staffProfile:()=>w.openAccountView('profile')}});
  w.$('[data-view=profile]').addEventListener('click',()=>w.setView('profile'));
@@ -58,7 +60,7 @@ test('Visa hung permission validation times out and releases the refresh guard',
 });
 
 
-test('Visa identity uses the verified sign-in email and keeps both roles accessible when collapsed',async()=>{
+test('the single Visa header account exposes both roles with the sidebar collapsed',async()=>{
  const h=await harness();
  try{
   const {w}=h,doc=w.document;
@@ -73,8 +75,11 @@ test('Visa identity uses the verified sign-in email and keeps both roles accessi
   const sidebar=mountStaffSidebar(doc);
   assert.equal(w.$('#workspace').classList.contains('visa-sidebar-collapsed'),true);
   const button=w.$('#staff-account-menu .visa-account-trigger');
+  assert.equal(doc.querySelectorAll('.visa-account-trigger').length,1);
+  assert.ok(button.closest('.portal-header'));
   assert.match(button.getAttribute('aria-label'),/Thảo Nguyễn · signin@example.test · Operations Admin · CMS Admin/);
   button.click();
+  assert.equal(w.$('#staff-account-menu .visa-account-footer').hidden,false);
   w.$('#staff-account-menu [data-account-destination=staffProfile]').click();
   assert.equal(doc.activeElement,w.$('#profile-title'));
   assert.equal(w.$('#profile-view').hidden,false);
@@ -82,6 +87,9 @@ test('Visa identity uses the verified sign-in email and keeps both roles accessi
   doc.documentElement.lang='vi';
   w.renderAccountIdentity();
   assert.deepEqual([...w.$('#profile-account-roles').children].map(el=>el.textContent),['Quản trị Nghiệp vụ','Quản trị CMS']);
+  w.$('#workspace').hidden=true;
+  w.renderAccountIdentity();
+  assert.equal(w.$('#staff-account-menu').hidden,true);
   sidebar.destroy();
  }finally{h.close()}
 });

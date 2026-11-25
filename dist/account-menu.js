@@ -38,7 +38,7 @@ export function mountAccountMenu(root, {staff = false, destinations, onOpen, onR
   root.insertAdjacentHTML('beforeend', `
     <button class="visa-account-trigger" type="button" aria-expanded="false" aria-controls="${root.id}-panel">
       <span class="visa-account-avatar" aria-hidden="true"></span><span class="visa-account-label"></span>
-      ${icon(staff ? '<path d="m9 6 6 6-6 6"/>' : '<path d="m6 9 6 6 6-6"/>')}
+      ${icon('<path d="m6 9 6 6 6-6"/>')}
     </button>
     <div class="visa-account-panel" id="${root.id}-panel" hidden inert>
       <div class="visa-account-identity" hidden>
@@ -92,6 +92,7 @@ export function mountAccountMenu(root, {staff = false, destinations, onOpen, onR
     const {name = '', email = '', photo = '', roles = [], visible = [], current, signedIn, restoring, checking, failed} = account;
     const label = t[staff ? 'staff' : restoring ? 'restoring' : signedIn ? 'account' : 'signin'];
     trigger.setAttribute('aria-label', staff ? [label, name, email !== name && email, ...roles].filter(Boolean).join(' · ') : label);
+    if (staff) trigger.title = label;
     find('.visa-account-label').textContent = staff && name ? name : label;
     if (name !== avatarName || photo !== avatarUrl) {
       for (const avatar of avatars) {

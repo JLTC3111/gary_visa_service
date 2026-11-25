@@ -63,14 +63,14 @@ Object.assign(workspaceCopy.vi,{
 
 Object.assign(workspaceCopy.en,{
  staffViewPermissions:'View permissions',staffSearch:'Search by name or email',
- staffAllRoles:'All roles',staffStatusLabel:'Status',staffAllStatuses:'All statuses',
+ staffAllRoles:'All roles',staffIdentityCol:'Staff',staffStatusLabel:'Status',staffActionsCol:'Actions',staffAllStatuses:'All statuses',
  staffResultCount:'Showing {count} staff',staffNoMatches:'No staff match your search or filters.',
  staffMoreActions:'More actions for {name}',staffEditAccess:'Edit access for {name}',staffAccountEmail:'Account email',
  staffDisplayName:'Visa display name',staffDrawerClose:'Close'
 });
 Object.assign(workspaceCopy.vi,{
  staffViewPermissions:'Xem quyền hạn',staffSearch:'Tìm theo tên hoặc email',
- staffAllRoles:'Tất cả vai trò',staffStatusLabel:'Trạng thái',staffAllStatuses:'Tất cả trạng thái',
+ staffAllRoles:'Tất cả vai trò',staffIdentityCol:'Nhân viên',staffStatusLabel:'Trạng thái',staffActionsCol:'Thao tác',staffAllStatuses:'Tất cả trạng thái',
  staffResultCount:'Đang hiển thị {count} nhân viên',staffNoMatches:'Không tìm thấy nhân viên phù hợp với từ khóa hoặc bộ lọc.',
  staffMoreActions:'Thao tác khác cho {name}',staffEditAccess:'Chỉnh sửa quyền truy cập của {name}',staffAccountEmail:'Email tài khoản',
  staffDisplayName:'Tên hiển thị trên Visa',staffDrawerClose:'Đóng'

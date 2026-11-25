@@ -80,7 +80,6 @@ const profileAvatar=createProfileAvatar({db,doc:document,t,name:()=>state.profil
 function translate(){
  document.documentElement.lang=language;editorWorkspaces.refresh();
  $$('[data-p]').forEach(node=>{node.textContent=t(node.dataset.p)});$$('[data-p-placeholder]').forEach(node=>{node.placeholder=t(node.dataset.pPlaceholder)});
- $('.portal-home')?.setAttribute('aria-label',t('backWebsite'));
  updateLanguageSwitch(language);
  try{localStorage.setItem('gary-language',language)}catch{}
  document.dispatchEvent(new CustomEvent('gary:language',{detail:{language}}));renderAuth();if(state.user&&state.profile){renderIdentity();renderApplications();setCounterValues(document,caseStats,language);crm.render();inbox.render();cms.translate();trash.render();staffAccess.render();if(state.currentCase&&state.caseData)renderCase();}
@@ -151,7 +150,19 @@ function startConnectionLattice(form){
  stopConnectionLattice=()=>{cancel();if(slot.isConnected)slot.remove();stopConnectionLattice=()=>{}};
  return stopConnectionLattice;
 }
-function setScreen(name){stopWorkspaceLattice();stopWorkspaceLattice=()=>{};if(name!=='auth-screen')stopConnectionLattice();for(const id of ['auth-screen','workspace-loading','workspace-error','workspace'])$(`#${id}`).hidden=id!==name;if(name==='workspace-loading'){const slot=$('#workspace-lattice'),api=globalThis.garyLattice;if(slot&&api)stopWorkspaceLattice=api.showDelayedLattice(slot,{pattern:'ripple',grid:4,label:'',cellSize:8,gap:3,fontSize:14})}if(name!=='workspace')staffAccountMenu.close();$('#signout').hidden=!state.user||staff();updateDocumentTitle()}
+function setScreen(name){
+ stopWorkspaceLattice();
+ stopWorkspaceLattice=()=>{};
+ if(name!=='auth-screen')stopConnectionLattice();
+ for(const id of ['auth-screen','workspace-loading','workspace-error','workspace'])$(`#${id}`).hidden=id!==name;
+ if(name==='workspace-loading'){
+  const slot=$('#workspace-lattice'),api=globalThis.garyLattice;
+  if(slot&&api)stopWorkspaceLattice=api.showDelayedLattice(slot,{pattern:'ripple',grid:4,label:'',cellSize:8,gap:3,fontSize:14});
+ }
+ renderStaffAccountMenu();
+ $('#signout').hidden=!state.user||staff()||name==='workspace-error';
+ updateDocumentTitle();
+}
 function resetWorkspace(){
  delete document.body.dataset.visaView;
  $('#application-kind-filter').value='';
@@ -189,7 +200,7 @@ async function loadWorkspace(requested){
   requested??=new URL(location.href).searchParams.get('view');
   if(requested!==home&&VIEWS.includes(requested)&&viewAllowed(requested))setView(requested);else if(home!=='applications')setView(home);
   syncStaffViewUrl();
- }catch(error){if(generation===state.generation){setScreen('workspace-error');$('#signout').hidden=!state.user}}
+ }catch(error){if(generation===state.generation)setScreen('workspace-error')}
  finally{if(generation===state.generation)state.loading=false}
 }
 $('#retry-workspace').addEventListener('click',()=>loadWorkspace());
@@ -249,7 +260,7 @@ function renderAccountIdentity(){
  renderStaffAccountMenu();
 }
 function renderStaffAccountMenu(){
- const signedIn=Boolean(staff()&&state.profile);
+ const signedIn=Boolean(staff()&&state.user&&state.profile&&!$('#workspace').hidden);
  $('#customer-sidebar-user').hidden=staff();
  $('#staff-account-menu').hidden=!signedIn;
  if(!signedIn){staffAccountMenu.close();staffAccountMenu.update({});return;}
@@ -262,9 +273,8 @@ function renderStaffAccountMenu(){
   name:state.profile.full_name?.trim()||state.user.email||t('account'),email:state.user.email,photo:staffAccountPhoto});
 }
 function openAccountView(view){
- if(!staff()||!viewAllowed(view))return;
- $(`#workspace .workspace-sidebar [data-view="${view}"]`)?.click();
- if(view==='profile'&&state.view===view&&!$('.visa-mobile-nav-drawer[open]'))$('#profile-title').focus();
+ if(!staff()||!navigateView(view))return;
+ if(view==='profile')$('#profile-title').focus();
 }
 $('#sidebar-profile-button').addEventListener('click',()=>{
  navigateView('profile');

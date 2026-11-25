@@ -214,7 +214,7 @@ test('mobile drawer CSS fits the requested widths and gives its navigation an in
  assert.match(css,/\.visa-mobile-nav-drawer>\.visa-staff-sidebar\{[^}]*height:100%;min-width:0;min-height:0/);
  assert.match(css,/grid-template-columns:minmax\(0,1fr\)/);
  assert.match(css,/\.visa-mobile-nav-trigger[^\{]*\{[^}]*width:44px;height:44px/);
- assert.match(css,/max-width:900px\)[\s\S]*\.portal-header\{[^}]*flex-wrap:wrap/);
+ assert.match(css,/\.visa-staff-workspace>\.workspace-content\{grid-column:-2 \/ -1;grid-row:1/);
  assert.match(css,/prefers-reduced-motion:reduce\).*\.visa-mobile-nav-drawer::backdrop\{transition:none/);
 });
 test('storage denial, narrow desktop bounds and CSS theme/reduced-motion support remain safe',async()=>{
@@ -236,5 +236,30 @@ test('intermediate widths keep an icon rail that expands as an overlay without r
   h.w.innerWidth=1200;h.w.dispatchEvent(new h.w.Event('resize'));
   assert.equal(h.controller.getState().constrained,false);
   assert.equal(h.doc.getElementById('workspace').classList.contains('visa-sidebar-collapsed'),false);
+ }finally{h.close();}
+});
+
+test('the rail tooltip responds to pointer and keyboard and keeps the destination name accessible',()=>{
+ const h=harness({width:1000});try{
+  const application=h.doc.querySelector('[data-view=applications]'),tooltip=h.doc.querySelector('.visa-nav-tooltip');
+  const nav=application.closest('nav');
+  const pointer=(target,type,relatedTarget)=>target.dispatchEvent(new h.w.MouseEvent(type,{bubbles:true,relatedTarget}));
+  assert.equal(nav.contains(tooltip),false,'the scroll area cannot clip the tooltip');
+  pointer(application,'pointerover');
+  assert.equal(tooltip.hidden,false);
+  assert.equal(tooltip.textContent,application.getAttribute('aria-label'));
+  pointer(application,'pointerout',tooltip);
+  assert.equal(tooltip.hidden,false);
+  pointer(tooltip,'pointerout',h.doc.querySelector('.workspace-content'));
+  assert.equal(tooltip.hidden,true);
+  application.focus();
+  assert.equal(tooltip.hidden,false);
+  application.dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+  assert.equal(tooltip.hidden,true);
+  assert.equal(h.doc.activeElement,application);
+  h.doc.querySelector('[data-visa-sidebar-toggle]').click();
+  assert.equal(nav.hasAttribute('data-branched-rail'),false);
+  pointer(application,'pointerover');
+  assert.equal(tooltip.hidden,true);
  }finally{h.close();}
 });

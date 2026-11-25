@@ -104,7 +104,6 @@ html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-heade
 }
 .portal-home .icon{width:16px;height:16px;flex:none;transform:scaleX(-1)}
 .portal-home:hover{color:var(--vp-accent,var(--teal));background:var(--vp-hover,var(--paper));border-color:var(--vp-line,var(--line))}
-body[data-role=staff] .portal-header #signout{display:none!important}
 @media(max-width:900px){
   html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header{flex-wrap:wrap}
   html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header-right{flex-wrap:wrap;gap:.35rem}
@@ -118,5 +117,58 @@ body[data-role=staff] .portal-header #signout{display:none!important}
 @media(max-width:520px){
   html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header .wordmark{font-size:28px}
   .portal-header .wordmark-label{display:none}
+}
+
+html[data-visa-portal=staff]{scroll-padding-top:calc(var(--visa-portal-header-height,64px) + 8px)}
+html[data-visa-portal=staff] .portal-body .portal-header{
+  --staff-header-gutter:clamp(.625rem,2.3vw,1.5rem);
+  position:sticky;top:0;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:.375rem .75rem;padding:.375rem var(--staff-header-gutter);
+}
+html[data-visa-portal=staff] .portal-body .portal-header-brand{gap:clamp(.375rem,1vw,.85rem)}
+html[data-visa-portal=staff] .portal-body .portal-header .wordmark{
+  flex:none;font-size:clamp(2rem,3.4vw,2.75rem);white-space:nowrap;
+}
+html[data-visa-portal=staff] .portal-header .wordmark-label{
+  display:inline;margin-inline-start:.45rem;font-size:.45rem;
+}
+html[data-visa-portal=staff] .portal-context{
+  min-width:0;padding:.125rem 0 .125rem .65rem;border:0;border-inline-start:1px solid var(--vp-line,var(--line));
+  border-radius:0;background:transparent;font-size:.75rem;line-height:1.3;letter-spacing:0;
+  text-transform:none;white-space:normal;text-wrap:balance;
+}
+html[data-visa-portal=staff] .portal-body .portal-header-right{gap:.25rem;justify-self:end;flex-wrap:nowrap}
+html[data-visa-portal=staff] .portal-header :is(.portal-preferences, .gary-apps-menu){position:static}
+html[data-visa-portal=staff] .portal-header .gary-apps-menu{flex:none}
+html[data-visa-portal=staff] .portal-header :is(.portal-home, .portal-preferences-trigger, .gary-apps-menu > summary){
+  min-width:44px;min-height:44px;border-radius:8px;justify-content:center;
+}
+html[data-visa-portal=staff] .portal-header .portal-home{white-space:nowrap}
+html[data-visa-portal=staff] .portal-header :is(a, button, summary):focus-visible{
+  outline:2px solid var(--vp-focus,var(--teal));outline-offset:2px;
+}
+html[data-visa-portal=staff] .portal-header :is(.portal-preferences-panel, .gary-apps-menu-panel, .visa-account-panel){
+  position:absolute;inset:calc(100% + 8px) var(--staff-header-gutter) auto auto;
+  max-height:calc(100dvh - var(--visa-portal-header-height,64px) - 1rem);
+}
+html[data-visa-portal=staff] .portal-header .gary-apps-menu-panel{width:min(27.5rem,calc(100vw - 2 * var(--staff-header-gutter)))}
+.portal-header:has(#staff-account-menu .visa-account-trigger[aria-expanded=true]){z-index:40}
+
+@media(max-width:72rem){
+  html[data-visa-portal=staff] .portal-header .visa-account-trigger{width:44px;padding-inline:0}
+  html[data-visa-portal=staff] .portal-header .visa-account-trigger > :not(.visa-account-avatar){display:none}
+}
+@media(max-width:60rem){
+  html[data-visa-portal=staff] .portal-header .portal-home{width:44px;padding-inline:0}
+  html[data-visa-portal=staff] .portal-header .portal-home-label{display:none}
+}
+@media(max-width:50rem){
+  html[data-visa-portal=staff] .portal-header .gary-apps-menu > summary{width:44px;padding-inline:0}
+  html[data-visa-portal=staff] .portal-header .gary-apps-menu > summary > :is(span, .gary-apps-chevron){display:none}
+}
+@media(max-width:40rem){
+  html[data-visa-portal=staff] .portal-body .portal-header{grid-template-columns:minmax(0,1fr)}
+  html[data-visa-portal=staff] .portal-body .portal-header-right{flex-wrap:wrap}
 }
 @media(prefers-reduced-motion:reduce){html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .loading-mark{animation:none}}

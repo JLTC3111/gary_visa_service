@@ -50,6 +50,7 @@ export function createStaffAccess({
 }){
  const {$,el,take}=workspaceUI(doc,t);
  const view=$('#staff-access-view'),list=$('#staff-access-list'),drawer=$('#staff-access-drawer');
+ const columns=view.querySelector('.staff-access-columns');
  const form=$('#staff-access-form'),filters=$('#staff-access-filters'),search=$('#staff-access-search');
  const control=name=>form.elements.namedItem(name);
  const email=control('email'),fullName=control('full_name'),findButton=$('#staff-access-find');
@@ -124,13 +125,18 @@ export function createStaffAccess({
   editorNotice(draft,draft.notice?.key,draft.notice?.error);
  }
 
- function rowAction(id,action){
-  return list.querySelector('[data-staff-member="'+id+'"] [data-staff-action="'+action+'"]');
+ function rowLauncher(id,action){
+  const row=list.querySelector('[data-staff-member="'+id+'"]');
+  if(action==='identity')return row?.querySelector('.staff-access-person');
+  const edit=row?.querySelector('.staff-access-edit-desktop'),more=row?.querySelector('[data-staff-action=more]');
+  const visible=node=>doc.defaultView.getComputedStyle(node).display!=='none';
+  const candidates=action==='more'?[more,edit]:[edit,more];
+  return candidates.find(button=>button&&!button.disabled&&visible(button)&&visible(button.parentElement));
  }
 
  function restoreDrawerFocus(draft){
   if(view.hidden||!canView())return;
-  const button=draft.member?rowAction(draft.member.user_id,'edit'):addButton;
+  const button=draft.member?rowLauncher(draft.member.user_id,draft.launcher):addButton;
   (button&&!button.disabled?button:search).focus({preventScroll:true});
  }
 
@@ -145,6 +151,11 @@ export function createStaffAccess({
   menu.panel.setAttribute('aria-hidden','true');
  }
 
+ function focusMenuAction(panel){
+  const button=[...panel.querySelectorAll('button:not(:disabled)')].find(item=>doc.defaultView.getComputedStyle(item).display!=='none');
+  button?.focus({preventScroll:true});
+ }
+
  function openMenu(button){
   if(state.menu?.button===button){closeMenu(true);return;}
   closeMenu();
@@ -153,8 +164,10 @@ export function createStaffAccess({
   button.setAttribute('aria-expanded','true');
   panel.removeAttribute('inert');
   panel.removeAttribute('aria-hidden');
+  const bounds=button.getBoundingClientRect(),height=panel.offsetHeight+6;
+  panel.toggleAttribute('data-above',bounds.bottom+height>doc.defaultView.innerHeight&&bounds.top>=height);
   panel.setAttribute('data-open','');
-  panel.querySelector('button').focus({preventScroll:true});
+  focusMenuAction(panel);
  }
 
  function status(member){
@@ -186,24 +199,28 @@ export function createStaffAccess({
      'aria-expanded':'false','aria-controls':menuId,'aria-label':t('staffMoreActions').replace('{name}',()=>name),
      disabled:blocked()?'':null},el('span',{'aria-hidden':'true'},'⋮')),
     el('div',{id:menuId,class:'staff-access-menu-panel',inert:'','aria-hidden':'true'},[
-     removable?el('button',{type:'button','data-staff-action':'remove'},t('staffRemove')):null,
-     editable?el('button',{...editAttrs,class:'staff-access-edit-menu'},t('staffEdit')):null
+     editable?el('button',{...editAttrs,class:'staff-access-edit-menu'},t('staffEdit')):null,
+     removable?el('button',{type:'button','data-staff-action':'remove'},t('staffRemove')):null
     ].filter(Boolean))
    ])
   ]):null;
   const email=member.email&&member.email!==name?member.email:null;
   return el('article',{class:'staff-access-member','data-staff-member':id},[
-   el('div',{class:'staff-access-identity'},[avatar,el('div',{class:'staff-access-details'},[
-    el('strong',{title:name},name),email?el('small',{title:email},email):null
-   ])]),
-   status(member),...scopes.map(scope=>roleSummary(member,scope)),actions
+   el('details',{class:'staff-access-identity'},[
+    el('summary',{class:'staff-access-person'},[avatar,el('span',{class:'staff-access-details'},[
+     el('strong',{},name),email?el('small',{},email):null
+    ])]),
+    el('div',{class:'staff-access-identity-panel'},[el('strong',{},name),email?el('small',{},email):null])
+   ]),
+   el('div',{class:'staff-access-member-meta'},[status(member),...scopes.map(scope=>roleSummary(member,scope))]),actions
   ]);
  }
 
  function renderDirectory(){
-  const active=doc.activeElement?.closest('[data-staff-action]');
+  const active=doc.activeElement?.closest('[data-staff-action], .staff-access-person');
   const focusedRow=active?.closest('[data-staff-member]')?.dataset.staffMember;
-  const focusedAction=active?.dataset.staffAction==='remove'?'more':active?.dataset.staffAction;
+  const focusedAction=active?.closest('.staff-access-menu')?'more':active?.dataset.staffAction||'identity';
+  const identityOpen=focusedAction==='identity'&&active?.parentElement.open;
   closeMenu();
   const query=searchable(search.value),filterValues=Object.fromEntries(new doc.defaultView.FormData(filters));
   const filtering=Boolean(query||filterValues.operations||filterValues.cms||filterValues.status);
@@ -216,14 +233,16 @@ export function createStaffAccess({
   clearButton.hidden=!filtering;
   const message=state.loading||state.failed?'':t('staffResultCount').replace('{count}',members.length);
   if(count.textContent!==message)count.textContent=message;
+  columns.hidden=!members.length;
   if(members.length)list.replaceChildren(...members.map(memberRow));
   else{
    const empty=state.loading?'staffAccessLoading':state.failed?'staffAccessUnavailable':filtering?'staffNoMatches':'staffAccessEmpty';
    list.replaceChildren(el('div',{class:'empty-state'},el('h3',{},t(empty))));
   }
   if(focusedRow){
-   const button=rowAction(focusedRow,focusedAction);
-   if(button&&!button.disabled)button.focus({preventScroll:true});
+   const button=rowLauncher(focusedRow,focusedAction);
+   if(identityOpen&&button)button.parentElement.open=true;
+   button?.focus({preventScroll:true});
   }
  }
 
@@ -250,8 +269,9 @@ export function createStaffAccess({
   if(restore)restoreDrawerFocus(draft);
  }
 
- function openDrawer(draft){
+ function openDrawer(draft,launcher){
   closeMenu();
+  draft.launcher=launcher;
   state.editor=draft;
   renderDrawer();
   formControls.refresh();
@@ -431,8 +451,8 @@ export function createStaffAccess({
   const action=button.dataset.staffAction;
   if(action==='edit'&&canEdit(member)){
    if(!state.edits.has(member.user_id))state.edits.set(member.user_id,newDraft(member));
-   openDrawer(state.edits.get(member.user_id));
-  }else if(action==='more'&&member.manage_membership)openMenu(button);
+   openDrawer(state.edits.get(member.user_id),button.matches('.staff-access-edit-menu')?'more':'edit');
+  }else if(action==='more'&&(canEdit(member)||member.manage_membership))openMenu(button);
   else if(action==='remove'&&member.manage_membership&&state.menu?.panel.contains(button)){
    closeMenu(true);
    if(doc.defaultView.confirm(t('staffRemoveConfirm')+'\n\n'+memberName(member))){
@@ -441,22 +461,32 @@ export function createStaffAccess({
   }
  }
 
- function closeOutsideMenu(event){
+ function closeIdentityOutside(target=null){
+  const identity=list.querySelector('.staff-access-identity[open]');
+  if(identity&&!identity.contains(target))identity.open=false;
+ }
+
+ function closeOutsideDisclosures(event){
   if(state.menu&&!state.menu.group.contains(event.target))closeMenu();
+  closeIdentityOutside(event.target);
  }
 
  function updateFilters(){if(canView())renderDirectory();}
  list.addEventListener('click',listAction);
  list.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&state.menu){event.preventDefault();closeMenu(true);}
+  if(event.key==='Escape'){
+   if(state.menu){event.preventDefault();closeMenu(true);}
+   const identity=event.target.closest('.staff-access-identity[open]');
+   if(identity){event.preventDefault();identity.open=false;}
+  }
   if(event.key==='ArrowDown'&&event.target.dataset.staffAction==='more'&&canAct()){
    event.preventDefault();
-   if(state.menu?.button===event.target)state.menu.panel.querySelector('button').focus({preventScroll:true});
-   else openMenu(event.target);
+   if(state.menu?.button===event.target)focusMenuAction(state.menu.panel);
+   else event.target.click();
   }
  });
- doc.addEventListener('pointerdown',closeOutsideMenu);
- doc.addEventListener('focusin',closeOutsideMenu);
+ doc.addEventListener('pointerdown',closeOutsideDisclosures);
+ doc.addEventListener('focusin',closeOutsideDisclosures);
  filters.addEventListener('submit',event=>event.preventDefault());
  search.addEventListener('input',updateFilters);
  filters.addEventListener('change',updateFilters);
@@ -486,7 +516,7 @@ export function createStaffAccess({
  });
  form.addEventListener('change',()=>{if(state.editor)captureDraft(state.editor);});
 
- function leave(){closeMenu();dismissDrawer(false);}
+ function leave(){closeMenu();closeIdentityOutside();dismissDrawer(false);}
 
  function reset(){
   state.generation++;state.request++;state.photos.clear();
@@ -498,7 +528,7 @@ export function createStaffAccess({
   for(const scope of scopes){control(scope).replaceChildren();delete control(scope).dataset.options;}
   email.removeAttribute('aria-invalid');
   paint(notice,null);paint(feedback,null);
-  list.replaceChildren();list.removeAttribute('aria-busy');count.textContent='';
+  columns.hidden=true;list.replaceChildren();list.removeAttribute('aria-busy');count.textContent='';
   clearButton.hidden=true;addButton.disabled=true;refreshButton.disabled=false;
   renderDrawer();
  }

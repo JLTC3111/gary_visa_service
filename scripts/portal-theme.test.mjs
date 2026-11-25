@@ -30,6 +30,8 @@ test('staff bootstrap resolves the website preference before styles and portal h
    const expected=theme==='system'?(dark?'dark':'light'):theme;
    assert.equal(h.d.documentElement.dataset.visaTheme,expected);assert.equal(h.d.documentElement.dataset.visaStaffTheme,expected);assert.equal(h.d.documentElement.dataset.visaPortal,'staff');assert.equal(h.d.documentElement.style.colorScheme,expected);
    assert.equal(h.d.getElementById('portal-theme').value,theme);assert.equal(h.d.querySelector('.portal-appearance').hidden,false);
+   assert.equal(h.d.getElementById('portal-context').textContent,lang==='vi'?'Không gian nhân viên':'Staff Workspace');
+   assert.equal(h.d.querySelector('.portal-home').getAttribute('aria-label'),lang==='vi'?'Xem trang web':'View website');
    assert.equal(h.d.querySelector('[data-portal-appearance-label]').textContent,lang==='vi'?'Giao diện':'Appearance');
    assert.equal(h.d.querySelector('[data-portal-preferences]').getAttribute('aria-label'),lang==='vi'?'Tùy chọn website':'Site preferences');
   }finally{h.close();}
@@ -68,6 +70,7 @@ test('every staff route and expanded/collapsed/mobile navigation share theme wit
 test('customer appearance and access remain separate from the staff presentation; blocked storage is safe',async()=>{
  const h=harness({theme:'dark',role:'customer'});try{
   assert.equal(h.d.documentElement.dataset.visaPortal,'customer');assert.equal(h.d.querySelector('.portal-appearance').hidden,true);assert.equal(h.d.documentElement.style.colorScheme,'light');
+  assert.equal(h.d.querySelector('.portal-home-label').textContent,'Back to website');
   h.d.body.dataset.role='staff';await settle();assert.equal(h.d.documentElement.dataset.visaPortal,'staff');assert.equal(h.d.documentElement.style.colorScheme,'dark');assert.equal(h.d.body.dataset.role,'staff','theme never assigns a role');
   const denied={getItem(){throw Error('denied');},setItem(){throw Error('denied');}};Object.defineProperty(h.w,'localStorage',{value:denied});change(h,'light');assert.equal(h.d.documentElement.dataset.visaTheme,'light');
  }finally{h.close();}
@@ -132,5 +135,8 @@ test('portal theme Squish Switch follows the shared preference and system change
     h.d.documentElement.lang = 'vi';
     h.d.dispatchEvent(new h.w.Event('gary:language'));
     assert.equal(theme.querySelector('[role=radio][aria-checked=true]').textContent, 'Hệ thống');
+    theme.dispatchEvent(new h.w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+    assert.equal(h.d.getElementById('portal-preferences-panel').hidden,true);
+    assert.equal(h.d.activeElement,h.d.querySelector('[data-portal-preferences]'));
   } finally { switches.destroy(); h.close(); }
 });

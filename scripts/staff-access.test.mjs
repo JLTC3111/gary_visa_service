@@ -83,6 +83,7 @@ test('Team Access displays visible accounts to read-only staff without offering 
   assert.match(h.row(ids.self).textContent,/Casey Staff/);
   assert.equal(h.$('#staff-access-open-add').hidden,true);
   assert.equal(h.action(ids.self,'edit'),null);
+  assert.equal(h.action(ids.self,'more'),null);
  }finally{h.close();}
 });
 
@@ -171,12 +172,14 @@ test('Team Access searches names and emails and combines independently labelled 
   assert.deepEqual(shown(),[ids.editor]);
   pick('status','active');
   assert.deepEqual(shown(),[]);
+  assert.equal(h.$('.staff-access-columns').hidden,true);
   assert.match(h.$('#staff-access-list').textContent,/No staff match/);
   h.translate('vi');
   assert.match(h.$('#staff-access-list').textContent,/Không tìm thấy nhân viên/);
   assert.equal(h.$('#staff-filter-status').value,'active');
   h.$('#staff-access-clear').click();
   assert.equal(shown().length,4);
+  assert.equal(h.$('.staff-access-columns').hidden,false);
   assert.equal(search.value,'');
   assert.equal(h.doc.activeElement,search);
   assert.equal(h.rpcs('gary_staff_access_list').length,1);
@@ -317,6 +320,7 @@ test('Team Access confirms removal and tells staff to reassign active cases firs
   await h.controller.enter();
   const more=h.action(ids.staff,'more'),remove=h.action(ids.staff,'remove');
   const menu=h.doc.getElementById(more.getAttribute('aria-controls'));
+  menu.querySelector('.staff-access-edit-menu').style.display='none';
   const press=(element,key)=>element.dispatchEvent(new h.dom.window.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
   assert.equal(more.getAttribute('aria-label'),'More actions for Chi Staff');
   assert.equal(menu.hasAttribute('inert'),true);
@@ -341,6 +345,42 @@ test('Team Access confirms removal and tells staff to reassign active cases firs
   assigned=false;revoke();await settle();
   assert.equal(h.row(ids.staff),null);assert.deepEqual(h.notices,['staffRemoved']);
   assert.equal(h.doc.activeElement,h.$('#refresh-staff-access'));
+ }finally{h.close();}
+});
+
+test('staff cards disclose long identities and offer Edit Access without granting revoke access',async()=>{
+ const h=harness();
+ try{
+  const fullName='Nguyễn Thị '+ 'Minh '.repeat(15)+'Anh';
+  const email='long.staff.address.'.repeat(8)+'@example.test';
+  h.updateMember(ids.editor,{email,display_name:fullName});
+  await h.controller.enter();
+  h.translate('vi');
+  const row=h.row(ids.editor),person=row.querySelector('summary'),identity=person.parentElement;
+  const more=h.action(ids.editor,'more'),menu=h.doc.getElementById(more.getAttribute('aria-controls'));
+  const edit=menu.querySelector('[data-staff-action=edit]');
+  row.querySelector('.staff-access-edit-desktop').style.display='none';
+  assert.equal(identity.open,false);
+  person.focus();person.click();
+  assert.equal(identity.open,true);
+  assert.equal(identity.querySelector('.staff-access-identity-panel strong').textContent,fullName);
+  assert.equal(identity.querySelector('.staff-access-identity-panel small').textContent,email);
+  person.dispatchEvent(new h.dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+  assert.equal(identity.open,false);
+  assert.equal(h.doc.activeElement,person);
+  assert.equal(h.action(ids.editor,'remove'),null);
+  more.click();
+  assert.equal(more.getAttribute('aria-expanded'),'true');
+  assert.equal(edit.textContent,'Chỉnh sửa');
+  assert.equal(h.doc.activeElement,edit);
+  edit.click();
+  assert.equal(h.drawer.open,true);
+  assert.equal(h.control('operations').disabled,false);
+  assert.equal(h.control('cms').disabled,true);
+  assert.equal(h.control('full_name').readOnly,true);
+  h.$('#staff-access-cancel').click();
+  assert.equal(h.doc.activeElement,more);
+  assert.equal(h.rpcs('gary_remove_staff_member').length,0);
  }finally{h.close();}
 });
 

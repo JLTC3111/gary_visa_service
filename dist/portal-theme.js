@@ -8,8 +8,10 @@ const words = {
     light: 'Light',
     dark: 'Dark',
     system: 'System',
-    staff: 'STAFF WORKSPACE',
-    customer: 'CUSTOMER WORKSPACE'
+    staff: 'Staff Workspace',
+    viewWebsite: 'View website',
+    backWebsite: 'Back to website',
+    agencyHome: 'Gary Agency home'
   },
   vi: {
     preferences: 'Tùy chọn website',
@@ -19,8 +21,10 @@ const words = {
     light: 'Sáng',
     dark: 'Tối',
     system: 'Hệ thống',
-    staff: 'KHÔNG GIAN NHÂN VIÊN',
-    customer: 'KHÔNG GIAN KHÁCH HÀNG'
+    staff: 'Không gian nhân viên',
+    viewWebsite: 'Xem trang web',
+    backWebsite: 'Về trang web',
+    agencyHome: 'Trang chủ Gary Agency'
   }
 };
 const instances = new WeakMap();
@@ -34,6 +38,8 @@ export function mountPortalTheme(doc = document) {
   const closeButton = doc.querySelector('[data-portal-preferences-close]');
   const context = doc.getElementById('portal-context');
   const header = doc.querySelector('.portal-header');
+  const website = header?.querySelector('.portal-home');
+  const wordmark = header?.querySelector('.wordmark');
   let selectedArea = root.dataset.visaPortal || (new URLSearchParams(win.location.search).get('area') === 'staff' ? 'staff' : 'customer');
   let open = false;
   const copy = () => words[root.lang === 'vi' ? 'vi' : 'en'];
@@ -74,11 +80,20 @@ export function mountPortalTheme(doc = document) {
     if (!themed) setOpen(false);
     const t = copy();
     if (context) {
-      const signedStaff = role === 'staff';
-      context.hidden = !signedStaff;
-      context.textContent = signedStaff ? t.staff : t.customer;
+      context.hidden = role !== 'staff';
+      context.textContent = t.staff;
     }
-    if (trigger) trigger.setAttribute('aria-label', t.preferences);
+    if (website) {
+      const label = staff ? t.viewWebsite : t.backWebsite;
+      website.setAttribute('aria-label', label);
+      website.title = label;
+      website.querySelector('.portal-home-label').textContent = label;
+    }
+    wordmark?.setAttribute('aria-label', t.agencyHome);
+    if (trigger) {
+      trigger.setAttribute('aria-label', t.preferences);
+      trigger.title = t.preferences;
+    }
     if (closeButton) closeButton.setAttribute('aria-label', t.close);
     const title = doc.getElementById('portal-preferences-title');
     if (title) title.textContent = t.preferences;

@@ -1,8 +1,8 @@
 /* Visa retains its navigation, permissions and editor modals. Only staff navigation is enhanced. */
-#workspace.visa-staff-workspace{--visa-nav-bg:var(--vp-surface,#fff);--visa-nav-ink:var(--vp-text,#173954);--visa-nav-muted:var(--vp-muted,#586b75);--visa-nav-line:var(--vp-line,#dce5e4);--visa-nav-active:var(--vp-soft,#e8f2ef);--visa-nav-accent:var(--vp-accent,#286d73);display:grid;grid-template-columns:var(--visa-sidebar-width,256px) minmax(0,1fr)}
+#workspace.visa-staff-workspace{--visa-nav-bg:var(--vp-surface,#fff);--visa-nav-ink:var(--vp-text,#173954);--visa-nav-muted:var(--vp-muted,#586b75);--visa-nav-line:var(--vp-line,#dce5e4);--visa-nav-active:var(--vp-soft,#e8f2ef);--visa-nav-accent:var(--vp-accent,#286d73);display:grid;grid-template-columns:var(--visa-sidebar-width,256px) minmax(0,1fr);min-height:calc(100dvh - var(--visa-portal-header-height,64px))}
 #workspace.visa-staff-workspace[hidden]{display:none}
-.visa-staff-workspace>.workspace-content{min-width:0;max-width:none}
-.visa-staff-workspace>.visa-staff-sidebar{box-sizing:border-box;position:sticky;top:0;align-self:start;display:flex;flex-direction:column;min-width:0;min-height:0;height:calc(100dvh - var(--visa-portal-header-height,64px));padding:22px 16px 16px;background:var(--visa-nav-bg);color:var(--visa-nav-ink);border-right:1px solid var(--visa-nav-line)}
+.visa-staff-workspace>.workspace-content{grid-column:-2 / -1;grid-row:1;min-width:0;max-width:none}
+.visa-staff-workspace>.visa-staff-sidebar{box-sizing:border-box;position:sticky;top:var(--visa-portal-header-height,64px);align-self:start;display:flex;flex-direction:column;min-width:0;min-height:0;height:calc(100dvh - var(--visa-portal-header-height,64px));padding:16px;background:var(--visa-nav-bg);color:var(--visa-nav-ink);border-right:1px solid var(--visa-nav-line)}
 .visa-staff-sidebar .visa-sidebar-heading{display:flex;align-items:center;justify-content:space-between;flex:none;gap:8px;margin-bottom:12px;min-height:38px}
 .visa-staff-sidebar .workspace-label{display:flex;min-width:0;white-space:normal;line-height:1.5;margin:0 0 0 7px;font-size:10px;letter-spacing:.08em;color:var(--visa-nav-muted)}
 .visa-staff-sidebar .visa-sidebar-toggle{display:grid;place-items:center;width:36px;height:36px;min-width:36px;border:1px solid var(--visa-nav-line);border-radius:7px;background:var(--visa-nav-bg);color:var(--visa-nav-ink);font:500 24px/1 system-ui;cursor:pointer}
@@ -21,11 +21,21 @@
 .visa-staff-sidebar .visa-sidebar-resize{position:absolute;z-index:6;right:-5px;top:0;bottom:0;width:10px;min-width:0;min-height:0;padding:0;border:0;border-radius:0;background:transparent;cursor:ew-resize;touch-action:none}
 .visa-staff-sidebar .visa-sidebar-resize::after{content:"";position:absolute;width:3px;height:44px;right:3px;top:calc(50% - 22px);border-radius:3px;background:var(--visa-nav-line)}
 .visa-staff-sidebar .visa-sidebar-resize:hover::after,.visa-staff-sidebar .visa-sidebar-resize:focus-visible::after{background:var(--visa-nav-accent)}
-.visa-sidebar-collapsed>.visa-staff-sidebar{padding-inline:10px}
+.visa-sidebar-collapsed>.visa-staff-sidebar{z-index:6;padding-inline:10px}
 .visa-sidebar-collapsed .visa-sidebar-heading{justify-content:center;margin-bottom:10px}
 .visa-sidebar-collapsed .workspace-label,.visa-sidebar-collapsed .visa-nav-group-toggle{display:none}
 .visa-sidebar-collapsed .workspace-nav [data-view]{justify-content:center;padding:8px;position:relative}
 .visa-sidebar-collapsed .workspace-nav [data-view]>span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.visa-nav-tooltip{
+  position:absolute;inset-inline-start:calc(100% + 6px);translate:0 -50%;
+  width:max-content;max-width:min(15rem,calc(100vw - 6rem));padding:5px 9px;
+  border:1px solid var(--visa-nav-line);border-radius:6px;
+  background:var(--visa-nav-bg);color:var(--visa-nav-ink);box-shadow:0 4px 16px var(--vp-shadow-color,#17395422);
+  font-size:.75rem;line-height:1.4;overflow-wrap:anywhere
+}
+.visa-nav-tooltip[hidden]{display:none}
+.visa-nav-tooltip::before{content:"";position:absolute;inset:0 100% 0 auto;width:28px}
+.visa-sidebar-collapsed .workspace-nav :focus-visible{outline-offset:-3px}
 .visa-sidebar-overlay>.visa-staff-sidebar{
   position:fixed;left:12px;top:calc(var(--visa-portal-header-height,64px) + 12px);
   z-index:30;width:min(var(--visa-sidebar-expanded-width,256px),calc(100vw - 24px));
@@ -33,19 +43,10 @@
   padding:18px 16px 16px;border:1px solid var(--visa-nav-line);border-radius:10px;
   box-shadow:0 18px 48px var(--vp-shadow-color,#17395433);
 }
-.visa-sidebar-overlay.visa-sidebar-collapsed>.visa-staff-sidebar{padding-inline:16px}
-.visa-sidebar-overlay .visa-sidebar-heading{justify-content:space-between}
-.visa-sidebar-overlay .workspace-label,.visa-sidebar-overlay .visa-nav-group-toggle{display:flex}
-.visa-sidebar-overlay .workspace-nav [data-view]{justify-content:flex-start}
-.visa-sidebar-overlay .workspace-nav [data-view]>span{
-  position:static;width:auto;height:auto;padding:0;margin:0;overflow:visible;clip-path:none;white-space:normal;
-}
 .portal-header-brand{display:flex;align-items:center;gap:10px;min-width:0}
 .visa-mobile-nav-trigger,.visa-mobile-nav-drawer{display:none}
 .portal-body.visa-sidebar-scroll-locked{overflow:hidden}
 @media(max-width:900px){
-  body[data-role=staff] .portal-header{height:auto;min-height:75px;flex-wrap:wrap;gap:8px 12px;padding-block:10px}
-  body[data-role=staff] .portal-header-right{max-width:100%;min-width:0;flex-wrap:wrap;gap:8px}
   .visa-mobile-nav-trigger:not([hidden]){
     display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;
     color:var(--vp-text,#173954);background:var(--vp-surface,#fff);
