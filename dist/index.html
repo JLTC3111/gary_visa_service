@@ -7,18 +7,24 @@
   <script src="./appearance-init.js"></script>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://garyhome.vn; img-src 'self' data: https://duyiihsmaqfgwezmsnjs.supabase.co; font-src 'self'; connect-src 'self' https://garyhome.vn https://duyiihsmaqfgwezmsnjs.supabase.co wss://duyiihsmaqfgwezmsnjs.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>Visa &amp; Work Permit Services in Vietnam | Gary Agency</title>
+  <link rel="canonical" href="https://visa.garyhome.vn/">
+  <link rel="alternate" hreflang="en" href="https://visa.garyhome.vn/">
+  <link rel="alternate" hreflang="vi" href="https://visa.garyhome.vn/vi">
+  <link rel="alternate" hreflang="x-default" href="https://visa.garyhome.vn/">
   <meta name="description" content="Visa, work permit, residence card and document support in Vietnam. Personal guidance from Gary Agency in partnership with Visa Star World.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Visa &amp; Work Permit Services in Vietnam | Gary Agency">
   <meta property="og:description" content="Less paperwork. More possibility. Explore visa, work permit and residence services with a local team in Vietnam.">
-  <meta property="og:image" content="./assets/vietnam-city.jpg">
+  <meta property="og:image" content="https://visa.garyhome.vn/assets/vietnam-city.jpg">
+  <meta property="og:url" content="https://visa.garyhome.vn/">
+  <meta property="og:locale" content="en_US">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" media="(min-width: 768px)">
   <link rel="icon" href="./assets/favicon.png" type="image/png" sizes="180x180" media="(max-width: 767px)">
   <link rel="apple-touch-icon" href="./assets/favicon.png" sizes="180x180">
   <link rel="preload" href="./assets/dm-sans.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="./assets/be-vietnam-pro-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="./assets/be-vietnam-pro-600.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./cms-public.css"><link rel="stylesheet" href="./gary-apps.css"><link rel="stylesheet" href="./chat.css"><link rel="stylesheet" href="./controls.css"><link rel="stylesheet" href="./public-design.css"><link rel="stylesheet" href="./visuals/visual-effects.css"><link rel="stylesheet" href="./lattice-loader.css"><script type="module" src="./lattice-loader.js"></script><script type="module" src="./form-controls.js"></script>
+  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./cms-public.css"><link rel="stylesheet" href="./gary-apps.css"><link rel="stylesheet" href="./chat.css"><link rel="stylesheet" href="./controls.css"><link rel="stylesheet" href="./public-design.css"><link rel="stylesheet" href="./visuals/visual-effects.css"><link rel="stylesheet" href="./lattice-loader.css"><link rel="stylesheet" href="./squish-switch.css"><script type="module" src="./squish-switch.js"></script><script type="module" src="./lattice-loader.js"></script><script type="module" src="./form-controls.js"></script>
   <script type="module" src="./app.js"></script><script type="module" src="./appearance.js"></script><script type="module" src="./visuals/visual-effects.js"></script><script type="module" src="./cms-public-bootstrap.js"></script><script type="module" src="./gary-apps.js"></script><script type="module" src="./chat-widget.js"></script>
   <link rel="stylesheet" href="./ui-motion.css">
   <link rel="stylesheet" href="./action-buttons.css">
@@ -66,9 +72,9 @@
           <button type="button" class="preferences-trigger" id="visa-preferences-trigger" data-open-preferences aria-label="Website preferences" aria-haspopup="dialog" aria-controls="visa-preferences-panel" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg></button>
           <div class="visa-preferences-panel" id="visa-preferences-panel" role="dialog" aria-modal="false" aria-labelledby="visa-preferences-title" hidden>
             <div class="preferences-heading"><h2 id="visa-preferences-title" data-preferences-title>Website preferences</h2><button type="button" class="preferences-close" data-close-preferences aria-label="Close preferences"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
-            <fieldset><legend data-preferences-language>Language</legend><div class="preferences-options preferences-language"><button type="button" data-lang="en" lang="en" aria-pressed="true">English</button><button type="button" data-lang="vi" lang="vi" aria-pressed="false">Tiếng Việt</button></div></fieldset>
+            <fieldset><legend data-preferences-language>Language</legend><div class="preferences-options preferences-language" data-squish-key="visa-public-language"><button type="button" data-lang="en" data-squish-target="off" lang="en" aria-pressed="true">English</button><button type="button" data-lang="vi" data-squish-target="on" lang="vi" aria-pressed="false">Tiếng Việt</button></div></fieldset>
             <fieldset><legend data-preferences-appearance>Appearance</legend><div class="preferences-options"><button type="button" data-theme-choice="light" aria-pressed="false">Light</button><button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button><button type="button" data-theme-choice="system" aria-pressed="true">System</button></div></fieldset>
-            <fieldset><legend data-preferences-effects>Visual effects</legend><div class="preferences-options"><button type="button" data-effects-choice="on" aria-pressed="false">On</button><button type="button" data-effects-choice="off" aria-pressed="true">Off</button></div><p class="preferences-help" data-preferences-help>Turn off the animated highway to save graphics power.</p></fieldset>
+            <fieldset><legend data-preferences-effects>Visual effects</legend><div class="preferences-options" data-squish-key="visa-effects" data-squish-mode="effects"><button type="button" data-effects-choice="on" data-squish-target="on" aria-pressed="false">On</button><button type="button" data-effects-choice="off" data-squish-target="off" aria-pressed="true">Off</button></div><p class="preferences-help" data-preferences-help>Turn off the animated highway to save graphics power.</p></fieldset>
           </div>
         </div>
         <div class="visa-account-menu" id="public-account-menu"><a class="portal-link" href="./portal.html" data-i18n="portal">Sign in</a></div>

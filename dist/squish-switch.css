@@ -1,0 +1,105 @@
+/* React Bits Squish Switch, with native controls and each portal's palette. */
+[data-squish-key][data-squish-ready] {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+[data-squish-key] > [hidden] { display: none !important; }
+
+[data-squish-key][data-squish-ready] > .squish-switch {
+  --ss-width: 76px;
+  --ss-height: 38px;
+  --ss-inset: 4px;
+  --ss-position: 0;
+  --ss-squish: 1;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  min-width: var(--ss-width);
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 24px;
+  background: transparent;
+  color: var(--ss-ink);
+  box-shadow: none;
+  opacity: 1;
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-squish-key^="visa-"] .squish-switch {
+  --ss-track: var(--vp-soft, var(--visa-soft, #eef4f5));
+  --ss-track-on: var(--vp-accent-soft, var(--visa-raised, #e6f2f3));
+  --ss-ink: var(--vp-text, var(--visa-text, #173954));
+  --ss-line: var(--vp-line, var(--visa-line, #c9d8dc));
+  --ss-accent: var(--vp-accent, var(--visa-accent, #276e78));
+}
+[data-squish-key^="jobs-"] .squish-switch {
+  --ss-track: var(--jobs-portal-soft, #eeeefa);
+  --ss-track-on: var(--jobs-portal-selected, #e5e2fa);
+  --ss-ink: var(--jobs-portal-ink, #242b48);
+  --ss-line: var(--jobs-portal-line, #cccee5);
+  --ss-accent: var(--jobs-portal-accent, #5256a1);
+}
+
+[data-squish-key][data-squish-ready] > .squish-switch:hover { background: transparent; }
+[data-squish-key][data-squish-ready] > .squish-switch:focus-visible {
+  outline: 2px solid var(--ss-accent);
+  outline-offset: 2px;
+}
+[data-squish-key][data-squish-ready] > .squish-switch:disabled { opacity: .5; cursor: default; }
+[data-squish-key][data-squish-ready] > .squish-switch[data-held] { cursor: grabbing; }
+.squish-switch__track {
+  position: relative;
+  display: block;
+  width: var(--ss-width);
+  height: var(--ss-height);
+  border-radius: calc(var(--ss-height) / 2);
+  background: var(--ss-track);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  transition: background-color 320ms ease;
+  pointer-events: none;
+}
+.squish-switch[aria-checked="true"] .squish-switch__track { background: var(--ss-track-on); }
+.squish-switch__options {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  place-items: center;
+  color: var(--ss-ink);
+  font: 650 11px/1 system-ui, sans-serif;
+}
+.squish-switch__thumb {
+  position: absolute;
+  inset: var(--ss-inset) auto auto var(--ss-inset);
+  display: grid;
+  place-items: center;
+  width: calc(var(--ss-height) - var(--ss-inset) * 2);
+  height: calc(var(--ss-height) - var(--ss-inset) * 2);
+  border-radius: 50%;
+  background-color: var(--ss-ink);
+  color: var(--ss-track);
+  font: 700 11px/1 system-ui, sans-serif;
+  box-shadow: 0 2px 4px #0002;
+  transform: translateX(calc((var(--ss-width) - var(--ss-height)) * var(--ss-position)))
+    scale(var(--ss-squish), calc(1 / var(--ss-squish)));
+  transition: background-color 320ms ease, scale 170ms ease-out;
+}
+.squish-switch[aria-checked="true"] .squish-switch__thumb {
+  background-color: color-mix(in srgb, var(--ss-ink) 78%, var(--ss-accent));
+}
+@media (hover: hover) and (pointer: fine) {
+  .squish-switch:not(:disabled):hover .squish-switch__thumb { scale: 1.035; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .squish-switch__track, .squish-switch__thumb { transition: none; }
+  .squish-switch:hover .squish-switch__thumb { scale: 1; }
+}

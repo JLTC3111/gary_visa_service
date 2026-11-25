@@ -17,6 +17,7 @@ import {createProfileAvatar} from '../dist/profile-avatar.js';
 import {accountRoleLabel, mountAccountMenu} from '../dist/account-menu.js';
 import {mountPublicAccountMenu} from '../dist/public-account-menu.js';
 import {workspaceUI} from '../dist/workspace-ui.js';
+import {mountSquishSwitches} from '../dist/squish-switch.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function flush(){for(let i=0;i<8;i++)await tick()}
 function environment(html,url='http://localhost:4173/'){
@@ -151,6 +152,20 @@ async function portalEnvironment(role='customer',url='http://localhost:4173/port
  let source=await readFile(new URL('../dist/portal.js',import.meta.url),'utf8');source=source.replace(/^import .*;\n/gm,'');await w.eval(`(async()=>{const {db,unwrap,ensureProfile,EDITABLE_STATUSES,validateDocument,documentPath,authRedirect,config,portalCopy,createCRM,createInbox,createAgencyCms,createTrash,createStaffAccess,workspaceUI,mountPortalEditors}=globalThis.__backend;${source}\n})()`);
  return {dom,w,doc:w.document,calls,application};
 }
+test('Squish Switch changes Visa portal language without changing the active route', async () => {
+ const {dom,w,doc}=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff&view=profile');
+ const switches=mountSquishSwitches(doc);
+ try{
+  const button=doc.querySelector('[data-squish-key=visa-portal-language] [role=switch]');
+  const url=w.location.href;
+  assert.equal(button.getAttribute('aria-checked'),'false');
+  button.click();
+  assert.equal(doc.documentElement.lang,'vi');
+  assert.equal(w.localStorage.getItem('gary-language'),'vi');
+  assert.equal(button.getAttribute('aria-checked'),'true');
+  assert.equal(w.location.href,url);
+ }finally{switches.destroy();dom.window.close();}
+});
 test('Visa staff account menu opens the permitted dashboard and profile from the mobile drawer', async () => {
  const env = await portalEnvironment('staff', 'http://localhost:4173/portal.html?area=staff&view=profile',
   undefined, {member: true, operations: null, cms: 'editor'});

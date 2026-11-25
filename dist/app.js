@@ -1,4 +1,5 @@
 import {vi,ui,services} from './content.js';
+import {homePath,homeSeo} from './home-seo.js';
 import {cmsCopyOverrides,renderServiceCms} from './cms-public.js';
 let cmsCopy={en:{},vi:{}};
 
@@ -8,9 +9,12 @@ const english = {};
 for (const node of $$('[data-i18n]')) {
   const clone=node.cloneNode(true);
   clone.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));
-  english[node.dataset.i18n] ??= clone.textContent.trim();
+  english[node.dataset.i18n] ??= node.dataset.i18nEn ?? clone.textContent.trim();
 }
-for(const kind of ['placeholder','aria','alt']) for(const node of $$(`[data-i18n-${kind}]`)) english[node.dataset[`i18n${kind[0].toUpperCase()+kind.slice(1)}`]] ??= node.getAttribute(kind==='aria'?'aria-label':kind);
+for(const kind of ['placeholder','aria','alt']) for(const node of $$(`[data-i18n-${kind}]`)){
+  const key=node.getAttribute('data-i18n-'+kind);
+  english[key]??=node.getAttribute('data-i18n-'+kind+'-en')??node.getAttribute(kind==='aria'?'aria-label':kind);
+}
 let language='en';
 let selectedService=null;
 let selectedGoal=null;
@@ -22,7 +26,11 @@ const t=(key)=>cmsCopy[language]?.[key]??(language==='vi'?(vi[key]??ui.vi[key]??
 export function setLanguage(next){
   language=next==='vi'?'vi':'en';
   document.documentElement.lang=language;
-  document.title=language==='vi'?'Dịch vụ visa và giấy phép lao động tại Việt Nam | Gary Agency':'Visa & Work Permit Services in Vietnam | Gary Agency';
+  const seo=homeSeo(language);
+  document.title=seo.title;
+  document.querySelector('link[rel=canonical]')?.setAttribute('href',seo.url);
+  document.querySelector('meta[property="og:url"]')?.setAttribute('content',seo.url);
+  document.querySelector('meta[property="og:locale"]')?.setAttribute('content',seo.locale);
   document.querySelector('meta[property="og:title"]').content=document.title;
   document.querySelector('meta[name="description"]').content=t('metaDescription');
   document.querySelector('meta[property="og:description"]').content=t('metaDescription');
@@ -64,8 +72,14 @@ function openHeroService(){
 }
 $('#hero-review-service').addEventListener('click',openHeroService);
 $('#hero-service-form').addEventListener('submit',event=>{event.preventDefault();$('#hero-review-service').click()});
-$$('[data-lang]').forEach(button=>button.addEventListener('click',()=>setLanguage(button.dataset.lang)));
-let initialLanguage=new URL(location.href).searchParams.get('lang');
+$$('[data-lang]').forEach(button=>button.addEventListener('click',()=>{
+  setLanguage(button.dataset.lang);
+  const url=new URL(location.href);
+  url.pathname=homePath(language);
+  url.searchParams.delete('lang');
+  history.replaceState(history.state,'',url.pathname+url.search+url.hash);
+}));
+let initialLanguage=location.pathname==='/vi'?'vi':new URL(location.href).searchParams.get('lang');
 if(!initialLanguage) try{initialLanguage=localStorage.getItem('gary-language')}catch{}
 setLanguage(initialLanguage);
 

@@ -80,8 +80,8 @@ function openPreferences(source) {
   panel.inert = false;
   document.querySelectorAll('[data-open-preferences]').forEach(button => button.setAttribute('aria-expanded', 'true'));
   const first = source.dataset.openPreferences === 'effects'
-    ? panel.querySelector('[data-effects-choice][aria-pressed="true"]')
-    : panel.querySelector('[data-lang][aria-pressed="true"]');
+    ? panel.querySelector('[data-squish-mode="effects"] .squish-switch') || panel.querySelector('[data-effects-choice][aria-pressed="true"]')
+    : panel.querySelector('.preferences-language .squish-switch') || panel.querySelector('[data-lang][aria-pressed="true"]');
   first?.focus({ preventScroll: true });
 }
 document.querySelectorAll('[data-open-preferences]').forEach(button => button.addEventListener('click', () => openPreferences(button)));

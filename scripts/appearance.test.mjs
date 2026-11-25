@@ -4,12 +4,14 @@ import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { createVisualEffectsController } from '../src/visuals/bootstrap.js';
+import { mountSquishSwitches } from '../dist/squish-switch.js';
+import { renderArticleDocument } from '../dist/cms-articles.js';
 const init = await readFile(new URL('../dist/appearance-init.js', import.meta.url), 'utf8');
 const controls = await readFile(new URL('../dist/appearance.js', import.meta.url), 'utf8');
 const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../dist/public-design.css', import.meta.url), 'utf8');
 const app = await build({ entryPoints: ['dist/app.js'], bundle: true, write: false, format: 'iife', platform: 'browser' });
-function environment({ dark = false, reduce = false, saveData = false, stored = {}, language = false } = {}) {
+function environment({ dark = false, reduce = false, saveData = false, stored = {}, language = false, squish = false } = {}) {
   const dom = new JSDOM(html, { url: 'https://visa.garyhome.vn/', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window, queries = new Map();
   w.matchMedia = query => { if (!queries.has(query)) queries.set(query, { matches: query.includes('color-scheme') ? dark : reduce, listeners: [], addEventListener(_, fn) { this.listeners.push(fn); } }); return queries.get(query); };
@@ -19,14 +21,107 @@ function environment({ dark = false, reduce = false, saveData = false, stored = 
   Object.defineProperty(w.navigator, 'connection', { value: { saveData, addEventListener() {} } });
   for (const [key, value] of Object.entries(stored)) w.localStorage.setItem(key, value);
   w.eval(init);
+  const switches = squish ? mountSquishSwitches(w.document) : null;
   if (language) w.eval(app.outputFiles[0].text);
   w.eval(controls);
   const d = w.document;
-  return { dom, w, d, queries, trigger: d.getElementById('visa-preferences-trigger'), panel: d.getElementById('visa-preferences-panel') };
+  return { dom, w, d, queries, switches, trigger: d.getElementById('visa-preferences-trigger'), panel: d.getElementById('visa-preferences-panel') };
 }
 function status(h, value) { h.w.dispatchEvent(new h.w.CustomEvent('gary:visual-status', { detail: { status: value } })); }
 function key(h, node, value, options = {}) { return node.dispatchEvent(new h.w.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...options })); }
 function storedValues(h) { return Object.fromEntries(['gary-language', 'gary-visa-theme', 'gary-visa-effects'].map(name => [name, h.w.localStorage.getItem(name)])); }
+
+test('Squish Switch uses Visa’s existing preferences, localized accessible state and reduced motion', () => {
+  const h = environment({ language: true, reduce: true, squish: true });
+  try {
+    const language = h.panel.querySelector('.preferences-language [role=switch]');
+    const effects = h.panel.querySelector('[data-squish-mode=effects] [role=switch]');
+    h.trigger.click();
+    assert.equal(h.d.activeElement, language);
+    assert.equal(language.getAttribute('aria-label'), 'Use Vietnamese');
+    assert.equal(language.getAttribute('aria-checked'), 'false');
+    assert.equal(h.panel.querySelector('[data-lang=en]').hidden, true);
+    key(h, language, 'ArrowRight');
+    assert.equal(h.d.documentElement.lang, 'vi');
+    assert.equal(h.w.localStorage.getItem('gary-language'), 'vi');
+    assert.equal(language.getAttribute('aria-label'), 'Dùng tiếng Việt');
+    assert.equal(language.getAttribute('aria-checked'), 'true');
+    assert.equal(language.style.getPropertyValue('--ss-position'), '1');
+    assert.equal(language.style.getPropertyValue('--ss-squish'), '1');
+    assert.equal(h.panel.hidden, false);
+
+    h.d.querySelector('[data-open-preferences=effects]').click();
+    assert.equal(h.d.activeElement, effects);
+    assert.equal(effects.getAttribute('aria-label'), 'Hiệu ứng');
+    assert.equal(effects.getAttribute('aria-checked'), 'false');
+    effects.click();
+    assert.equal(h.w.localStorage.getItem('gary-visa-effects'), 'on');
+    assert.equal(effects.getAttribute('aria-checked'), 'true');
+    h.w.setGaryVisaEffects(false);
+    assert.equal(effects.getAttribute('aria-checked'), 'false');
+    assert.equal(h.w.garyVisaPreferences.theme, 'system');
+  } finally { h.switches.destroy(); h.dom.window.close(); }
+});
+
+test('Squish Switch stretches on drag, cancels on Escape and commits once on release', () => {
+  const h = environment({ language: true, squish: true });
+  try {
+    h.trigger.click();
+    const button = h.panel.querySelector('.preferences-language [role=switch]');
+    const pointer = (type, clientX) => {
+      const event = new h.w.MouseEvent(type, { bubbles: true, button: 0, clientX, detail: 1 });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      button.dispatchEvent(event);
+    };
+    let frame;
+    h.w.requestAnimationFrame = callback => { frame = callback; return 1; };
+    h.w.cancelAnimationFrame = () => { frame = null; };
+    pointer('pointerdown', 0);
+    pointer('pointermove', 3);
+    assert.equal(button.style.getPropertyValue('--ss-position'), '0');
+    pointer('pointermove', 30);
+    assert.ok(Number(button.style.getPropertyValue('--ss-squish')) > 1);
+    assert.equal(button.getAttribute('aria-checked'), 'false');
+    key(h, button, 'Escape');
+    assert.equal(h.panel.hidden, false);
+    assert.equal(h.d.documentElement.lang, 'en');
+    assert.equal(button.hasAttribute('data-held'), false);
+    assert.ok(frame, 'an interrupted drag springs back');
+
+    const motion = h.queries.get('(prefers-reduced-motion: reduce)');
+    motion.matches = true;
+    motion.listeners.forEach(listener => listener());
+    assert.equal(button.style.getPropertyValue('--ss-position'), '0');
+    let changes = 0;
+    h.d.addEventListener('gary:language', () => changes++);
+    pointer('pointerdown', 0);
+    pointer('pointermove', 30);
+    assert.equal(button.style.getPropertyValue('--ss-squish'), '1');
+    pointer('pointerup', 30);
+    pointer('click', 30);
+    assert.equal(changes, 1);
+    assert.equal(button.getAttribute('aria-checked'), 'true');
+    assert.equal(button.style.getPropertyValue('--ss-position'), '1');
+    assert.equal(frame, null);
+  } finally { h.switches.destroy(); h.dom.window.close(); }
+});
+
+test('Squish Switch follows the Visa news page’s localized server-rendered article links', async () => {
+  const shell = await readFile(new URL('../dist/articles.html', import.meta.url), 'utf8');
+  const slug = 'work-permit-guide';
+  const dom = new JSDOM(renderArticleDocument(shell, { language: 'vi', slug }), { url: `https://visa.garyhome.vn/vi/news/${slug}` });
+  const d = dom.window.document, switches = mountSquishSwitches(d);
+  try {
+    const button = d.querySelector('#article-languages [role=switch]');
+    const english = d.querySelector('[data-article-lang=en]');
+    const routes = [];
+    english.addEventListener('click', event => { event.preventDefault(); routes.push(event.currentTarget.pathname); });
+    assert.equal(button.getAttribute('aria-checked'), 'true');
+    button.click();
+    assert.deepEqual(routes, [`/en/news/${slug}`]);
+    assert.equal(d.documentElement.lang, 'vi', 'the destination determines the article locale');
+  } finally { switches.destroy(); dom.window.close(); }
+});
 
 test('preferences resolve before public CSS; one header trigger owns the three settings', () => {
   assert.ok(html.indexOf('appearance-init.js') < html.indexOf('href="./styles.css"'));

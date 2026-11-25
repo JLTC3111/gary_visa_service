@@ -3,8 +3,13 @@
   "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {"api/news.js": {"includeFiles": "dist/articles.html"}},
+  "functions": {
+    "api/news.js": {"includeFiles": "dist/articles.html"},
+    "api/home.js": {"includeFiles": "dist/index.html"}
+  },
   "rewrites": [
+    {"source": "/sitemap.xml", "destination": "/api/sitemap"},
+    {"source": "/vi", "destination": "/api/home"},
     {"source": "/:locale(en|vi)/news/:slug", "destination": "/api/news?locale=:locale&slug=:slug"},
     {"source": "/:locale(en|vi)/news", "destination": "/api/news?locale=:locale"}
   ]
