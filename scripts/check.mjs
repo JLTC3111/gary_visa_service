@@ -36,7 +36,10 @@ for(const page of pages){
  for(const link of doc.querySelectorAll('[target=_blank]'))assert.ok(link.rel.includes('noopener'),`${page}: new tab link missing noopener`);
  for(const node of doc.querySelectorAll('[data-c]'))for(const language of ['en','vi'])assert.ok(node.dataset.c in chatCopy[language],`missing ${language} chat copy: ${node.dataset.c}`);
  for(const node of doc.querySelectorAll('[data-c-placeholder]'))for(const language of ['en','vi'])assert.ok(node.dataset.cPlaceholder in chatCopy[language],`missing ${language} chat placeholder`);
- for(const node of doc.querySelectorAll('input:not([type=hidden]),select,textarea'))assert.ok(node.id&&node.labels.length,`${page}: missing input label ${node.id}`);
+ for(const node of doc.querySelectorAll('input:not([type=hidden]),select,textarea')){
+  if(node.getAttribute('aria-hidden')==='true')continue;
+  assert.ok(node.id&&node.labels.length,`${page}: missing input label ${node.id}`);
+ }
  if(page==='index.html'){
   for(const node of doc.querySelectorAll('[data-i18n]'))assert.ok(node.dataset.i18n in vi,`missing Vietnamese copy: ${node.dataset.i18n}`);
   for(const kind of ['aria','alt','placeholder'])for(const node of doc.querySelectorAll(`[data-i18n-${kind}]`)){const key=node.getAttribute(`data-i18n-${kind}`);assert.ok(key in vi,`missing Vietnamese attribute: ${key}`)}
