@@ -4,6 +4,7 @@ const words = {
     preferences: 'Site preferences',
     close: 'Close preferences',
     appearance: 'Appearance',
+    language: 'Language',
     help: 'System follows your device settings.',
     light: 'Light',
     dark: 'Dark',
@@ -17,6 +18,7 @@ const words = {
     preferences: 'Tùy chọn website',
     close: 'Đóng tùy chọn',
     appearance: 'Giao diện',
+    language: 'Ngôn ngữ',
     help: 'Hệ thống theo cài đặt thiết bị của bạn.',
     light: 'Sáng',
     dark: 'Tối',
@@ -36,6 +38,12 @@ export function mountPortalTheme(doc = document) {
   const trigger = doc.querySelector('[data-portal-preferences]');
   const panel = doc.getElementById('portal-preferences-panel');
   const closeButton = doc.querySelector('[data-portal-preferences-close]');
+  const languageSlot = panel?.querySelector('.portal-preferences-language');
+  const languageButton = doc.getElementById('portal-language');
+  const languageSwitch = languageButton?.parentElement;
+  const languageHome = languageSwitch?.parentElement;
+  const languageNext = languageSwitch?.nextSibling;
+  const mobile = win.matchMedia?.('(max-width: 900px)');
   const context = doc.getElementById('portal-context');
   const header = doc.querySelector('.portal-header');
   const website = header?.querySelector('.portal-home');
@@ -43,7 +51,17 @@ export function mountPortalTheme(doc = document) {
   let selectedArea = root.dataset.visaPortal || (new URLSearchParams(win.location.search).get('area') === 'staff' ? 'staff' : 'customer');
   let open = false;
   const copy = () => words[root.lang === 'vi' ? 'vi' : 'en'];
+  function placeLanguage(inPreferences) {
+    if (!languageSlot || !languageHome) return;
+    const target = inPreferences ? languageSlot : languageHome;
+    if (languageSwitch.parentElement === target) return;
+    const focused = doc.activeElement === languageButton;
+    target.insertBefore(languageSwitch, inPreferences ? null : languageNext);
+    languageSlot.hidden = !inPreferences;
+    if (focused) (inPreferences && !open ? trigger : languageButton)?.focus({ preventScroll: true });
+  }
   const layout = () => {
+    placeLanguage(root.dataset.visaPortal === 'staff' && (mobile?.matches ?? win.innerWidth <= 900));
     const height = header?.getBoundingClientRect().height;
     if (height) root.style.setProperty('--visa-portal-header-height', `${Math.round(height)}px`);
   };
@@ -99,6 +117,8 @@ export function mountPortalTheme(doc = document) {
     if (title) title.textContent = t.preferences;
     const help = doc.querySelector('[data-portal-appearance-help]');
     if (help) help.textContent = t.help;
+    const languageLabel = languageSlot?.querySelector('[data-portal-language-label]');
+    if (languageLabel) languageLabel.textContent = t.language;
     if (control) {
       doc.querySelector('[data-portal-appearance-label]').textContent = t.appearance;
       control.setAttribute('aria-label', t.appearance);
@@ -139,6 +159,7 @@ export function mountPortalTheme(doc = document) {
       doc.removeEventListener('pointerdown', onPointer);
       doc.removeEventListener('focusin', onFocus);
       doc.removeEventListener('keydown', onKey);
+      placeLanguage(false);
       instances.delete(doc);
     }
   };

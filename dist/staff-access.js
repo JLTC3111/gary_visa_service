@@ -51,6 +51,8 @@ export function createStaffAccess({
  const {$,el,take}=workspaceUI(doc,t);
  const view=$('#staff-access-view'),list=$('#staff-access-list'),drawer=$('#staff-access-drawer');
  const columns=view.querySelector('.staff-access-columns');
+ const guide=view.querySelector('.staff-access-guide');
+ let guideInitialized=false;
  const form=$('#staff-access-form'),filters=$('#staff-access-filters'),search=$('#staff-access-search');
  const control=name=>form.elements.namedItem(name);
  const email=control('email'),fullName=control('full_name'),findButton=$('#staff-access-find');
@@ -524,7 +526,6 @@ export function createStaffAccess({
   Object.assign(state,{members:[],authority:null,busy:null,loading:false,failed:false,notice:null,addDraft:newDraft()});
   state.edits.clear();
   form.reset();filters.reset();
-  $('#staff-access-view .staff-access-guide').open=true;
   for(const scope of scopes){control(scope).replaceChildren();delete control(scope).dataset.options;}
   email.removeAttribute('aria-invalid');
   paint(notice,null);paint(feedback,null);
@@ -532,5 +533,13 @@ export function createStaffAccess({
   clearButton.hidden=true;addButton.disabled=true;refreshButton.disabled=false;
   renderDrawer();
  }
- return {enter(){state.notice=null;return load();},render,leave,reset};
+ function enter(){
+  if(!guideInitialized){
+   guide.open=doc.defaultView.innerWidth>900;
+   guideInitialized=true;
+  }
+  state.notice=null;
+  return load();
+ }
+ return {enter,render,leave,reset};
 }

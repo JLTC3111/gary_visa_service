@@ -151,7 +151,7 @@
 
 .staff-access-grid {
   display: grid;
-  grid-template-columns: fit-content(38ch) repeat(4, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(max-content, 1.2fr) repeat(2, minmax(max-content, 1fr)) max-content;
   column-gap: clamp(8px, 1.4cqi, 18px);
   padding: 0 var(--staff-access-gutter) 14px;
 }
@@ -167,8 +167,7 @@
   border-top: 1px solid var(--vp-line, var(--line));
 }
 .staff-access-columns { padding-block: 6px; }
-.staff-access-columns[hidden],
-.staff-access-grid:not(:has(.staff-access-row-actions)) [data-col=actions] { display: none; }
+.staff-access-columns[hidden] { display: none; }
 .staff-access-list .empty-state { grid-column: 1 / -1; }
 .staff-access-columns span {
   font-size: 11px;
@@ -408,7 +407,6 @@ dialog.staff-access-drawer:not([open]) { pointer-events: none; }
 }
 
 @container staff-directory (max-width: 48rem) {
-  .staff-access-columns [data-col=actions] { visibility: hidden; }
   .staff-access-row-actions .button { padding-inline: 7px; }
 }
 @container staff-directory (max-width: 42rem) {

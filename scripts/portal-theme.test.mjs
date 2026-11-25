@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
 import {mountPortalTheme} from '../dist/portal-theme.js';
-import {mountSquishSwitches} from '../dist/squish-switch.js';
+import {mountLanguageSwitch,mountSquishSwitches} from '../dist/squish-switch.js';
 import {mountPortalEditors} from '../dist/portal-editors.js';
 import {mountStaffSidebar} from '../dist/staff-sidebar.js';
 const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');
@@ -14,7 +14,15 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
 function harness({theme='system',dark=false,lang='en',role='staff',width=1440,stored=true}={}){
  const dom=new JSDOM(html,{url:'https://visa.garyhome.vn/portal.html?area=staff',pretendToBeVisual:true,runScripts:'outside-only'}),w=dom.window,d=w.document;
  Object.defineProperty(w,'innerWidth',{value:width,writable:true});Object.defineProperty(w,'innerHeight',{value:960,writable:true});
- const queries=new Map();w.matchMedia=query=>{if(!queries.has(query)){const m=new w.EventTarget();m.matches=query.includes('color-scheme')&&dark;queries.set(query,m);}return queries.get(query);};
+ const queries=new Map();w.matchMedia=query=>{
+  if(!queries.has(query)){
+   const media=new w.EventTarget();
+   if(query==='(max-width: 900px)')Object.defineProperty(media,'matches',{get:()=>w.innerWidth<=900});
+   else media.matches=query.includes('color-scheme')&&dark;
+   queries.set(query,media);
+  }
+  return queries.get(query);
+ };
  if(stored)w.localStorage.setItem('gary-visa-theme',theme);
  w.eval(init);w.eval(scope);d.documentElement.lang=lang;d.body.dataset.role=role;
  d.getElementById('workspace').hidden=false;for(const view of ['customers','inbox','cms','trash'])d.querySelector(`[data-view=${view}]`).hidden=false;
@@ -22,6 +30,40 @@ function harness({theme='system',dark=false,lang='en',role='staff',width=1440,st
  const controller=mountPortalTheme(d);return {dom,w,d,queries,controller,close(){controller.destroy();dom.window.close();}};
 }
 function change(h,value){const c=h.d.getElementById('portal-theme');c.value=value;c.dispatchEvent(new h.w.Event('change',{bubbles:true}));}
+
+test('the compact staff header reuses the language switch in Preferences and restores it on desktop',()=>{
+ const h=harness({width:320});try{
+  const button=h.d.getElementById('portal-language'),panel=h.d.getElementById('portal-preferences-panel');
+  const tools=h.d.querySelector('.portal-header-right'),trigger=h.d.getElementById('portal-preferences-trigger');
+  const locales=[];
+  const update=mountLanguageSwitch(button,'en',locale=>{
+   locales.push(locale);
+   update(locale);
+   h.d.documentElement.lang=locale;
+   h.d.dispatchEvent(new h.w.Event('gary:language'));
+  });
+  assert.equal(button.closest('.portal-preferences-panel'),panel);
+  assert.equal(button.parentElement.parentElement.hidden,false);
+  assert.equal(panel.hidden,true);
+  trigger.click();button.focus();button.click();
+  assert.deepEqual(locales,['vi']);
+  assert.equal(panel.querySelector('[data-portal-language-label]').textContent,'Ngôn ngữ');
+  assert.equal(button.getAttribute('aria-checked'),'true');
+  assert.equal(panel.hidden,false);
+  h.w.innerWidth=901;h.w.dispatchEvent(new h.w.Event('resize'));
+  assert.equal(button.parentElement.parentElement,tools);
+  assert.equal(panel.querySelector('.portal-preferences-language').hidden,true);
+  assert.equal(h.d.activeElement,button);
+  h.w.innerWidth=900;h.w.dispatchEvent(new h.w.Event('resize'));
+  assert.equal(button.closest('.portal-preferences-panel'),panel);
+  assert.equal(h.d.activeElement,trigger);
+  assert.equal(h.d.querySelectorAll('#portal-language').length,1);
+  trigger.click();button.click();
+  assert.deepEqual(locales,['vi','en']);
+  assert.match(css,/grid-template-columns:minmax\(0,1fr\) auto/);
+  assert.doesNotMatch(css,/@media\(max-width:40rem\)/);
+ }finally{h.close();}
+});
 
 test('staff bootstrap resolves the website preference before styles and portal host has an accessible localized control',()=>{
  assert.ok(html.indexOf('appearance-init.js')<html.indexOf('rel="stylesheet"'));assert.ok(html.indexOf('portal-theme-init.js')<html.indexOf('rel="stylesheet"'));
@@ -68,9 +110,10 @@ test('every staff route and expanded/collapsed/mobile navigation share theme wit
 });
 
 test('customer appearance and access remain separate from the staff presentation; blocked storage is safe',async()=>{
- const h=harness({theme:'dark',role:'customer'});try{
+ const h=harness({theme:'dark',role:'customer',width:390});try{
   assert.equal(h.d.documentElement.dataset.visaPortal,'customer');assert.equal(h.d.querySelector('.portal-appearance').hidden,true);assert.equal(h.d.documentElement.style.colorScheme,'light');
   assert.equal(h.d.querySelector('.portal-home-label').textContent,'Back to website');
+  assert.ok(h.d.getElementById('portal-language').closest('.portal-header-right > [data-squish-key]'));
   h.d.body.dataset.role='staff';await settle();assert.equal(h.d.documentElement.dataset.visaPortal,'staff');assert.equal(h.d.documentElement.style.colorScheme,'dark');assert.equal(h.d.body.dataset.role,'staff','theme never assigns a role');
   const denied={getItem(){throw Error('denied');},setItem(){throw Error('denied');}};Object.defineProperty(h.w,'localStorage',{value:denied});change(h,'light');assert.equal(h.d.documentElement.dataset.visaTheme,'light');
  }finally{h.close();}

@@ -11,8 +11,9 @@ const ids=Object.fromEntries(['self','peer','staff','editor'].map((name,i)=>[nam
 const result=data=>({data,error:null});
 const failure=(code,message)=>({data:null,error:{code,message}});
 
-function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage}={}){
+function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage,width=1440}={}){
  const dom=new JSDOM(html,{url:'http://localhost:4173/portal.html?area=staff',pretendToBeVisual:true});
+ dom.window.innerWidth=width;
  const doc=dom.window.document,$=selector=>doc.querySelector(selector),calls=[],notices=[];
  const {HTMLDialogElement,Event}=dom.window;
  HTMLDialogElement.prototype.showModal=function(){this.open=true;};
@@ -147,6 +148,31 @@ test('Team Access prioritizes the directory and collapses permissions without ex
   assert.equal([...h.form.querySelectorAll('option')].some(option=>option.value==='admin'),false);
   assert.equal(h.$('#staff-access-view input[type=password],#staff-access-view a[href]'),null);
  }finally{h.close();}
+});
+
+test('View Permissions starts collapsed on mobile and preserves the user’s choice',async()=>{
+ const h=harness({width:390});try{
+  await h.controller.enter();
+  const guide=h.$('.staff-access-guide');
+  assert.equal(guide.open,false);
+  guide.querySelector('summary').click();
+  assert.equal(guide.open,true);
+  h.translate('vi');
+  h.controller.leave();
+  await h.controller.enter();
+  assert.equal(guide.open,true);
+  guide.querySelector('summary').click();
+  h.controller.reset();
+  await h.controller.enter();
+  assert.equal(guide.open,false);
+ }finally{h.close();}
+});
+
+test('directory headings and rows use five shared tracks with actions at the right edge',async()=>{
+ const css=await readFile(new URL('../dist/workspace-tools.css',import.meta.url),'utf8');
+ assert.match(css,/\.staff-access-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0, 2fr\) minmax\(max-content, 1\.2fr\) repeat\(2, minmax\(max-content, 1fr\)\) max-content;/);
+ assert.match(css,/\.staff-access-columns, \.staff-access-list, \.staff-access-member\s*\{[^}]*grid-column: 1 \/ -1;[^}]*grid-template-columns: subgrid;/);
+ assert.match(css,/\.staff-access-row-actions, \.staff-access-columns \[data-col=actions\]\s*\{ grid-column: 5; justify-self: end;/);
 });
 
 test('Team Access searches names and emails and combines independently labelled filters',async()=>{
