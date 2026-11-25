@@ -2,6 +2,7 @@ import {workspaceUI} from './workspace-ui.js';
 import {isConflictResponse} from './conflict-response.js';
 import {initFormControls} from './form-controls.js';
 import {avatarBucket,avatarPath,renderAvatar} from './profile-avatar.js';
+import {narrowWorkspaceCopy} from './workspace-copy.js';
 
 const choices = {operations:['staff','manager'],cms:['editor','publisher']};
 const scopes = Object.keys(choices);
@@ -49,10 +50,12 @@ export function createStaffAccess({
  db,doc,t,canView,notify=()=>{},onSaved=()=>{},showDialog=node=>node.showModal(),closeDialog=node=>node.close()
 }){
  const {$,el,take}=workspaceUI(doc,t);
+ const win=doc.defaultView;
  const view=$('#staff-access-view'),list=$('#staff-access-list'),drawer=$('#staff-access-drawer');
+ const directory=view.querySelector('.staff-access-directory');
  const columns=view.querySelector('.staff-access-columns');
  const guide=view.querySelector('.staff-access-guide');
- let guideInitialized=false;
+ let guideInitialized=false,cards=false;
  const form=$('#staff-access-form'),filters=$('#staff-access-filters'),search=$('#staff-access-search');
  const control=name=>form.elements.namedItem(name);
  const email=control('email'),fullName=control('full_name'),findButton=$('#staff-access-find');
@@ -64,6 +67,8 @@ export function createStaffAccess({
   notice:null,addDraft:newDraft(),edits:new Map(),editor:null,menu:null,generation:0,request:0};
 
  const memberName = member => member.display_name || member.email || t('staffMember');
+ const compactCopy = () => narrowWorkspaceCopy[doc.documentElement.lang==='vi'?'vi':'en'];
+ const cardLayout = () => win.getComputedStyle(list).getPropertyValue('--staff-access-card-layout').trim()==='1';
  const roleName = (scope,role) => t(role?'role_'+scope+'_'+role:'noAccess');
  const canEdit = member => member.manage_membership || scopes.some(scope=>member['manage_'+scope]);
  const blocked = () => state.loading || Boolean(state.busy);
@@ -129,7 +134,7 @@ export function createStaffAccess({
 
  function rowLauncher(id,action){
   const row=list.querySelector('[data-staff-member="'+id+'"]');
-  if(action==='identity')return row?.querySelector('.staff-access-person');
+  if(action==='identity'||action==='copy-email')return row?.querySelector('.staff-access-person, .staff-access-email');
   const edit=row?.querySelector('.staff-access-edit-desktop'),more=row?.querySelector('[data-staff-action=more]');
   const visible=node=>doc.defaultView.getComputedStyle(node).display!=='none';
   const candidates=action==='more'?[more,edit]:[edit,more];
@@ -172,18 +177,46 @@ export function createStaffAccess({
   focusMenuAction(panel);
  }
 
+ function responsiveValue(tag,attributes,key){
+  const full=t(key),short=cards?compactCopy()[key]:null;
+  if(!short||short===full)return el(tag,attributes,full);
+  return el(tag,{...attributes,title:full},[el('span',{class:'sr-only'},full),el('span',{'aria-hidden':'true'},short)]);
+ }
+
  function status(member){
   const key=statusKey(member);
-  return el('div',{class:'staff-access-tags'},[
-   el('span',{class:'staff-access-status is-'+key},t('staffStatus_'+key)),
-   member.self?el('span',{class:'relationship-badge'},t('you')):null
+  return el('div',{class:cards?'staff-access-tags staff-access-field':'staff-access-tags'},[
+   cards?el('span',{class:'staff-access-label'},t('staffStatusLabel')):null,
+   responsiveValue('span',{class:'staff-access-status is-'+key},'staffStatus_'+key),
+   member.self&&!cards?el('span',{class:'relationship-badge'},t('you')):null
   ]);
  }
 
  function roleSummary(member,scope){
+  const role=member[scope+'_role'];
   return el('div',{class:'staff-access-field','data-scope':scope},[
    el('span',{class:'staff-access-label'},t(scope==='operations'?'operationsAccess':'cmsAccess')),
-   el('strong',{class:'staff-access-value'},roleName(scope,member[scope+'_role']))
+   responsiveValue('strong',{class:'staff-access-value'},role?'role_'+scope+'_'+role:'noAccess')
+  ]);
+ }
+
+ function memberIdentity(member,name,avatar){
+  if(cards){
+   const address=member.email;
+   const displayName=name===address?t('staffMember'):name;
+   return el('div',{class:'staff-access-identity staff-access-card-identity'},[avatar,el('div',{class:'staff-access-details'},[
+    el('div',{class:'staff-access-card-name'},[el('strong',{title:displayName},displayName),
+     member.self?el('span',{class:'relationship-badge'},t('you')):null]),
+    address?el('button',{type:'button',class:'staff-access-email','data-staff-action':'copy-email',
+     'aria-label':`${t('staffCopyEmail')}: ${address}`,title:address,disabled:blocked()?'':null},el('span',{},address)):null
+   ])]);
+  }
+  const email=member.email&&member.email!==name?member.email:null;
+  return el('details',{class:'staff-access-identity'},[
+   el('summary',{class:'staff-access-person'},[avatar,el('span',{class:'staff-access-details'},[
+    el('strong',{},name),email?el('small',{},email):null
+   ])]),
+   el('div',{class:'staff-access-identity-panel'},[el('strong',{},name),email?el('small',{},email):null])
   ]);
  }
 
@@ -193,28 +226,22 @@ export function createStaffAccess({
   renderAvatar(avatar,name,state.photos.get(id),true);
   const editable=canEdit(member),removable=Boolean(member.manage_membership);
   const editLabel=t('staffEditAccess').replace('{name}',()=>name);
-  const editAttrs={type:'button','data-staff-action':'edit','aria-label':editLabel,'aria-haspopup':'dialog','aria-controls':drawer.id,disabled:blocked()?'':null};
+  const moreLabel=t('staffMoreActions').replace('{name}',()=>name);
+  const editAttrs={type:'button','data-staff-action':'edit','aria-label':editLabel,title:editLabel,'aria-haspopup':'dialog','aria-controls':drawer.id,disabled:blocked()?'':null};
   const actions=editable||removable?el('div',{class:'staff-access-row-actions'},[
    editable?el('button',{...editAttrs,class:'button button-small staff-access-edit-desktop','data-button-variant':'edit'},t('staffEdit')):null,
    el('div',{class:'staff-access-menu'},[
     el('button',{type:'button',class:'icon-button','data-staff-action':'more',
-     'aria-expanded':'false','aria-controls':menuId,'aria-label':t('staffMoreActions').replace('{name}',()=>name),
+     'aria-expanded':'false','aria-controls':menuId,'aria-label':moreLabel,title:moreLabel,
      disabled:blocked()?'':null},el('span',{'aria-hidden':'true'},'⋮')),
     el('div',{id:menuId,class:'staff-access-menu-panel',inert:'','aria-hidden':'true'},[
-     editable?el('button',{...editAttrs,class:'staff-access-edit-menu'},t('staffEdit')):null,
+     editable?el('button',{...editAttrs,class:'staff-access-edit-menu'},compactCopy().staffEditAccess):null,
      removable?el('button',{type:'button','data-staff-action':'remove'},t('staffRemove')):null
     ].filter(Boolean))
    ])
   ]):null;
-  const email=member.email&&member.email!==name?member.email:null;
   return el('article',{class:'staff-access-member','data-staff-member':id},[
-   el('details',{class:'staff-access-identity'},[
-    el('summary',{class:'staff-access-person'},[avatar,el('span',{class:'staff-access-details'},[
-     el('strong',{},name),email?el('small',{},email):null
-    ])]),
-    el('div',{class:'staff-access-identity-panel'},[el('strong',{},name),email?el('small',{},email):null])
-   ]),
-   el('div',{class:'staff-access-member-meta'},[status(member),...scopes.map(scope=>roleSummary(member,scope))]),actions
+   memberIdentity(member,name,avatar),el('div',{class:'staff-access-member-meta'},[status(member),...scopes.map(scope=>roleSummary(member,scope))]),actions
   ]);
  }
 
@@ -224,6 +251,12 @@ export function createStaffAccess({
   const focusedAction=active?.closest('.staff-access-menu')?'more':active?.dataset.staffAction||'identity';
   const identityOpen=focusedAction==='identity'&&active?.parentElement.open;
   closeMenu();
+  cards=cardLayout();
+  const fullSearch=t('staffSearch'),searchLabel=cards?compactCopy().staffSearch:fullSearch;
+  if(search.labels[0].textContent!==searchLabel)search.labels[0].textContent=searchLabel;
+  if(cards)search.title=fullSearch;else search.removeAttribute('title');
+  refreshButton.title=t('staffRefreshList');
+  refreshButton.setAttribute('aria-label',refreshButton.title);
   const query=searchable(search.value),filterValues=Object.fromEntries(new doc.defaultView.FormData(filters));
   const filtering=Boolean(query||filterValues.operations||filterValues.cms||filterValues.status);
   const members=state.members.filter(member=>
@@ -243,7 +276,7 @@ export function createStaffAccess({
   }
   if(focusedRow){
    const button=rowLauncher(focusedRow,focusedAction);
-   if(identityOpen&&button)button.parentElement.open=true;
+   if(identityOpen&&!cards&&button)button.parentElement.open=true;
    button?.focus({preventScroll:true});
   }
  }
@@ -445,12 +478,25 @@ export function createStaffAccess({
    p_operations_role:roles.operations,p_cms_role:roles.cms},roleChanged?'staffRoleSaved':'staffNameSaved',draft);
  }
 
+ async function copyEmail(button,address){
+  try{await win.navigator.clipboard.writeText(address);}
+  catch{
+   const selection=win.getSelection();
+   if(!button.isConnected||!selection)return;
+   selection.selectAllChildren(button);
+   notify('staffEmailSelected','info');
+   return;
+  }
+  if(button.isConnected)notify('staffEmailCopied');
+ }
+
  function listAction(event){
   const button=event.target.closest('[data-staff-action]');
   if(!button||!canAct())return;
   const member=state.members.find(item=>item.user_id===button.closest('[data-staff-member]')?.dataset.staffMember);
   if(!member)return;
   const action=button.dataset.staffAction;
+  if(action==='copy-email'&&member.email){void copyEmail(button,member.email);return;}
   if(action==='edit'&&canEdit(member)){
    if(!state.edits.has(member.user_id))state.edits.set(member.user_id,newDraft(member));
    openDrawer(state.edits.get(member.user_id),button.matches('.staff-access-edit-menu')?'more':'edit');
@@ -541,5 +587,9 @@ export function createStaffAccess({
   state.notice=null;
   return load();
  }
+ const resize=win.ResizeObserver?new win.ResizeObserver(()=>{
+  if(!view.hidden&&canView()&&cardLayout()!==cards)renderDirectory();
+ }):null;
+ resize?.observe(directory);
  return {enter,render,leave,reset};
 }

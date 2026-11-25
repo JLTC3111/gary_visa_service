@@ -4,6 +4,38 @@
 @media(max-width:700px){.gary-cms{padding:16px;font-size:16px}.cms-header{display:block}.cms-role{display:inline-block}.cms-language-columns,.cms-editor-meta{grid-template-columns:1fr;gap:12px}.cms-dialog{width:98vw;max-height:98dvh}.cms-dialog form{padding:16px}.cms-dialog>header{padding:14px 16px}.cms-pagination{align-items:start}.cms-toolbar .cms-search{min-width:100%}.cms-toolbar>button{flex:1}.cms-revision{align-items:start;flex-direction:column}.cms-editor-actions{bottom:-16px}.cms-editor-actions button{flex:1}.gary-cms input,.gary-cms textarea,.gary-cms select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.gary-cms *{scroll-behavior:auto!important;transition:none!important}}
 
+.cms-toolbar-compact { display: none; }
+
+@media (max-width: 900px) {
+  .gary-cms[data-cms-app=visa] { container: visa-cms / inline-size; }
+  @container visa-cms (max-width: 42rem) {
+    .cms-content-toolbar { gap: 6px; }
+    .cms-content-toolbar .cms-search { flex: 0 0 100%; min-width: 0; }
+    .cms-content-toolbar .cms-content-status { flex: 1; min-width: 0; }
+    .cms-content-toolbar :is(input, select) { width: 100%; min-width: 0; min-height: 44px; }
+    .cms-content-toolbar > button { flex: none; min-height: 44px; margin: 0; padding-inline: 10px; white-space: nowrap; }
+    .cms-content-toolbar > .cms-toolbar-icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; }
+    .cms-content-toolbar .cms-toolbar-label { display: none; }
+    .cms-content-toolbar .cms-toolbar-compact { display: inline; }
+    .cms-toolbar-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .cms-entry-list { overflow: visible; border: 0; }
+    .gary-cms .cms-entry-table { display: block; min-width: 0; }
+    .cms-entry-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .cms-entry-table tbody { display: grid; gap: 8px; }
+    .cms-entry-table tbody tr {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; padding: 10px 12px;
+      border: 1px solid var(--cms-line); border-radius: 8px; background: var(--vp-surface, white);
+    }
+    .gary-cms .cms-entry-table tbody :is(th, td) { min-width: 0; padding: 0; border: 0; }
+    .cms-entry-table :is(.cms-entry-title, .cms-entry-actions, .cms-empty) { grid-column: 1 / -1; }
+    .cms-entry-title :is(strong, .cms-entry-slug) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cms-entry-date { color: var(--cms-muted); font-size: 12px; white-space: nowrap; }
+    .cms-entry-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cms-entry-actions > button { min-height: 44px; margin: 0; white-space: nowrap; }
+  }
+}
+
 .gary-cms .cms-danger{border-color:var(--vp-line,#d5a49b);color:var(--vp-danger,#8c2d20);background:var(--vp-danger-soft,#fff8f5);margin-left:8px}.gary-cms .cms-danger:hover{background:var(--vp-danger-hover,#fbe7e0)}.gary-cms .cms-editor-actions .cms-danger{margin-left:auto}
 /* Keep editor actions outside the independently scrolling form viewport. */
 .gary-cms .cms-dialog.gw-editor>form{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden;padding:0;max-width:none;margin:0}

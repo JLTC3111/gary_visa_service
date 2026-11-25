@@ -63,6 +63,8 @@ Object.assign(workspaceCopy.vi,{
 
 Object.assign(workspaceCopy.en,{
  staffViewPermissions:'View permissions',staffSearch:'Search by name or email',
+ staffRefreshList:'Refresh staff list',staffCopyEmail:'Copy email',staffEmailCopied:'Email copied.',
+ staffEmailSelected:'Email selected. Use Copy to copy the full address.',
  staffAllRoles:'All roles',staffIdentityCol:'Staff',staffStatusLabel:'Status',staffActionsCol:'Actions',staffAllStatuses:'All statuses',
  staffResultCount:'Showing {count} staff',staffNoMatches:'No staff match your search or filters.',
  staffMoreActions:'More actions for {name}',staffEditAccess:'Edit access for {name}',staffAccountEmail:'Account email',
@@ -70,11 +72,27 @@ Object.assign(workspaceCopy.en,{
 });
 Object.assign(workspaceCopy.vi,{
  staffViewPermissions:'Xem quyền hạn',staffSearch:'Tìm theo tên hoặc email',
+ staffRefreshList:'Tải lại danh sách',staffCopyEmail:'Sao chép email',staffEmailCopied:'Đã sao chép email.',
+ staffEmailSelected:'Đã chọn email. Dùng lệnh Sao chép để sao chép địa chỉ đầy đủ.',
  staffAllRoles:'Tất cả vai trò',staffIdentityCol:'Nhân viên',staffStatusLabel:'Trạng thái',staffActionsCol:'Thao tác',staffAllStatuses:'Tất cả trạng thái',
  staffResultCount:'Đang hiển thị {count} nhân viên',staffNoMatches:'Không tìm thấy nhân viên phù hợp với từ khóa hoặc bộ lọc.',
  staffMoreActions:'Thao tác khác cho {name}',staffEditAccess:'Chỉnh sửa quyền truy cập của {name}',staffAccountEmail:'Email tài khoản',
  staffDisplayName:'Tên hiển thị trên Visa',staffDrawerClose:'Đóng'
 });
+
+export const narrowWorkspaceCopy={
+ en:{
+  staffSearch:'Search',staffEditAccess:'Edit',staffStatus_unavailable:'Unavailable',
+  role_operations_admin:'Admin',role_cms_admin:'Admin',
+  cmsSearch:'Search',cmsCreate:'Create',cmsCreateTitle:'Create new content',cmsRefreshTitle:'Refresh list'
+ },
+ vi:{
+  staffSearch:'Tìm kiếm',staffEditAccess:'Chỉnh sửa',staffStatus_active:'Hoạt động',
+  staffStatus_none:'Chưa cấp',staffStatus_unavailable:'Không khả dụng',noAccess:'Chưa cấp',
+  role_operations_admin:'Quản trị',role_cms_admin:'Quản trị',role_cms_publisher:'Xuất bản',
+  cmsSearch:'Tìm kiếm',cmsCreate:'Tạo mới',cmsCreateTitle:'Tạo nội dung mới',cmsRefreshTitle:'Tải lại danh sách'
+ }
+};
 
 Object.assign(workspaceCopy.en,{
  trashArticles:'News & Guides',

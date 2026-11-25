@@ -73,6 +73,7 @@
   overflow: visible;
 }
 #staff-access-view .dashboard-actions { flex-wrap: wrap; }
+#refresh-staff-access .staff-access-refresh-icon { display: none; }
 .staff-access-heading { padding: 18px var(--staff-access-gutter) 8px; }
 .staff-access-heading h2, .staff-access-drawer h2 {
   margin: 0;
@@ -414,7 +415,7 @@ dialog.staff-access-drawer:not([open]) { pointer-events: none; }
   .staff-access-search { grid-column: 1 / -1; }
   .staff-access-grid { display: block; }
   .staff-access-columns { display: none; }
-  .staff-access-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .staff-access-list { --staff-access-card-layout: 1; grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .staff-access-member {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "identity actions" "meta meta";
@@ -424,21 +425,27 @@ dialog.staff-access-drawer:not([open]) { pointer-events: none; }
     border-radius: 8px;
   }
   .staff-access-identity { grid-area: identity; }
-  .staff-access-row-actions { grid-area: actions; }
+  .staff-access-card-identity { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .staff-access-card-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .staff-access-card-name strong { min-width: 0; line-height: 1.25; }
+  .staff-access-card-name .relationship-badge { flex: none; white-space: nowrap; padding: 2px 5px; }
+  .staff-access-email {
+    display: block; min-width: 0; min-height: 24px; padding: 0; border: 0; background: transparent;
+    color: var(--vp-muted, var(--muted)); font: inherit; font-size: 12px; line-height: 1.35;
+    text-align: start; -webkit-user-select: text; user-select: text; cursor: copy;
+  }
+  .staff-access-email > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .staff-access-email:is(:hover, :focus-visible) { text-decoration: underline; }
+  .staff-access-row-actions { grid-area: actions; align-self: start; }
   .staff-access-member-meta {
     grid-area: meta;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
-  .staff-access-tags { flex-wrap: wrap; }
+  .staff-access-member-meta > :is(.staff-access-field, .staff-access-tags) { grid-column: auto; }
   .staff-access-field {
-    display: inline-grid;
-    gap: 1px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: var(--vp-soft, var(--paper));
+    display: grid; align-content: start; justify-items: start; gap: 2px; min-width: 0;
   }
   .staff-access-label {
     position: static;
@@ -446,6 +453,13 @@ dialog.staff-access-drawer:not([open]) { pointer-events: none; }
     height: auto;
     clip-path: none;
   }
+  .staff-access-member-meta :is(.staff-access-label, .staff-access-status, .staff-access-value) {
+    display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .staff-access-member-meta :is(.staff-access-status, .staff-access-value) {
+    padding: 3px; font-size: 12px; line-height: 1.35;
+  }
+  .staff-access-member-meta .staff-access-value { border-radius: 6px; background: var(--vp-soft, var(--paper)); }
   .staff-access-edit-desktop { display: none; }
   .staff-access-menu:not(:has([data-staff-action=remove])) { display: block; }
   .staff-access-menu-panel .staff-access-edit-menu { display: block; color: var(--vp-text, var(--ink)); }
@@ -455,6 +469,9 @@ dialog.staff-access-drawer:not([open]) { pointer-events: none; }
 }
 @media (max-width: 650px) {
   .staff-access-filters :is(input, select), .staff-access-form :is(input, select) { font-size: 16px; }
+  #refresh-staff-access { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; }
+  #refresh-staff-access .staff-access-refresh-icon { display: block; }
+  #refresh-staff-access > span { display: none; }
 }
 @media (max-width: 340px) {
   .staff-access-lookup { display: grid; justify-items: stretch; }

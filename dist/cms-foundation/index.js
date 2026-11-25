@@ -1,6 +1,7 @@
 import { attachEditorWorkspace } from '../editor-workspace/index.js';
 import { showActionToast } from '../action-toast.js';
 import { isConflictResponse } from '../conflict-response.js';
+import { narrowWorkspaceCopy } from '../workspace-copy.js';
 import { CMS_VERSION, LOCALES, emptyEntry, titleSlug, fieldsFor, getValue, setValue, safeMediaUrl, validateEntry, contentSeoFindings } from './content.js';
 import { cmsText, validationText } from './copy.js';
 import { localizeFinding } from './seo-findings.js';
@@ -28,10 +29,17 @@ export function mountCms(root, options) {
   const date = value => { try { return value ? new Intl.DateTimeFormat(language === 'vi' ? 'vi-VN' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'; } catch { return '—'; } };
   const disabled = value => value ? ' disabled' : '';
   const buttonVariants = { edit: 'edit', publish: 'publish', archive: 'archive', restore: 'restore', delete: 'danger' };
-  const button = (action, text, extra = '', off = false) => {
+  const button = (action, text, extra = '', off = false, markup = escape(text)) => {
     const variant = buttonVariants[action];
-    return `<button type="button" data-action="${action}"${variant ? ` data-button-variant="${variant}"` : ''} ${extra}${disabled(off || busy)}>${escape(text)}</button>`;
+    return `<button type="button" data-action="${action}"${variant ? ` data-button-variant="${variant}"` : ''} ${extra}${disabled(off || busy)}>${markup}</button>`;
   };
+  const toolbarLabel = (full, short) => `<span class="cms-toolbar-label">${escape(full)}</span><span class="cms-toolbar-compact">${escape(short)}</span>`;
+  function toolbarIcon(action, icon, text, title = text) {
+    const name = escape(title);
+    const svg = `<svg class="cms-toolbar-compact" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="./assets/staff-nav-icons.svg#${icon}"/></svg>`;
+    return button(action, text, `class="cms-toolbar-icon-button" aria-label="${name}" title="${name}"`, false,
+      `<span class="cms-toolbar-label">${escape(text)}</span>${svg}`);
+  }
   function errorText(error) {
     if (['CMS_REVIEW_REQUIRED', 'jobs.review_required'].includes(error?.message)) return t('reviewFirst');
     if (isConflictResponse(error)) return t('conflict');
@@ -64,7 +72,30 @@ export function mountCms(root, options) {
     if (!target) return;
     if (!capabilities.read) { target.innerHTML = `<div class="cms-empty" role="status">${escape(busy ? t('loading') : t('noAccess'))}${button('refresh', t('refresh'))}</div>`; return; }
     if (view === 'media') { renderMedia(target); return; }
-    target.innerHTML = `<div class="cms-toolbar"><label class="cms-search"><span>${t('search')}</span><input type="search" data-cms-search value="${escape(query)}" maxlength="180"></label><label><span>${t('status')}</span><select data-cms-status><option value="">${t('all')}</option>${['draft', 'review', 'published', 'archived'].map(value => `<option value="${value}"${status === value ? ' selected' : ''}>${t(value)}</option>`).join('')}</select></label>${button('search', t('search'))}${button('refresh', t('refresh'))}${capabilities.edit ? button('new', t('add'), 'class="cms-primary"') : ''}</div><div class="cms-table-scroll" aria-busy="${busy}"><table><caption class="cms-sr">${escape(label(collection().label))}</caption><thead><tr><th scope="col">${t('title')}</th><th scope="col">${t('status')}</th><th scope="col">${t('updated')}</th><th scope="col">${t('actions')}</th></tr></thead><tbody>${records.length ? records.map((record, index) => `<tr><th scope="row"><strong>${escape(record[`title_${language}`] || record.title_en || record.title_vi || record.slug)}</strong><small>${escape(record.slug)}</small>${publicationNote(record)}</th><td><span class="cms-badge cms-badge-${escape(record.status)}">${escape(t(record.status))}</span></td><td>${escape(date(record.updated_at))}</td><td>${button('edit', t(capabilities.edit ? 'edit' : 'viewEntry'), `data-index="${index}"`)}${capabilities.delete && adapter.remove ? button('delete', t('delete'), `data-index="${index}" class="cms-danger"`) : ''}</td></tr>`).join('') : `<tr><td colspan="4" class="cms-empty">${escape(busy ? t('loading') : loadFailed ? t('unavailable') : t('empty'))}</td></tr>`}</tbody></table></div><footer class="cms-pagination"><span>${t('results')}: ${total} · ${t('page')} ${page} ${t('of')} ${Math.max(1, Math.ceil(total / 20))}</span><div>${button('previous', t('previous'), '', page <= 1)}${button('next', t('next'), '', page * 20 >= total)}</div></footer>`;
+    const narrow = narrowWorkspaceCopy[language];
+    const create = capabilities.edit ? button('new', t('add'), `class="cms-primary" title="${escape(narrow.cmsCreateTitle)}"`, false,
+      toolbarLabel(t('add'), narrow.cmsCreate)) : '';
+    target.innerHTML = `<div class="cms-toolbar cms-content-toolbar">
+      <label class="cms-search">${toolbarLabel(t('search'), narrow.cmsSearch)}<input type="search" data-cms-search value="${escape(query)}" maxlength="180" title="${escape(t('search'))}"></label>
+      <label class="cms-content-status"><span>${t('status')}</span><select data-cms-status><option value="">${t('all')}</option>${['draft', 'review', 'published', 'archived'].map(value => `<option value="${value}"${status === value ? ' selected' : ''}>${t(value)}</option>`).join('')}</select></label>
+      ${toolbarIcon('search', 'search', t('search'))}${toolbarIcon('refresh', 'refresh-cw', t('refresh'), narrow.cmsRefreshTitle)}${create}
+    </div><div class="cms-table-scroll cms-entry-list" aria-busy="${busy}"><table class="cms-entry-table" role="table">
+      <caption class="cms-sr">${escape(label(collection().label))}</caption>
+      <thead role="rowgroup"><tr role="row">${['title', 'status', 'updated', 'actions'].map(key => `<th role="columnheader" scope="col">${t(key)}</th>`).join('')}</tr></thead>
+      <tbody role="rowgroup">${records.length ? records.map(contentRow).join('') : `<tr role="row"><td role="cell" colspan="4" class="cms-empty">${escape(busy ? t('loading') : loadFailed ? t('unavailable') : t('empty'))}</td></tr>`}</tbody>
+    </table></div><footer class="cms-pagination"><span>${t('results')}: ${total} · ${t('page')} ${page} ${t('of')} ${Math.max(1, Math.ceil(total / 20))}</span><div>${button('previous', t('previous'), '', page <= 1)}${button('next', t('next'), '', page * 20 >= total)}</div></footer>`;
+  }
+  function contentRow(record, index) {
+    const title = escape(record[`title_${language}`] || record.title_en || record.title_vi || record.slug);
+    const slug = escape(record.slug), attrs = `data-index="${index}"`;
+    const edit = button('edit', t(capabilities.edit ? 'edit' : 'viewEntry'), attrs);
+    const remove = capabilities.delete && adapter.remove ? button('delete', t('delete'), `${attrs} class="cms-danger"`) : '';
+    return `<tr class="cms-entry-row" role="row">
+      <th class="cms-entry-title" scope="row" role="rowheader"><strong title="${title}">${title}</strong><small class="cms-entry-slug" title="${slug}">${slug}</small>${publicationNote(record)}</th>
+      <td class="cms-entry-status" role="cell"><span class="cms-badge cms-badge-${escape(record.status)}">${escape(t(record.status))}</span></td>
+      <td class="cms-entry-date" role="cell">${escape(date(record.updated_at))}</td>
+      <td class="cms-entry-actions" role="cell">${edit}${remove}</td>
+    </tr>`;
   }
   function publicationNote(record) {
     const live = Boolean(record.publication?.published_at);

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 import {bindFeedbackDom} from './feedback-test-dom.mjs';
 
@@ -19,6 +20,33 @@ function harness(overrides = {}, language = 'en') {
   const input = (selector, value) => { const target = root.querySelector(selector); assert.ok(target, selector); target.value = value; target.dispatchEvent(new dom.window.Event('input', {bubbles: true})); };
   return {dom, root, calls, adapter, controller, input, close() {controller.destroy({force: true});dom.window.close();}};
 }
+test('Visa CMS card controls preserve localized searches, filters and the existing editor and Trash actions', async () => {
+  const h=harness({capabilities:async()=>({read:true, edit:true, delete:true, role:'admin'}),remove:async()=>{}},'vi');
+  try{
+    await h.controller.ready;
+    const find=selector=>h.root.querySelector(selector);
+    assert.equal(find('[data-action=search] use').getAttribute('href'),'./assets/staff-nav-icons.svg#search');
+    assert.equal(find('[data-action=refresh] use').getAttribute('href'),'./assets/staff-nav-icons.svg#refresh-cw');
+    assert.equal(find('[data-action=refresh]').getAttribute('aria-label'),'Tải lại danh sách');
+    assert.equal(find('[data-action=new] .cms-toolbar-compact').textContent,'Tạo mới');
+    assert.equal(find('[data-action=new] .cms-toolbar-label').textContent,'Tạo nội dung');
+    assert.equal(find('table.cms-entry-table').getAttribute('role'),'table');
+    assert.equal(find('.cms-entry-actions [data-action=delete]').dataset.index,'0');
+    h.input('[data-cms-search]','cẩm nang');
+    find('[data-action=search]').click();await settle();
+    assert.equal(h.calls.at(-1)[1].query,'cẩm nang');
+    find('[data-cms-status]').value='draft';
+    find('[data-cms-status]').dispatchEvent(new h.dom.window.Event('change',{bubbles:true}));await settle();
+    assert.equal(h.calls.at(-1)[1].status,'draft');
+    find('[data-action=refresh]').click();await settle();
+    assert.equal(h.calls.at(-1)[1].status,'draft');
+    find('[data-action=new]').click();await settle();
+    assert.ok(find('.cms-dialog[open] [data-cms-editor]'));
+  }finally{h.close();}
+  const css=await readFile(new URL('../dist/cms-foundation/styles.css',import.meta.url),'utf8');
+  assert.match(css,/\.cms-content-toolbar > \.cms-toolbar-icon-button \{[^}]*width: 44px; height: 44px;/);
+  assert.match(css,/\.gary-cms \.cms-entry-table \{ display: block; min-width: 0; \}/);
+});
 test('editor keeps the same bilingual draft through locale changes and honors dirty leave guard', async () => {
   const h = harness(); await h.controller.ready; h.root.querySelector('[data-action=edit]').click(); await settle();
   assert.equal(h.root.querySelector('[data-action=publish]'), null, 'Editor cannot publish from UI');

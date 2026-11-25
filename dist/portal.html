@@ -94,7 +94,9 @@
               <p data-p="staffAccessIntro">Gary Visa staff management. Add verified accounts and choose each member’s Operations and CMS access. Changes apply to Gary Visa only.</p>
             </div>
             <div class="dashboard-actions">
-              <button type="button" id="refresh-staff-access" class="pagination-button" data-p="refresh">Refresh</button>
+              <button type="button" id="refresh-staff-access" class="pagination-button" aria-label="Refresh staff list" title="Refresh staff list">
+                <svg class="icon staff-access-refresh-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="./assets/staff-nav-icons.svg#refresh-cw"/></svg><span data-p="refresh">Refresh</span>
+              </button>
               <button type="button" id="staff-access-open-add" class="button button-small" data-p="staffAddTitle" aria-haspopup="dialog" aria-controls="staff-access-drawer" disabled>Add Staff</button>
             </div>
           </div>

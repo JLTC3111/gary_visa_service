@@ -374,26 +374,36 @@ test('Team Access confirms removal and tells staff to reassign active cases firs
  }finally{h.close();}
 });
 
-test('staff cards disclose long identities and offer Edit Access without granting revoke access',async()=>{
- const h=harness();
+test('375px staff cards group compact labels and copy the one full email without changing management actions',async()=>{
+ const h=harness({width:375});
  try{
   const fullName='Nguyễn Thị '+ 'Minh '.repeat(15)+'Anh';
   const email='long.staff.address.'.repeat(8)+'@example.test';
-  h.updateMember(ids.editor,{email,display_name:fullName});
+  h.updateMember(ids.editor,{email,display_name:fullName,cms_role:'publisher'});
+  h.$('#staff-access-list').style.setProperty('--staff-access-card-layout','1');
   await h.controller.enter();
   h.translate('vi');
-  const row=h.row(ids.editor),person=row.querySelector('summary'),identity=person.parentElement;
+  const row=h.row(ids.editor),copy=h.action(ids.editor,'copy-email'),meta=row.querySelector('.staff-access-member-meta');
   const more=h.action(ids.editor,'more'),menu=h.doc.getElementById(more.getAttribute('aria-controls'));
   const edit=menu.querySelector('[data-staff-action=edit]');
   row.querySelector('.staff-access-edit-desktop').style.display='none';
-  assert.equal(identity.open,false);
-  person.focus();person.click();
-  assert.equal(identity.open,true);
-  assert.equal(identity.querySelector('.staff-access-identity-panel strong').textContent,fullName);
-  assert.equal(identity.querySelector('.staff-access-identity-panel small').textContent,email);
-  person.dispatchEvent(new h.dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
-  assert.equal(identity.open,false);
-  assert.equal(h.doc.activeElement,person);
+  assert.equal(row.querySelector('details, summary, .staff-access-identity-panel'),null);
+  assert.equal(row.textContent.split(email).length,2);
+  assert.equal(row.querySelector('.staff-access-card-name strong').textContent,fullName);
+  assert.deepEqual([...meta.children].map(field=>field.querySelector('.staff-access-label').textContent),['Trạng thái','Nghiệp vụ','CMS']);
+  assert.equal(meta.querySelector('[data-scope=cms] [aria-hidden=true]').textContent,'Xuất bản');
+  assert.equal(meta.querySelector('[data-scope=cms] .staff-access-value').title,'Người xuất bản');
+  assert.equal(h.row(ids.staff).querySelector('.staff-access-status [aria-hidden=true]').textContent,'Hoạt động');
+  assert.equal(h.$('label[for=staff-access-search]').textContent,'Tìm kiếm');
+  assert.equal(h.$('#refresh-staff-access').getAttribute('aria-label'),'Tải lại danh sách');
+  const copied=[];
+  Object.defineProperty(h.dom.window.navigator,'clipboard',{configurable:true,value:{writeText:async value=>copied.push(value)}});
+  copy.focus();copy.click();await settle();
+  assert.deepEqual(copied,[email]);
+  assert.equal(copy.getAttribute('aria-label'),`Sao chép email: ${email}`);
+  Object.defineProperty(h.dom.window.navigator,'clipboard',{value:undefined});
+  copy.click();await settle();
+  assert.equal(h.dom.window.getSelection().toString(),email);
   assert.equal(h.action(ids.editor,'remove'),null);
   more.click();
   assert.equal(more.getAttribute('aria-expanded'),'true');
@@ -407,7 +417,13 @@ test('staff cards disclose long identities and offer Edit Access without grantin
   h.$('#staff-access-cancel').click();
   assert.equal(h.doc.activeElement,more);
   assert.equal(h.rpcs('gary_remove_staff_member').length,0);
+  h.$('#staff-access-list').style.removeProperty('--staff-access-card-layout');
+  h.controller.render();
+  assert.equal(h.$('label[for=staff-access-search]').textContent,'Tìm theo tên hoặc email');
+  assert.equal(h.row(ids.editor).querySelector('.staff-access-identity-panel small').textContent,email);
  }finally{h.close();}
+ const css=await readFile(new URL('../dist/workspace-tools.css',import.meta.url),'utf8');
+ assert.match(css,/\.staff-access-member-meta \{\s*grid-area: meta;\s*display: grid;\s*grid-template-columns: minmax\(0, 1\.2fr\) repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
 test('Team Access keeps CMS authority separate, translates feedback and locks after access loss',async()=>{
