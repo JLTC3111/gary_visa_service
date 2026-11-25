@@ -27,13 +27,15 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(icon)remember(icon,['class','aria-hidden','focusable']);
   if(use&&staffIconUpdates[button.dataset.view])remember(use,['href']);
  }
- let enabled=false,heading,toggle,handle,drawer,branches,drag=null,disposed=false;
+ let enabled=false,heading,toggle,handle,drawer,branches,drag=null,disposed=false,overlay=false;
  const save=()=>{try{win.localStorage.setItem(preferenceKey,JSON.stringify({version:1,...preference}));}catch{}};
  const mobile=()=>win.innerWidth<=900;
+ const constrained=()=>!mobile()&&win.innerWidth<1100;
  const maximum=()=>Math.min(380,Math.max(220,(win.innerWidth||1200)-520));
  const effectiveWidth=()=>Math.max(220,Math.min(maximum(),preference.width));
  const text=()=>language()==='vi'?{collapse:'Thu gọn thanh điều hướng',expand:'Mở rộng thanh điều hướng',show:'Mở điều hướng nhân viên',hide:'Đóng điều hướng nhân viên',resize:'Đổi chiều rộng thanh điều hướng. Dùng phím mũi tên trái/phải; giữ Shift để thay đổi nhiều hơn.',navigation:'Điều hướng không gian nhân viên'}:{collapse:'Collapse staff sidebar',expand:'Expand staff sidebar',show:'Open staff navigation',hide:'Close staff navigation',resize:'Resize staff sidebar. Use left/right arrow keys; hold Shift for larger steps.',navigation:'Staff workspace navigation'};
  const setText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
+ function dismissOverlay(){if(!overlay)return;overlay=false;refresh();}
  function syncDrawer(){
   const open=enabled&&Boolean(drawer?.open);
   trigger.setAttribute('aria-expanded',String(open));
@@ -117,11 +119,13 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
    for(const [name,value] of attributes)if(value===null)node.removeAttribute(name);else node.setAttribute(name,value);
   }
   for(const group of nav.querySelectorAll('.visa-nav-group'))group.remove();if(label)sidebar.insertBefore(label,nav);heading?.remove();handle?.remove();
-  nav.inert=false;nav.removeAttribute('id');nav.removeAttribute('tabindex');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');
+  overlay=false;nav.inert=false;nav.removeAttribute('id');nav.removeAttribute('tabindex');nav.setAttribute('aria-label','Workspace navigation');workspace.classList.remove('visa-staff-workspace','visa-sidebar-collapsed','visa-sidebar-constrained','visa-sidebar-overlay');sidebar.classList.remove('visa-staff-sidebar');workspace.style.removeProperty('--visa-sidebar-width');sidebar.style.removeProperty('--visa-sidebar-expanded-width');
  }
  function refresh({revealActive=false}={}){
   if(disposed)return;if(!isStaff()){disable();return;}enable();
-  const strings=text(),phone=mobile();
+  const strings=text(),phone=mobile(),compact=constrained();
+  if(phone||!compact)overlay=false;
+  const collapsed=!phone&&(compact?!overlay:preference.collapsed);
   trigger.hidden=!phone||workspace.hidden;
   trigger.setAttribute('aria-label',strings.show);trigger.title=strings.show;
   drawer.setAttribute('aria-label',strings.navigation);
@@ -129,18 +133,21 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(phone&&sidebar.parentElement!==drawer)drawer.append(sidebar);
   if(!phone&&sidebar.parentElement!==workspace)workspace.prepend(sidebar);
   syncDrawer();
-  workspace.classList.toggle('visa-sidebar-collapsed',!phone&&preference.collapsed);
-  workspace.style.setProperty('--visa-sidebar-width',(preference.collapsed?76:effectiveWidth())+'px');
+  workspace.classList.toggle('visa-sidebar-collapsed',collapsed);
+  workspace.classList.toggle('visa-sidebar-constrained',!phone&&compact);
+  workspace.classList.toggle('visa-sidebar-overlay',!phone&&compact&&overlay);
+  workspace.style.setProperty('--visa-sidebar-width',(!phone&&(collapsed||compact)?76:effectiveWidth())+'px');
+  sidebar.style.setProperty('--visa-sidebar-expanded-width',effectiveWidth()+'px');
   nav.setAttribute('aria-label',strings.navigation);
-  const action=phone?strings.hide:preference.collapsed?strings.expand:strings.collapse;
+  const action=phone?strings.hide:collapsed?strings.expand:strings.collapse;
   toggle.setAttribute('aria-label',action);toggle.title=action;
   if(phone){toggle.removeAttribute('aria-expanded');toggle.removeAttribute('aria-controls');}
-  else{toggle.setAttribute('aria-expanded',String(!preference.collapsed));toggle.setAttribute('aria-controls',nav.id);}
-  setText(toggle,phone?'×':preference.collapsed?'›':'‹');
-  handle.hidden=phone||preference.collapsed;handle.setAttribute('aria-label',strings.resize);handle.title=strings.resize;handle.setAttribute('aria-valuemin','220');handle.setAttribute('aria-valuemax',String(maximum()));handle.setAttribute('aria-valuenow',String(effectiveWidth()));handle.setAttribute('aria-valuetext',`${Math.round(effectiveWidth())} px`);
+  else{toggle.setAttribute('aria-expanded',String(!collapsed));toggle.setAttribute('aria-controls',nav.id);}
+  setText(toggle,phone?'×':collapsed?'›':'‹');
+  handle.hidden=phone||collapsed||compact;handle.setAttribute('aria-label',strings.resize);handle.title=strings.resize;handle.setAttribute('aria-valuemin','220');handle.setAttribute('aria-valuemax',String(maximum()));handle.setAttribute('aria-valuenow',String(effectiveWidth()));handle.setAttribute('aria-valuetext',`${Math.round(effectiveWidth())} px`);
   for(const group of groups)setText(nav.querySelector(`[data-visa-nav-group="${group.id}"] [data-visa-group-label]`),language()==='vi'?group.vi:group.en);
   for(const button of buttons){const title=button.querySelector('span')?.textContent.trim()||button.textContent.trim();button.setAttribute('aria-label',title);button.title=title;if(button.classList.contains('active')&&!button.hidden)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
-  branches.refresh({rail:!phone&&preference.collapsed,revealActive,
+  branches.refresh({rail:collapsed,revealActive,
    expanded:section=>preference.groups[section.dataset.visaNavGroup],
    reveal:section=>{preference.groups[section.dataset.visaNavGroup]=true;}
   });
@@ -150,6 +157,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
   if(target===toggle){
    stopDrag();
    if(mobile())closeDrawer();
+   else if(constrained()){if(overlay)dismissOverlay();else{overlay=true;refresh({revealActive:true});}}
    else{preference.collapsed=!preference.collapsed;save();refresh();}
    return;
   }
@@ -159,6 +167,7 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
    if(disposed||!enabled)return;
    refresh({revealActive:true});
    if(drawer.open&&buttons.some(button=>button.dataset.view===view&&!button.hidden&&button.classList.contains('active')))closeDrawer(view);
+   if(overlay&&buttons.some(button=>button.dataset.view===view&&!button.hidden&&button.classList.contains('active')))dismissOverlay();
   });
  }
  function pointerDown(event){if(event.target!==handle||event.button!==0||handle.hidden||!enabled)return;event.preventDefault();handle.focus();drag={start:event.clientX,width:effectiveWidth(),pointerId:event.pointerId,cursor:doc.body.style.cursor,select:doc.body.style.userSelect};workspace.setAttribute('data-gary-resizing','');doc.body.style.cursor='ew-resize';doc.body.style.userSelect='none';try{handle.setPointerCapture?.(event.pointerId);}catch{}}
@@ -166,17 +175,21 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  function pointerUp(){if(drag){save();stopDrag();}}
  function keyDown(event){if(event.target!==handle||handle.hidden)return;if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const step=event.shiftKey?48:16;preference.width=event.key==='Home'?220:event.key==='End'?maximum():Math.max(220,Math.min(maximum(),effectiveWidth()+(event.key==='ArrowLeft'?-step:step)));save();refresh();}
  function viewportChanged(){
-  stopDrag();
+  stopDrag();overlay=false;
   const focusWasInNavigation=sidebar.contains(doc.activeElement)||doc.activeElement===trigger;
   refresh();
   if(!enabled||workspace.hidden||!focusWasInNavigation)return;
   if(mobile()&&!drawer.open)trigger.focus({preventScroll:true});
   if(!mobile()&&!sidebar.contains(doc.activeElement))toggle.focus({preventScroll:true});
  }
+ function onKey(event){
+  if(event.key==='Escape'&&overlay){event.preventDefault();event.stopPropagation();dismissOverlay();toggle.focus({preventScroll:true});}
+ }
+ function outside(event){if(overlay&&!sidebar.contains(event.target))dismissOverlay();}
  const workspaceObserver=new win.MutationObserver(entries=>{
   const view=doc.body.dataset.visaView;
   const moved=entries.some(entry=>entry.attributeName==='data-visa-view'&&entry.oldValue!==view);
-  if(moved&&isStaff()&&!workspace.hidden)closeDrawer(view);
+  if(moved&&isStaff()&&!workspace.hidden){closeDrawer(view);if(overlay)dismissOverlay();}
   refresh({revealActive:moved});
  });
  workspaceObserver.observe(doc.body,{attributes:true,attributeOldValue:true,attributeFilter:['data-role','data-visa-view']});
@@ -184,8 +197,8 @@ export function mountStaffSidebar(doc = document, {isStaff = () => doc.body.data
  const languageObserver=new win.MutationObserver(()=>refresh());languageObserver.observe(doc.documentElement,{attributes:true,attributeFilter:['lang']});
  const navigationObserver=new win.MutationObserver(entries=>{if(entries.some(entry=>entry.target.matches?.('[data-view]')))refresh();});navigationObserver.observe(nav,{subtree:true,attributes:true,attributeFilter:['hidden','class']});
  trigger.addEventListener('click',openDrawer);
- sidebar.addEventListener('click',click);sidebar.addEventListener('pointerdown',pointerDown);sidebar.addEventListener('keydown',keyDown);win.addEventListener('pointermove',pointerMove,{passive:false});win.addEventListener('pointerup',pointerUp);win.addEventListener('pointercancel',pointerUp);win.addEventListener('blur',pointerUp);win.addEventListener('resize',viewportChanged);
- const controller={refresh,getState:()=>({...preference,groups:{...preference.groups},mobile:mobile(),mobileExpanded:Boolean(drawer?.open),enabled,width:effectiveWidth()}),destroy(){if(disposed)return;disposed=true;workspaceObserver.disconnect();languageObserver.disconnect();navigationObserver.disconnect();trigger.removeEventListener('click',openDrawer);sidebar.removeEventListener('click',click);sidebar.removeEventListener('pointerdown',pointerDown);sidebar.removeEventListener('keydown',keyDown);win.removeEventListener('pointermove',pointerMove);win.removeEventListener('pointerup',pointerUp);win.removeEventListener('pointercancel',pointerUp);win.removeEventListener('blur',pointerUp);win.removeEventListener('resize',viewportChanged);disable();mountedSidebars.delete(doc);}};
+ sidebar.addEventListener('click',click);sidebar.addEventListener('pointerdown',pointerDown);sidebar.addEventListener('keydown',keyDown);doc.addEventListener('pointerdown',outside);doc.addEventListener('keydown',onKey);win.addEventListener('pointermove',pointerMove,{passive:false});win.addEventListener('pointerup',pointerUp);win.addEventListener('pointercancel',pointerUp);win.addEventListener('blur',pointerUp);win.addEventListener('resize',viewportChanged);
+ const controller={refresh,getState:()=>({...preference,groups:{...preference.groups},mobile:mobile(),mobileExpanded:Boolean(drawer?.open),constrained:constrained(),overlay,enabled,width:effectiveWidth()}),destroy(){if(disposed)return;disposed=true;workspaceObserver.disconnect();languageObserver.disconnect();navigationObserver.disconnect();trigger.removeEventListener('click',openDrawer);sidebar.removeEventListener('click',click);sidebar.removeEventListener('pointerdown',pointerDown);sidebar.removeEventListener('keydown',keyDown);doc.removeEventListener('pointerdown',outside);doc.removeEventListener('keydown',onKey);win.removeEventListener('pointermove',pointerMove);win.removeEventListener('pointerup',pointerUp);win.removeEventListener('pointercancel',pointerUp);win.removeEventListener('blur',pointerUp);win.removeEventListener('resize',viewportChanged);disable();mountedSidebars.delete(doc);}};
  mountedSidebars.set(doc,controller);refresh();return controller;
 }
 if(typeof document!=='undefined')mountStaffSidebar(document);

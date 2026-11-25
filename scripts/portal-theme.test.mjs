@@ -30,7 +30,8 @@ test('staff bootstrap resolves the website preference before styles and portal h
    const expected=theme==='system'?(dark?'dark':'light'):theme;
    assert.equal(h.d.documentElement.dataset.visaTheme,expected);assert.equal(h.d.documentElement.dataset.visaStaffTheme,expected);assert.equal(h.d.documentElement.dataset.visaPortal,'staff');assert.equal(h.d.documentElement.style.colorScheme,expected);
    assert.equal(h.d.getElementById('portal-theme').value,theme);assert.equal(h.d.querySelector('.portal-appearance').hidden,false);
-   assert.equal(h.d.querySelector('label[for=portal-theme]').textContent,lang==='vi'?'Giao diện':'Appearance');
+   assert.equal(h.d.querySelector('[data-portal-appearance-label]').textContent,lang==='vi'?'Giao diện':'Appearance');
+   assert.equal(h.d.querySelector('[data-portal-preferences]').getAttribute('aria-label'),lang==='vi'?'Tùy chọn website':'Site preferences');
   }finally{h.close();}
  }
 });
@@ -107,9 +108,11 @@ test('portal theme Squish Switch follows the shared preference and system change
   const h = harness({theme: 'system', dark: true});
   const switches = mountSquishSwitches(h.d);
   try {
+    h.d.querySelector('[data-portal-preferences]').click();
     const theme = h.d.querySelector('[data-squish-key="visa-portal-theme"] [role=radiogroup]');
     const select = h.d.getElementById('portal-theme');
-    assert.equal(select.hidden, true);
+    assert.equal(h.d.getElementById('portal-preferences-panel').hidden, false);
+    assert.equal(select.getAttribute('aria-hidden'), 'true');
     assert.equal(h.d.querySelectorAll('[data-squish-key="visa-portal-theme"] [role=radiogroup]').length, 1);
     assert.equal(theme.dataset.choice, 'system');
     assert.equal(theme.dataset.resolved, 'dark');

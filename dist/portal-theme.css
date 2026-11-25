@@ -51,6 +51,72 @@ html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::-webkit-scr
 html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body ::-webkit-scrollbar-thumb{background:var(--vp-scrollbar,#a3b7be);border:2px solid var(--vp-scrollbar-track,#fff);border-radius:9px}
 .portal-appearance{display:flex;align-items:center;min-width:0}
 .portal-appearance[hidden]{display:none}
-.portal-appearance select{min-height:40px;max-width:130px;padding:8px 32px 8px 10px;font-size:12px}
-@media(max-width:649px){.portal-appearance select{max-width:112px;min-height:44px;font-size:13px}}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header{
+  min-height:64px;height:auto;padding:.55rem clamp(1rem,3vw,2rem);gap:.75rem 1rem;
+}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header .wordmark{
+  font-size:clamp(28px,4vw,36px);letter-spacing:-.06em;
+}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header-brand{gap:.65rem}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header-right{
+  gap:.45rem;flex:1;min-width:0;justify-content:flex-end;flex-wrap:nowrap;
+}
+html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header-right > *{flex:none}
+.portal-context{
+  margin:0;padding:.2rem .55rem;border:1px solid var(--vp-line,var(--line));border-radius:999px;
+  background:var(--vp-soft,var(--paper));color:var(--vp-accent,var(--teal));
+  font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;
+}
+.portal-context[hidden]{display:none}
+.portal-preferences{position:relative}
+.portal-preferences-trigger,.portal-preferences-close{
+  display:grid;place-items:center;width:40px;height:40px;min-height:40px;padding:0;
+  border:1px solid transparent;border-radius:50%;background:transparent;color:var(--vp-text,var(--ink));cursor:pointer;
+}
+.portal-preferences-trigger:hover,.portal-preferences-trigger[aria-expanded=true]{
+  background:var(--vp-hover,var(--paper));border-color:var(--vp-line,var(--line));
+}
+.portal-preferences-panel{
+  position:absolute;right:0;top:calc(100% + 10px);z-index:40;width:min(320px,calc(100vw - 24px));
+  max-height:calc(100dvh - 96px);overflow:auto;overscroll-behavior:contain;padding:16px 18px 18px;
+  border:1px solid var(--vp-line,var(--line));border-radius:12px;background:var(--vp-surface,var(--white));
+  color:var(--vp-text,var(--ink));box-shadow:0 16px 45px var(--vp-shadow-color,#17395422);text-align:left;
+}
+.portal-preferences-panel[hidden]{display:none}
+.portal-preferences-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+.portal-preferences-heading h2{margin:0;font:600 1rem/1.4 var(--font,system-ui,sans-serif);letter-spacing:-.01em}
+.portal-preferences-close{width:34px;height:34px;min-height:34px;color:var(--vp-muted,var(--muted))}
+.portal-preferences-close:hover{background:var(--vp-hover,var(--paper));color:var(--vp-text,var(--ink))}
+.portal-preferences fieldset{min-width:0;margin:0;padding:12px 0 0;border:0}
+.portal-preferences legend{float:left;width:100%;margin:0 0 10px;padding:0;font-size:.8125rem;font-weight:600;color:var(--vp-text,var(--ink))}
+.portal-preferences-options{
+  clear:both;display:flex;gap:5px;padding:4px;border:1px solid var(--vp-line,var(--line));
+  border-radius:9px;background:var(--vp-soft,var(--paper));overflow:visible;
+}
+.portal-preferences-options[data-squish-ready]{display:block;width:100%;padding:0;border:0;background:transparent;overflow:visible}
+.portal-preferences [data-squish-mode=theme]{width:100%;min-width:0;overflow:visible}
+.portal-preferences [data-squish-mode=theme] > .squish-choice{--ss-width:100%;min-width:0}
+.portal-preferences-help{margin:10px 0 0;color:var(--vp-muted,var(--muted));font-size:.75rem;line-height:1.55}
+.portal-header:has(.portal-preferences-panel:not([hidden])){z-index:40}
+.portal-home{
+  display:inline-flex;align-items:center;gap:.35rem;min-height:40px;padding:.35rem .55rem;
+  border:1px solid transparent;border-radius:8px;color:var(--vp-muted,var(--muted));font-size:.78rem;text-decoration:none;
+}
+.portal-home .icon{width:16px;height:16px;flex:none;transform:scaleX(-1)}
+.portal-home:hover{color:var(--vp-accent,var(--teal));background:var(--vp-hover,var(--paper));border-color:var(--vp-line,var(--line))}
+body[data-role=staff] .portal-header #signout{display:none!important}
+@media(max-width:900px){
+  html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header{flex-wrap:wrap}
+  html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header-right{flex-wrap:wrap;gap:.35rem}
+  .portal-preferences-panel{position:fixed;top:calc(var(--visa-portal-header-height,64px) + 8px);right:12px}
+}
+@media(max-width:720px){
+  .portal-home-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+  .portal-home{width:40px;justify-content:center;padding:0}
+  .portal-context{font-size:.64rem;padding:.15rem .45rem}
+}
+@media(max-width:520px){
+  html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .portal-header .wordmark{font-size:28px}
+  .portal-header .wordmark-label{display:none}
+}
 @media(prefers-reduced-motion:reduce){html:is([data-visa-portal=staff],[data-visa-profile]) .portal-body .loading-mark{animation:none}}

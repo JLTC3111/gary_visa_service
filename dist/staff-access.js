@@ -176,21 +176,25 @@ export function createStaffAccess({
   const name=memberName(member),id=member.user_id,menuId='staff-access-menu-'+id;
   const avatar=el('span',{class:'user-avatar staff-access-avatar account-avatar','aria-hidden':'true','data-staff-avatar':id});
   renderAvatar(avatar,name,state.photos.get(id),true);
-  const actions=canEdit(member)?el('div',{class:'staff-access-row-actions'},[
-   el('button',{type:'button',class:'button button-small','data-button-variant':'edit','data-staff-action':'edit',
-    'aria-label':t('staffEditAccess').replace('{name}',()=>name),
-    'aria-haspopup':'dialog','aria-controls':drawer.id,disabled:blocked()?'':null},t('staffEdit')),
-   member.manage_membership?el('div',{class:'staff-access-menu'},[
+  const editable=canEdit(member),removable=Boolean(member.manage_membership);
+  const editLabel=t('staffEditAccess').replace('{name}',()=>name);
+  const editAttrs={type:'button','data-staff-action':'edit','aria-label':editLabel,'aria-haspopup':'dialog','aria-controls':drawer.id,disabled:blocked()?'':null};
+  const actions=editable||removable?el('div',{class:'staff-access-row-actions'},[
+   editable?el('button',{...editAttrs,class:'button button-small staff-access-edit-desktop','data-button-variant':'edit'},t('staffEdit')):null,
+   el('div',{class:'staff-access-menu'},[
     el('button',{type:'button',class:'icon-button','data-staff-action':'more',
      'aria-expanded':'false','aria-controls':menuId,'aria-label':t('staffMoreActions').replace('{name}',()=>name),
      disabled:blocked()?'':null},el('span',{'aria-hidden':'true'},'⋮')),
-    el('div',{id:menuId,class:'staff-access-menu-panel',inert:'','aria-hidden':'true'},
-     el('button',{type:'button','data-staff-action':'remove'},t('staffRemove')))
-   ]):null
+    el('div',{id:menuId,class:'staff-access-menu-panel',inert:'','aria-hidden':'true'},[
+     removable?el('button',{type:'button','data-staff-action':'remove'},t('staffRemove')):null,
+     editable?el('button',{...editAttrs,class:'staff-access-edit-menu'},t('staffEdit')):null
+    ].filter(Boolean))
+   ])
   ]):null;
+  const email=member.email&&member.email!==name?member.email:null;
   return el('article',{class:'staff-access-member','data-staff-member':id},[
    el('div',{class:'staff-access-identity'},[avatar,el('div',{class:'staff-access-details'},[
-    el('strong',{},name),member.email&&member.email!==name?el('small',{},member.email):null
+    el('strong',{title:name},name),email?el('small',{title:email},email):null
    ])]),
    status(member),...scopes.map(scope=>roleSummary(member,scope)),actions
   ]);

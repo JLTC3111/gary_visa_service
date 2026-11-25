@@ -155,11 +155,11 @@ test('sidebar width/collapse/group preferences reopen, while mobile navigation d
 const staffRoutes=[
  [320,{operations:'admin',cms:null},['applications','customers','inbox','trash','staff-access','profile']],
  [375,{operations:null,cms:'admin'},['cms','news-guides','trash','staff-access','profile']],
- [430,{operations:null,cms:'editor'},['cms','news-guides','profile']],
+ [430,{operations:null,cms:'editor'},['cms','news-guides','staff-access','profile']],
  [768,{operations:'admin',cms:'admin'},['applications','customers','inbox','cms','news-guides','trash','staff-access','profile']],
- [375,{operations:'staff',cms:null},['applications','customers','inbox','profile']],
- [430,{operations:'manager',cms:'publisher'},['applications','customers','inbox','cms','news-guides','profile']],
- [320,{operations:null,cms:null},['profile']]
+ [375,{operations:'staff',cms:null},['applications','customers','inbox','staff-access','profile']],
+ [430,{operations:'manager',cms:'publisher'},['applications','customers','inbox','cms','news-guides','staff-access','profile']],
+ [320,{operations:null,cms:null},['staff-access','profile']]
 ];
 for(const [width,access,expected] of staffRoutes)test(`Visa staff drawer at ${width}px with Operations ${access.operations} and CMS ${access.cms}`,async()=>{
  const h=harness({width,access});try{
@@ -218,5 +218,23 @@ test('mobile drawer CSS fits the requested widths and gives its navigation an in
  assert.match(css,/prefers-reduced-motion:reduce\).*\.visa-mobile-nav-drawer::backdrop\{transition:none/);
 });
 test('storage denial, narrow desktop bounds and CSS theme/reduced-motion support remain safe',async()=>{
- const h=harness({width:930,storage:{getItem(){throw Error('blocked');},setItem(){throw Error('blocked');}}});try{h.key('End');assert.equal(h.controller.getState().width,380);h.doc.querySelector('[data-visa-sidebar-toggle]').click();assert.equal(h.controller.getState().collapsed,true);h.doc.querySelector('[data-visa-sidebar-toggle]').click();h.w.innerWidth=901;h.w.dispatchEvent(new h.w.Event('resize'));assert.ok(h.controller.getState().width<=381);assert.ok(h.w.innerWidth-h.controller.getState().width>=520);const css=await readFile(new URL('../dist/staff-sidebar.css',import.meta.url),'utf8');assert.match(css,/--visa-nav-bg:var\(--vp-surface/);assert.doesNotMatch(css,/prefers-color-scheme/);assert.match(css,/prefers-reduced-motion:reduce/);assert.match(css,/\.workspace-nav\{[^}]*min-height:0[^}]*overflow-y:auto;overscroll-behavior-y:contain/);assert.match(css,/max-width:900px/);}finally{h.close();}
+ const h=harness({width:1200,storage:{getItem(){throw Error('blocked');},setItem(){throw Error('blocked');}}});try{h.key('End');assert.equal(h.controller.getState().width,380);h.doc.querySelector('[data-visa-sidebar-toggle]').click();assert.equal(h.controller.getState().collapsed,true);h.doc.querySelector('[data-visa-sidebar-toggle]').click();h.w.innerWidth=1120;h.w.dispatchEvent(new h.w.Event('resize'));assert.ok(h.controller.getState().width<=381);assert.ok(h.w.innerWidth-h.controller.getState().width>=520);const css=await readFile(new URL('../dist/staff-sidebar.css',import.meta.url),'utf8');assert.match(css,/--visa-nav-bg:var\(--vp-surface/);assert.doesNotMatch(css,/prefers-color-scheme/);assert.match(css,/prefers-reduced-motion:reduce/);assert.match(css,/\.workspace-nav\{[^}]*min-height:0[^}]*overflow-y:auto;overscroll-behavior-y:contain/);assert.match(css,/max-width:900px/);}finally{h.close();}
+});
+test('intermediate widths keep an icon rail that expands as an overlay without rewriting desktop preferences',()=>{
+ const h=harness({width:1000});try{
+  assert.equal(h.controller.getState().constrained,true);
+  assert.ok(h.doc.getElementById('workspace').classList.contains('visa-sidebar-collapsed'));
+  assert.equal(h.doc.querySelector('[data-visa-sidebar-resize]').hidden,true);
+  h.doc.querySelector('[data-visa-sidebar-toggle]').click();
+  assert.equal(h.controller.getState().overlay,true);
+  assert.ok(h.doc.getElementById('workspace').classList.contains('visa-sidebar-overlay'));
+  assert.equal(h.controller.getState().collapsed,false,'overlay does not persist collapse preference');
+  assert.match(h.doc.querySelector('[data-view=applications]').getAttribute('aria-label'),/Applications|Hồ sơ/);
+  h.doc.querySelector('[data-visa-sidebar-toggle]').click();
+  assert.equal(h.controller.getState().overlay,false);
+  assert.ok(h.doc.getElementById('workspace').classList.contains('visa-sidebar-collapsed'));
+  h.w.innerWidth=1200;h.w.dispatchEvent(new h.w.Event('resize'));
+  assert.equal(h.controller.getState().constrained,false);
+  assert.equal(h.doc.getElementById('workspace').classList.contains('visa-sidebar-collapsed'),false);
+ }finally{h.close();}
 });
