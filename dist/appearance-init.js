@@ -12,6 +12,7 @@
     const resolvedTheme = theme === 'system' ? dark.matches ? 'dark' : 'light' : theme;
     const effects = motion ? motion === 'on' : !reduce.matches && !navigator.connection?.saveData;
     root.dataset.visaTheme = resolvedTheme;
+    root.dataset.visaThemePreference = theme;
     root.dataset.visaEffects = effects ? 'on' : 'off';
     root.style.colorScheme = resolvedTheme;
     window.garyVisaPreferences = { ready: true, theme, resolvedTheme, effects, effectsPreference: motion };

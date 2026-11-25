@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
 import {mountPortalTheme} from '../dist/portal-theme.js';
+import {mountSquishSwitches} from '../dist/squish-switch.js';
 import {mountPortalEditors} from '../dist/portal-editors.js';
 import {mountStaffSidebar} from '../dist/staff-sidebar.js';
 const html=await readFile(new URL('../dist/portal.html',import.meta.url),'utf8');
@@ -100,4 +101,33 @@ test('semantic palette gives AA text/status contrast and visible form borders ac
   const source=await readFile(new URL('../dist/'+name,import.meta.url),'utf8');assert.match(source,/var\(--vp-/);assert.doesNotMatch(source,/data-visa-theme=dark/,'components consume tokens instead of deciding themes');
  }
  const sidebar=await readFile(new URL('../dist/staff-sidebar.css',import.meta.url),'utf8');assert.match(sidebar,/--visa-nav-bg:var\(--vp-surface/);assert.doesNotMatch(sidebar,/prefers-color-scheme/);assert.match(css,/scrollbar-color:var\(--vp-scrollbar/);assert.match(css,/\.gary-apps-menu/);assert.match(css,/dialog::backdrop/);
+});
+
+test('portal theme Squish Switch follows the shared preference and system changes', () => {
+  const h = harness({theme: 'system', dark: true});
+  const switches = mountSquishSwitches(h.d);
+  try {
+    const theme = h.d.querySelector('[data-squish-key="visa-portal-theme"] [role=radiogroup]');
+    const select = h.d.getElementById('portal-theme');
+    assert.equal(select.hidden, true);
+    assert.equal(h.d.querySelectorAll('[data-squish-key="visa-portal-theme"] [role=radiogroup]').length, 1);
+    assert.equal(theme.dataset.choice, 'system');
+    assert.equal(theme.dataset.resolved, 'dark');
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '1');
+    theme.dispatchEvent(new h.w.KeyboardEvent('keydown', {key: 'Home', bubbles: true, cancelable: true}));
+    assert.equal(select.value, 'light');
+    assert.equal(h.w.localStorage.getItem('gary-visa-theme'), 'light');
+    assert.equal(h.d.documentElement.dataset.visaTheme, 'light');
+    const media = h.queries.get('(prefers-color-scheme: dark)');
+    media.matches = false;
+    media.dispatchEvent(new h.w.Event('change'));
+    assert.equal(theme.dataset.choice, 'light');
+    change(h, 'system');
+    assert.equal(theme.dataset.choice, 'system');
+    assert.equal(theme.dataset.resolved, 'light');
+    assert.equal(theme.getAttribute('aria-label'), 'Appearance, System, currently light');
+    h.d.documentElement.lang = 'vi';
+    h.d.dispatchEvent(new h.w.Event('gary:language'));
+    assert.equal(theme.querySelector('[role=radio][aria-checked=true]').textContent, 'Hệ thống');
+  } finally { switches.destroy(); h.close(); }
 });

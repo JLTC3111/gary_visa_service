@@ -37,6 +37,7 @@
 [data-squish-key^="visa-"] .squish-switch {
   --ss-track: var(--vp-soft, var(--visa-soft, #eef4f5));
   --ss-track-on: var(--vp-accent-soft, var(--visa-raised, #e6f2f3));
+  --ss-indicator: var(--vp-surface, var(--visa-surface, #fff));
   --ss-ink: var(--vp-text, var(--visa-text, #173954));
   --ss-line: var(--vp-line, var(--visa-line, #c9d8dc));
   --ss-accent: var(--vp-accent, var(--visa-accent, #276e78));
@@ -44,6 +45,7 @@
 [data-squish-key^="jobs-"] .squish-switch {
   --ss-track: var(--jobs-portal-soft, #eeeefa);
   --ss-track-on: var(--jobs-portal-selected, #e5e2fa);
+  --ss-indicator: var(--jobs-portal-surface, #fff);
   --ss-ink: var(--jobs-portal-ink, #242b48);
   --ss-line: var(--jobs-portal-line, #cccee5);
   --ss-accent: var(--jobs-portal-accent, #5256a1);
@@ -72,7 +74,7 @@
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(var(--ss-stops, 2), minmax(0, 1fr));
   place-items: center;
   color: var(--ss-ink);
   font: 650 11px/1 system-ui, sans-serif;
@@ -103,3 +105,128 @@
   .squish-switch__track, .squish-switch__thumb { transition: none; }
   .squish-switch:hover .squish-switch__thumb { scale: 1; }
 }
+
+/* Light, Dark and System use the same spring. The indicator slides behind equal labels. */
+[data-squish-key][data-squish-mode="theme"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 15.5rem;
+  min-height: 44px;
+  vertical-align: middle;
+}
+[data-squish-mode="theme"] > :not(.squish-switch) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+.squish-choice {
+  --ss-width: 248px;
+  --ss-height: 38px;
+  --ss-inset: 4px;
+  --ss-position: 1;
+  --ss-squish: 1;
+  --ss-stops: 3;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  flex: 1 0 var(--ss-width);
+  width: 100%;
+  min-width: var(--ss-width);
+  min-height: 44px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 24px;
+  background: transparent;
+  color: var(--ss-ink);
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.squish-choice .squish-switch__track {
+  width: 100%;
+  min-width: 100%;
+  overflow: visible;
+}
+html[data-visa-theme-preference="light"] [data-squish-mode="theme"] > .squish-choice,
+html[data-jobs-theme-preference="light"] [data-squish-mode="theme"] > .squish-choice { --ss-position: 0; }
+html[data-visa-theme-preference="dark"] [data-squish-mode="theme"] > .squish-choice,
+html[data-jobs-theme-preference="dark"] [data-squish-mode="theme"] > .squish-choice { --ss-position: .5; }
+html[data-visa-theme-preference="system"] [data-squish-mode="theme"] > .squish-choice,
+html[data-jobs-theme-preference="system"] [data-squish-mode="theme"] > .squish-choice { --ss-position: 1; }
+.squish-choice .squish-switch__options {
+  inset: var(--ss-inset);
+  z-index: 1;
+  grid-template-columns: repeat(3, minmax(4.5rem, 1fr));
+  place-items: center;
+  overflow: visible;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+html[lang="vi"] .squish-choice { font-family: "Be Vietnam Pro", Arial, sans-serif; }
+.squish-choice .squish-switch__options span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: var(--ss-ink);
+  font: inherit;
+  line-height: 1.25;
+  text-align: center;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.squish-choice .squish-switch__options span[aria-checked="true"] { color: var(--ss-accent); font-weight: 700; }
+.squish-choice .squish-switch__thumb {
+  z-index: 0;
+  width: calc((100% - var(--ss-inset) * 2) / 3);
+  height: calc(100% - var(--ss-inset) * 2);
+  border-radius: 999px;
+  background-color: var(--ss-indicator, #fff);
+  box-shadow: 0 2px 4px #00000024, inset 0 0 0 1.5px var(--ss-accent);
+  transform: translateX(calc(var(--ss-position) * 200%)) scale(var(--ss-squish), calc(1 / var(--ss-squish)));
+  transform-origin: center;
+}
+.squish-choice .squish-switch__thumb > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.squish-choice:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+.squish-switch__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.jobs-portal-appearance:has([data-squish-mode="theme"])::after { content: none; }

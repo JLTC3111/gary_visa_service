@@ -357,3 +357,91 @@ test('unified controls preserve the real lazy lifecycle: no disabled import, no 
   } finally { controller.destroy(); h.dom.window.close(); }
   assert.equal(calls.unmounts, 2);
 });
+
+test('theme Squish Switch keeps Light, Dark and System, including persistence and system changes', () => {
+  const h = environment({ dark: true, reduce: true, squish: true });
+  try {
+    const theme = h.panel.querySelector('[data-squish-mode="theme"] [role="radiogroup"]');
+    const radios = [...theme.querySelectorAll('[role="radio"]')];
+    assert.deepEqual(radios.map(radio => radio.textContent), ['Light', 'Dark', 'System']);
+    assert.equal(radios.filter(radio => radio.getAttribute('aria-checked') === 'true').length, 1);
+    assert.equal(theme.dataset.choice, 'system');
+    assert.equal(theme.dataset.resolved, 'dark');
+    assert.equal(theme.getAttribute('aria-label'), 'Appearance, System, currently dark');
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '1');
+    assert.equal(theme.style.getPropertyValue('--ss-squish'), '1');
+    assert.equal(h.panel.querySelector('[data-theme-choice="system"]').hidden, true);
+    assert.equal(h.panel.querySelectorAll('[data-squish-mode="theme"] [role="radiogroup"]').length, 1);
+    key(h, theme, 'ArrowLeft');
+    assert.equal(h.w.localStorage.getItem('gary-visa-theme'), 'dark');
+    assert.equal(theme.dataset.choice, 'dark');
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '0.5');
+    assert.equal(h.panel.querySelector('[data-theme-choice="dark"]').getAttribute('aria-pressed'), 'true');
+    const color = h.queries.get('(prefers-color-scheme: dark)');
+    color.matches = false;
+    color.listeners.forEach(fn => fn());
+    assert.equal(h.d.documentElement.dataset.visaTheme, 'dark');
+    assert.equal(theme.dataset.resolved, 'dark');
+    key(h, theme, 'ArrowRight');
+    assert.equal(h.w.garyVisaPreferences.theme, 'system');
+    color.listeners.forEach(fn => fn());
+    assert.equal(h.d.documentElement.dataset.visaTheme, 'light');
+    assert.equal(theme.dataset.resolved, 'light');
+    assert.equal(theme.dataset.choice, 'system');
+    assert.equal(theme.getAttribute('aria-label'), 'Appearance, System, currently light');
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '1');
+    h.d.documentElement.lang = 'vi';
+    h.d.dispatchEvent(new h.w.Event('gary:language'));
+    assert.equal(theme.getAttribute('aria-label'), 'Giao diện, Hệ thống, đang sáng');
+    assert.equal(theme.querySelector('[role="radio"][aria-checked="true"]').textContent, 'Hệ thống');
+    key(h, theme, 'Home');
+    assert.equal(h.w.garyVisaPreferences.theme, 'light');
+    assert.equal(h.d.documentElement.dataset.visaTheme, 'light');
+    color.matches = true;
+    color.listeners.forEach(fn => fn());
+    assert.equal(theme.dataset.choice, 'light', 'an explicit theme stays put when the system changes');
+  } finally { h.switches.destroy(); h.dom.window.close(); }
+});
+
+test('theme Squish Switch squashes while dragged, cancels on Escape and snaps when motion is reduced', () => {
+  const h = environment({ squish: true });
+  try {
+    h.trigger.click();
+    const theme = h.panel.querySelector('[data-squish-mode="theme"] [role="radiogroup"]');
+    assert.equal(h.panel.hidden, false);
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '1');
+    const pointer = (type, clientX) => {
+      const event = new h.w.MouseEvent(type, { bubbles: true, button: 0, clientX, detail: 1 });
+      Object.defineProperty(event, 'pointerId', { value: 7 });
+      theme.dispatchEvent(event);
+    };
+    let frame;
+    h.w.requestAnimationFrame = callback => { frame = callback; return 1; };
+    h.w.cancelAnimationFrame = () => { frame = null; };
+    pointer('pointerdown', 200);
+    pointer('pointermove', 197);
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '1');
+    pointer('pointermove', 80);
+    assert.ok(Number(theme.style.getPropertyValue('--ss-squish')) > 1);
+    assert.equal(theme.dataset.choice, 'system');
+    key(h, theme, 'Escape');
+    assert.equal(h.panel.hidden, false);
+    assert.equal(theme.dataset.choice, 'system');
+    assert.equal(theme.hasAttribute('data-held'), false);
+    assert.ok(frame, 'an interrupted drag springs back');
+    const motion = h.queries.get('(prefers-reduced-motion: reduce)');
+    motion.matches = true;
+    motion.listeners.forEach(listener => listener());
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '1');
+    assert.equal(theme.style.getPropertyValue('--ss-squish'), '1');
+    pointer('pointerdown', 200);
+    pointer('pointermove', 40);
+    assert.equal(theme.style.getPropertyValue('--ss-squish'), '1');
+    pointer('pointerup', 40);
+    pointer('click', 40);
+    assert.equal(h.w.localStorage.getItem('gary-visa-theme'), 'light');
+    assert.equal(theme.dataset.choice, 'light');
+    assert.equal(theme.style.getPropertyValue('--ss-position'), '0');
+    assert.equal(frame, null);
+  } finally { h.switches.destroy(); h.dom.window.close(); }
+});
