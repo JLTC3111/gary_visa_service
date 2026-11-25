@@ -1,6 +1,6 @@
 const copy = {
-  en: { preferences: 'Website preferences', close: 'Close preferences', language: 'Language', theme: 'Appearance', light: 'Light', dark: 'Dark', system: 'System', effects: 'Visual effects', on: 'On', off: 'Off', help: 'Turn off the animated highway to save graphics power.', shortcut: 'Visual settings', hint: 'Click the road to pause. Press and hold to accelerate.', pausedHint: 'Click the road or press Play to resume.', play: 'Play animation', pause: 'Pause animation', unavailable: 'Static view. Animation is unavailable on this device.' },
-  vi: { preferences: 'Tùy chọn website', close: 'Đóng tùy chọn', language: 'Ngôn ngữ', theme: 'Giao diện', light: 'Sáng', dark: 'Tối', system: 'Hệ thống', effects: 'Hiệu ứng', on: 'Bật', off: 'Tắt', help: 'Tắt đường cao tốc chuyển động để tiết kiệm tài nguyên đồ họa.', shortcut: 'Tùy chọn hiệu ứng', hint: 'Nhấp vào đường để tạm dừng. Nhấn giữ để tăng tốc.', pausedHint: 'Nhấp vào đường hoặc nhấn Phát để tiếp tục.', play: 'Phát hoạt ảnh', pause: 'Tạm dừng hoạt ảnh', unavailable: 'Hình nền tĩnh. Thiết bị này không hỗ trợ hoạt ảnh.' }
+  en: { preferences: 'Website preferences', close: 'Close preferences', switches: 'Language and visual effects', language: 'Language', theme: 'Appearance', light: 'Light', dark: 'Dark', system: 'System', effects: 'Visual effects', on: 'On', off: 'Off', help: 'Turn off the animated highway to save graphics power.', shortcut: 'Visual settings', hint: 'Click the road to pause. Press and hold to accelerate.', pausedHint: 'Click the road or press Play to resume.', play: 'Play animation', pause: 'Pause animation', unavailable: 'Static view. Animation is unavailable on this device.' },
+  vi: { preferences: 'Tùy chọn website', close: 'Đóng tùy chọn', switches: 'Ngôn ngữ và hiệu ứng', language: 'Ngôn ngữ', theme: 'Giao diện', light: 'Sáng', dark: 'Tối', system: 'Hệ thống', effects: 'Hiệu ứng', on: 'Bật', off: 'Tắt', help: 'Tắt đường cao tốc chuyển động để tiết kiệm tài nguyên đồ họa.', shortcut: 'Tùy chọn hiệu ứng', hint: 'Nhấp vào đường để tạm dừng. Nhấn giữ để tăng tốc.', pausedHint: 'Nhấp vào đường hoặc nhấn Phát để tiếp tục.', play: 'Phát hoạt ảnh', pause: 'Tạm dừng hoạt ảnh', unavailable: 'Hình nền tĩnh. Thiết bị này không hỗ trợ hoạt ảnh.' }
 };
 const preferencesRoot = document.querySelector('.visa-preferences');
 const panel = document.getElementById('visa-preferences-panel');
@@ -45,7 +45,7 @@ function renderPreferences() {
   trigger?.setAttribute('aria-label', t.preferences);
   document.querySelectorAll('[data-preferences-title]').forEach(node => node.textContent = t.preferences);
   document.querySelectorAll('[data-close-preferences]').forEach(node => node.setAttribute('aria-label', t.close));
-  for (const [key, value] of [['language', t.language], ['appearance', t.theme], ['effects', t.effects], ['help', t.help]]) {
+  for (const [key, value] of [['switches', t.switches], ['language', t.language], ['appearance', t.theme], ['effects', t.effects], ['help', t.help]]) {
     document.querySelectorAll(`[data-preferences-${key}]`).forEach(node => node.textContent = value);
   }
   document.querySelectorAll('[data-lang]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.lang === (document.documentElement.lang === 'vi' ? 'vi' : 'en'))));

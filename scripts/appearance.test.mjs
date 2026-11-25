@@ -36,6 +36,9 @@ test('Squish Switch uses Visa’s existing preferences, localized accessible sta
   try {
     const language = h.panel.querySelector('.preferences-language [role=switch]');
     const effects = h.panel.querySelector('[data-squish-mode=effects] [role=switch]');
+    const group = language.closest('fieldset');
+    assert.deepEqual([...group.querySelectorAll('[role=switch]')], [language, effects]);
+    assert.equal(group.querySelector('legend').textContent, 'Language and visual effects');
     h.trigger.click();
     assert.equal(h.d.activeElement, language);
     assert.equal(language.getAttribute('aria-label'), 'Use Vietnamese');
@@ -45,6 +48,7 @@ test('Squish Switch uses Visa’s existing preferences, localized accessible sta
     assert.equal(h.d.documentElement.lang, 'vi');
     assert.equal(h.w.localStorage.getItem('gary-language'), 'vi');
     assert.equal(language.getAttribute('aria-label'), 'Dùng tiếng Việt');
+    assert.equal(group.querySelector('legend').textContent, 'Ngôn ngữ và hiệu ứng');
     assert.equal(language.getAttribute('aria-checked'), 'true');
     assert.equal(language.style.getPropertyValue('--ss-position'), '1');
     assert.equal(language.style.getPropertyValue('--ss-squish'), '1');
@@ -138,7 +142,11 @@ test('preferences resolve before public CSS; one header trigger owns the three s
     assert.equal(h.panel.getAttribute('role'), 'dialog');
     assert.equal(h.panel.getAttribute('aria-modal'), 'false');
     assert.equal(h.trigger.getAttribute('aria-controls'), h.panel.id);
-    assert.equal(h.panel.querySelectorAll('fieldset').length, 3);
+    const sections = h.panel.querySelectorAll('fieldset');
+    assert.equal(sections.length, 2);
+    assert.ok(sections[0].querySelector('[data-preferences-language]'));
+    assert.ok(sections[0].querySelector('[data-preferences-effects]'));
+    assert.ok(sections[1].querySelector('[data-preferences-appearance]'));
     assert.equal(h.panel.hidden, true);
   } finally { h.dom.window.close(); }
 });

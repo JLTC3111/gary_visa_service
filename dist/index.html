@@ -72,9 +72,19 @@
           <button type="button" class="preferences-trigger" id="visa-preferences-trigger" data-open-preferences aria-label="Website preferences" aria-haspopup="dialog" aria-controls="visa-preferences-panel" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg></button>
           <div class="visa-preferences-panel" id="visa-preferences-panel" role="dialog" aria-modal="false" aria-labelledby="visa-preferences-title" hidden>
             <div class="preferences-heading"><h2 id="visa-preferences-title" data-preferences-title>Website preferences</h2><button type="button" class="preferences-close" data-close-preferences aria-label="Close preferences"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
-            <fieldset><legend data-preferences-language>Language</legend><div class="preferences-options preferences-language" data-squish-key="visa-public-language"><button type="button" data-lang="en" data-squish-target="off" lang="en" aria-pressed="true">English</button><button type="button" data-lang="vi" data-squish-target="on" lang="vi" aria-pressed="false">Tiếng Việt</button></div></fieldset>
+            <fieldset>
+              <legend class="sr-only" data-preferences-switches>Language and visual effects</legend>
+              <div class="preferences-switch-row">
+                <span class="preferences-switch-label" data-preferences-language>Language</span>
+                <div class="preferences-options preferences-language" data-squish-key="visa-public-language"><button type="button" data-lang="en" data-squish-target="off" lang="en" aria-pressed="true">English</button><button type="button" data-lang="vi" data-squish-target="on" lang="vi" aria-pressed="false">Tiếng Việt</button></div>
+              </div>
+              <div class="preferences-switch-row">
+                <span class="preferences-switch-label" data-preferences-effects>Visual effects</span>
+                <div class="preferences-options" data-squish-key="visa-effects" data-squish-mode="effects"><button type="button" data-effects-choice="on" data-squish-target="on" aria-pressed="false">On</button><button type="button" data-effects-choice="off" data-squish-target="off" aria-pressed="true">Off</button></div>
+              </div>
+              <p class="preferences-help" data-preferences-help>Turn off the animated highway to save graphics power.</p>
+            </fieldset>
             <fieldset><legend data-preferences-appearance>Appearance</legend><div class="preferences-options"><button type="button" data-theme-choice="light" aria-pressed="false">Light</button><button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button><button type="button" data-theme-choice="system" aria-pressed="true">System</button></div></fieldset>
-            <fieldset><legend data-preferences-effects>Visual effects</legend><div class="preferences-options" data-squish-key="visa-effects" data-squish-mode="effects"><button type="button" data-effects-choice="on" data-squish-target="on" aria-pressed="false">On</button><button type="button" data-effects-choice="off" data-squish-target="off" aria-pressed="true">Off</button></div><p class="preferences-help" data-preferences-help>Turn off the animated highway to save graphics power.</p></fieldset>
           </div>
         </div>
         <div class="visa-account-menu" id="public-account-menu"><a class="portal-link" href="./portal.html" data-i18n="portal">Sign in</a></div>

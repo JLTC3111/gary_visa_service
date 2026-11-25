@@ -11,6 +11,7 @@ import {mountPortalEditors} from './portal-editors.js';
 import {showActionToast,setCounterValues,clearCounterValues} from './action-toast.js';
 import {createProfileAvatar} from './profile-avatar.js';
 import {accountRoleLabel, mountAccountMenu} from './account-menu.js';
+import {mountLanguageSwitch} from './squish-switch.js';
 
 const $=selector=>document.querySelector(selector),$$=selector=>[...document.querySelectorAll(selector)];
 const english={};
@@ -78,13 +79,16 @@ const profileAvatar=createProfileAvatar({db,doc:document,t,name:()=>state.profil
 function translate(){
  document.documentElement.lang=language;editorWorkspaces.refresh();
  $$('[data-p]').forEach(node=>{node.textContent=t(node.dataset.p)});$$('[data-p-placeholder]').forEach(node=>{node.placeholder=t(node.dataset.pPlaceholder)});
- $$('[data-language]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.language===language)));
+ updateLanguageSwitch(language);
  try{localStorage.setItem('gary-language',language)}catch{}
  document.dispatchEvent(new CustomEvent('gary:language',{detail:{language}}));renderAuth();if(state.user&&state.profile){renderIdentity();renderApplications();setCounterValues(document,caseStats,language);crm.render();inbox.render();cms.translate();trash.render();staffAccess.render();if(state.currentCase&&state.caseData)renderCase();}
  $('#request-dialog-title').textContent=t(state.editingId?'editTitle':'newApplication');$('#request-submit>span').textContent=t(state.editingId?'saveChanges':'submitApplication');$('#request-submit').dataset.buttonVariant=state.editingId?'save':'confirm';
  $('#toggle-password').textContent=t($('#auth-password').type==='password'?'show':'hide');
 }
-$$('[data-language]').forEach(button=>button.addEventListener('click',()=>{language=button.dataset.language;translate()}));
+const updateLanguageSwitch=mountLanguageSwitch($('#portal-language'),language,next=>{
+ language=next;
+ translate();
+});
 
 function renderAuth(){
  updateDocumentTitle();

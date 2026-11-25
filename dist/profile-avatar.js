@@ -1,9 +1,11 @@
+import {encodeAvatarCrop} from './image-optimization.js';
+
 export const avatarBucket = 'gary-visa-avatars';
 export const avatarPath = id => `${id}/avatar`;
 const maxBytes = 5 * 1024 * 1024;
 const mimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
-export function renderAvatar(node, name, url) {
+export function renderAvatar(node, name, url, lazy = false) {
  const doc = node.ownerDocument;
  const words = (name.trim().split('@')[0] || 'G').split(/[\s._-]+/).filter(Boolean);
  const initials = words.length > 1 ? [words[0], words.at(-1)] : words;
@@ -11,6 +13,8 @@ export function renderAvatar(node, name, url) {
  if (!url) return;
  const photo = doc.createElement('img');
  photo.alt = '';
+ photo.decoding = 'async';
+ if (lazy) photo.loading = 'lazy';
  photo.addEventListener('error', () => photo.remove(), {once: true});
  photo.src = url;
  node.append(photo);
@@ -106,7 +110,7 @@ export function createProfileAvatar({db, doc, t, name, notify, onPhotoChange}) {
   working = true; problem = '';
   render();
   try {
-   const body = removing ? null : await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+   const body = removing ? null : await encodeAvatarCrop(canvas, win);
    if (epoch !== accountEpoch || selection !== selectionEpoch) return;
    if (!removing && (!body || !mimeTypes.includes(body.type))) throw new Error('Invalid preview');
    const headers = {'x-visa-avatar-owner': owner};

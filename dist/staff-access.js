@@ -175,7 +175,7 @@ export function createStaffAccess({
  function memberRow(member){
   const name=memberName(member),id=member.user_id,menuId='staff-access-menu-'+id;
   const avatar=el('span',{class:'user-avatar staff-access-avatar account-avatar','aria-hidden':'true','data-staff-avatar':id});
-  renderAvatar(avatar,name,state.photos.get(id));
+  renderAvatar(avatar,name,state.photos.get(id),true);
   const actions=canEdit(member)?el('div',{class:'staff-access-row-actions'},[
    el('button',{type:'button',class:'button button-small','data-button-variant':'edit','data-staff-action':'edit',
     'aria-label':t('staffEditAccess').replace('{name}',()=>name),
@@ -287,7 +287,7 @@ export function createStaffAccess({
    const members=new Map(state.members.map(member=>[member.user_id,member]));
    for(const avatar of list.querySelectorAll('[data-staff-avatar]')){
     const member=members.get(avatar.dataset.staffAvatar);
-    if(member)renderAvatar(avatar,memberName(member),state.photos.get(member.user_id));
+    if(member)renderAvatar(avatar,memberName(member),state.photos.get(member.user_id),true);
    }
   }catch{ /* Keep initials when pictures are unavailable. */ }
  }

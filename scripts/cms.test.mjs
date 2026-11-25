@@ -144,7 +144,8 @@ test('News & Guides mounts only article records, shows the live snapshot and ret
 test('agency media adapter reserves before upload and checks Storage state after lost responses',async()=>{
  const calls=[];
  let missing=false;
- const stored={id:'media-id',file_name:'cover.png',mime_type:'image/png',size_bytes:3,alt_en:'Cover',alt_vi:'Ảnh bìa'};
+ const image=new File([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8foAAAAASUVORK5CYII=','base64')],'cover.png',{type:'image/png'});
+ const stored={id:'media-id',file_name:'cover.png',mime_type:'image/png',size_bytes:image.size,alt_en:'Cover',alt_vi:'Ảnh bìa'};
  const db={
   async rpc(name,args){
    calls.push(name);
@@ -168,7 +169,10 @@ test('agency media adapter reserves before upload and checks Storage state after
   }}
  };
  const adapter=createAgencyCmsAdapter({db,isStaff:()=>true,getUser:()=>({id:'20000000-0000-4000-8000-000000000001'})});
- const ready=await adapter.uploadMedia({name:'cover.png',size:3,type:'image/png'},{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_vi:'Chú thích',publicConfirmed:true});
+ globalThis.createImageBitmap=async()=>({width:1,height:1,close(){}});
+ let ready;
+ try{ready=await adapter.uploadMedia(image,{alt_en:'Cover',alt_vi:'Ảnh bìa',caption_vi:'Chú thích',publicConfirmed:true});}
+ finally{delete globalThis.createImageBitmap;}
  assert.ok(ready.url.endsWith(stored.object_path));
  assert.deepEqual(calls,['gary_cms_reserve_media','Storage upload','gary_cms_register_media']);
  await assert.rejects(()=>adapter.removeMedia(stored.id),/CMS_MEDIA_PENDING/);

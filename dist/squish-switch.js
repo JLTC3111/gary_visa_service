@@ -1,13 +1,14 @@
 // Adapted from the React Bits Squish Switch. See licenses/react-bits-LICENSE.md.
 const mounted = new WeakMap();
 
-function makeSwitch(doc, change) {
+function makeSwitch(doc, change, button = doc.createElement('button')) {
   const win = doc.defaultView;
-  const button = doc.createElement('button');
   button.type = 'button';
   button.className = 'squish-switch';
   button.setAttribute('role', 'switch');
-  button.innerHTML = '<span class="squish-switch__track" aria-hidden="true"><span class="squish-switch__options"><span></span><span></span></span><span class="squish-switch__thumb"><span></span></span></span>';
+  if (!button.firstElementChild) {
+    button.innerHTML = '<span class="squish-switch__track" aria-hidden="true"><span class="squish-switch__options"><span></span><span></span></span><span class="squish-switch__thumb"><span></span></span></span>';
+  }
   const track = button.querySelector('.squish-switch__track');
   const states = [...button.querySelectorAll('.squish-switch__options span')];
   const thumbLabel = button.querySelector('.squish-switch__thumb span');
@@ -151,6 +152,25 @@ function makeSwitch(doc, change) {
   }};
 }
 
+function languagePresentation(vi) {
+  return {
+    labels: ['EN', 'VI'],
+    label: vi ? 'Dùng tiếng Việt' : 'Use Vietnamese',
+    title: vi ? 'Chuyển sang tiếng Anh' : 'Switch to Vietnamese'
+  };
+}
+
+export function mountLanguageSwitch(button, language, onChange) {
+  const control = makeSwitch(button.ownerDocument, on => onChange(on ? 'vi' : 'en'), button);
+  function update(locale) {
+    const vi = locale === 'vi';
+    control.present(vi, languagePresentation(vi));
+  }
+  update(language);
+  button.disabled = false;
+  return update;
+}
+
 const events = ['gary:language', 'gary:visual-preferences', 'jobs:public-render', 'jobs:switch-render'];
 
 export function mountSquishSwitches(doc = document) {
@@ -195,11 +215,7 @@ export function mountSquishSwitches(doc = document) {
         labels: vi ? ['Tắt', 'Bật'] : ['Off', 'On'],
         label: vi ? 'Hiệu ứng' : 'Visual effects',
         title: vi ? (checked ? 'Tắt hiệu ứng' : 'Bật hiệu ứng') : (checked ? 'Turn effects off' : 'Turn effects on')
-      } : {
-        labels: ['EN', 'VI'],
-        label: vi ? 'Dùng tiếng Việt' : 'Use Vietnamese',
-        title: vi ? 'Chuyển sang tiếng Anh' : 'Switch to Vietnamese'
-      });
+      } : languagePresentation(vi));
     }
   }
 

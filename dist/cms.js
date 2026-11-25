@@ -3,6 +3,7 @@ import {responseError} from './conflict-response.js';
 // membership decisions, queries, or publication snapshots.
 import {articleCategories,publicCmsImage} from './cms-articles.js';
 import {titleSlug} from './cms-foundation/content.js';
+import {editorialPhoto,imageOptimizationErrorText,optimizeImage} from './image-optimization.js';
 
 export const agencyCollections=[
  {kind:'service',cover:true,label:{en:'Visa services',vi:'Dịch vụ visa'},fields:[{key:'data.category',label:{en:'Service group',vi:'Nhóm dịch vụ'},type:'select',options:[{value:'travel',label:{en:'Entry & travel',vi:'Nhập cảnh & du lịch'}},{value:'settle',label:{en:'Work & residence',vi:'Làm việc & cư trú'}},{value:'documents',label:{en:'Documents',vi:'Giấy tờ'}}]},{key:'data.service_type',label:{en:'Enquiry service',vi:'Dịch vụ khi liên hệ'},type:'select',options:[{value:'visa',label:{en:'Visa',vi:'Visa'}},{value:'work',label:{en:'Work permits',vi:'Giấy phép lao động'}},{value:'residence',label:{en:'Residence cards',vi:'Thẻ tạm trú'}},{value:'documents',label:{en:'Document support',vi:'Hỗ trợ giấy tờ'}}]},{key:'includes',bilingual:true,type:'textarea',label:{en:'Included support (one item per line)',vi:'Hỗ trợ bao gồm (mỗi dòng một mục)'}},{key:'data.image_url',type:'url',label:{en:'Image URL',vi:'Đường dẫn ảnh'}}]},
@@ -44,9 +45,8 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   p_path:item.object_path,p_name:item.file_name,p_mime:item.mime_type,p_size:item.size_bytes,
   p_alt_en:item.alt_en,p_alt_vi:item.alt_vi
  }));
- const resumeMedia=async(item,file)=>{
+ const storeMedia=async(item,file)=>{
   allowed();
-  if(!file||file.type!==item.mime_type||file.size!==item.size_bytes||file.name.slice(0,200)!==item.file_name)throw new Error('CMS_MEDIA_MISSING');
   try{
    const upload=await imageBucket().upload(item.object_path,file,{upsert:false,contentType:file.type,cacheControl:'300'});
    if(upload.error)throw upload.error;
@@ -55,6 +55,18 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
    try{return await finishMedia(item);}catch{throw error;}
   }
   return finishMedia(item);
+ };
+ const prepareMedia=file=>optimizeImage(file,editorialPhoto,{inputMax:5242880});
+ const resumeMedia=async(item,file)=>{
+  allowed();
+  const owner=getUser().id;
+  if(!file||file.name.slice(0,200)!==item.file_name)throw new Error('CMS_MEDIA_MISSING');
+  if(file.type===item.mime_type&&file.size===item.size_bytes)return storeMedia(item,file);
+  // A reservation records the transmitted MIME and size. A retry with the
+  // source file must reproduce those before writing to the reserved key.
+  const {body}=await prepareMedia(file);
+  if(getUser()?.id!==owner||body.type!==item.mime_type||body.size!==item.size_bytes)throw new Error('CMS_MEDIA_MISSING');
+  return storeMedia(item,body);
  };
  const mediaPending=()=>new Error('CMS_MEDIA_PENDING');
  const uniqueArticleSlug=async(record,rejected)=>{
@@ -75,7 +87,7 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
  return {
   errorText(error,language='en'){
    const values={AGENCY_RECORD_DELETED:['This content is in Trash. Restore it before editing.','Nội dung này đang ở Thùng rác. Khôi phục trước khi chỉnh sửa.'],AGENCY_PUBLISHER_REQUIRED:['A publisher or CMS administrator is required.','Cần quyền duyệt đăng hoặc quản trị CMS.'],CMS_REVIEW_REQUIRED:['Submit the saved draft for review before publishing.','Gửi bản nháp đã lưu để duyệt trước khi đăng.'],CMS_SERVICE_GROUP_REQUIRED:['Choose a service group and enquiry service before submitting for review.','Chọn nhóm dịch vụ và dịch vụ liên hệ trước khi gửi duyệt.'],CMS_LANDING_SLOT_REQUIRED:['Choose the landing-page section before submitting for review.','Chọn phần trên trang chủ trước khi gửi duyệt.'],CMS_TRANSLATION_REQUIRED:['Complete both language versions before submitting for review.','Hoàn thiện cả hai ngôn ngữ trước khi gửi duyệt.'],CMS_INVALID_MEDIA_URL:['Choose an image from this application’s media library or existing site assets.','Chọn ảnh từ thư viện tư liệu của ứng dụng hoặc ảnh hiện có trên trang.']};
-   return (values[error?.message]||mediaText[error?.message])?.[language==='vi'?1:0];
+   return imageOptimizationErrorText(error,language)||(values[error?.message]||mediaText[error?.message])?.[language==='vi'?1:0];
   },
   mediaPolicy:{mimeTypes:Object.keys(imageExtensions),maxBytes:5242880,publicImages:true},
   coverUrl:publicCmsImage,
@@ -124,14 +136,17 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   },
   async uploadMedia(file,metadata={}){
    allowed();
-   const extension=file&&imageExtensions[file.type];
-   if(!extension||file.size<=0||file.size>5242880)throw Object.assign(new Error('CMS_MEDIA_INVALID'),{code:'23514'});
-   const path=`${getUser().id}/${crypto.randomUUID()}.${extension}`;
+   if(!file||!imageExtensions[file.type]||file.size<=0||file.size>5242880)throw Object.assign(new Error('CMS_MEDIA_INVALID'),{code:'23514'});
+   const owner=getUser().id;
+   const {body,extension}=await prepareMedia(file);
+   if(getUser()?.id!==owner)throw Object.assign(new Error('CMS_ACCESS_DENIED'),{code:'42501'});
+   const path=`${owner}/${crypto.randomUUID()}.${extension}`;
    const reservation=await rpc('gary_cms_reserve_media',{
-    p_path:path,p_name:file.name.slice(0,200),p_mime:file.type,p_size:file.size,
+    p_path:path,p_name:file.name.slice(0,200),p_mime:body.type,p_size:body.size,
     ...describeMedia(metadata),p_public_confirmed:metadata.publicConfirmed===true
    });
-   return resumeMedia(reservation,file);
+   if(getUser()?.id!==owner)throw Object.assign(new Error('CMS_ACCESS_DENIED'),{code:'42501'});
+   return storeMedia(reservation,body);
   },
   resumeMedia,
   finishMedia,

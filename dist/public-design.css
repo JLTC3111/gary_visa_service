@@ -31,7 +31,10 @@ html[lang=vi] .visa-public .desktop-nav { margin-left:auto; }
 .visa-public .preferences-close:hover { background:var(--visa-soft);color:var(--visa-text); }
 .visa-public .visa-preferences-panel fieldset { min-width:0;margin:0;padding:16px 0 0;border:0; }
 .visa-public .visa-preferences-panel fieldset+fieldset { margin-top:18px;border-top:1px solid var(--visa-line); }
-.visa-public .visa-preferences-panel legend { float:left;width:100%;margin:0 0 10px;padding:0;font-size:13px;font-weight:600;line-height:1.5;color:var(--visa-text); }
+.visa-public .visa-preferences-panel legend:not(.sr-only) { float:left;width:100%;margin:0 0 10px;padding:0; }
+.visa-public .visa-preferences-panel legend:not(.sr-only),.visa-public .preferences-switch-label { font-size:13px;font-weight:600;line-height:1.5;color:var(--visa-text); }
+.visa-public .preferences-switch-row { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px; }
+.visa-public .preferences-switch-row + .preferences-switch-row { margin-top:6px; }
 .visa-public .preferences-options { clear:both;display:flex;gap:5px;padding:4px;background:var(--visa-soft);border:1px solid var(--visa-line);border-radius:9px; }
 .visa-public .preferences-options button { flex:1;min-width:0;min-height:44px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--visa-muted);font-size:13px;font-weight:500;line-height:1.4;padding:9px 7px;cursor:pointer; }
 .visa-public .preferences-options button:hover { background:var(--visa-raised);color:var(--visa-text); }

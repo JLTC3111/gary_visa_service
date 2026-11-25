@@ -1,8 +1,9 @@
 import * as feedback from '../dist/action-toast.js';
+import {mountLanguageSwitch} from '../dist/squish-switch.js';
 
 // The portal fixtures evaluate ES module bodies in jsdom without loading their imports.
 export function bindFeedbackDom(window) {
-  Object.assign(window, feedback);
+  Object.assign(window, feedback, {mountLanguageSwitch});
   const globals = {window, document: window.document};
   for (const name of ['getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame']) {
     if (window[name]) globals[name] = window[name].bind(window);
