@@ -51,7 +51,7 @@ function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage}=
   return result({user_id:args.p_user_id});
  }};
  const t=key=>portalCopy[doc.documentElement.lang]?.[key]??portalCopy.en[key]??key;
- const controller=createStaffAccess({db,doc,t,canManage:()=>allowed,notify:key=>notices.push(key)});
+ const controller=createStaffAccess({db,doc,t,canView:()=>allowed,notify:key=>notices.push(key)});
  const form=$('#staff-access-form'),drawer=$('#staff-access-drawer'),feedback=$('#staff-access-feedback');
  const openAdd=()=>$('#staff-access-open-add').click();
  const control=name=>form.elements.namedItem(name);
@@ -72,6 +72,19 @@ function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage}=
   rpcs:name=>calls.filter(call=>call.name===name).map(call=>call.args),revoke(){allowed=false},
   updateMember:(id,changes)=>Object.assign(members.find(member=>member.user_id===id),changes)};
 }
+
+test('Team Access displays visible accounts to read-only staff without offering management actions',async()=>{
+ const member={user_id:ids.self,display_name:'Casey Staff',email:'casey@example.test',operations_role:'staff',self:true};
+ const h=harness({operationsAdmin:false,respond:name=>name==='gary_staff_access_list'?result({
+  members:[member],operations_role:'staff',cms_role:null
+ }):null});
+ try{
+  await h.controller.enter();
+  assert.match(h.row(ids.self).textContent,/Casey Staff/);
+  assert.equal(h.$('#staff-access-open-add').hidden,true);
+  assert.equal(h.action(ids.self,'edit'),null);
+ }finally{h.close();}
+});
 
 test('Team Access preserves eligible portraits, initials and action focus',async()=>{
  let resolve,paths;

@@ -190,12 +190,12 @@ test('article editor previews and replaces covers; media metadata is bilingual a
  const base='https://duyiihsmaqfgwezmsnjs.supabase.co/storage/v1/object/public/gary-cms-media/80000000-0000-4000-8000-000000000008/';
  const makeItem=(number)=>({id:String(number),file_name:`cover-${number}.png`,mime_type:'image/png',owned:true,state:'ready',version:2,alt_en:'Cover',alt_vi:'Ảnh bìa',
   caption_en:'English caption',caption_vi:'Chú thích ảnh',url:base+`11111111-1111-4111-8111-11111111111${number}.png`});
- let media=[makeItem(1),makeItem(2)],role='editor';
+ let media=[makeItem(1),makeItem(2)],role='editor',siteOwner=false;
  let article=entry('article','work-guide',{version:4,status:'published',data:{image_url:media[0].url}});
  const writes=[];
  const adapter={
   mediaPolicy:{publicImages:true,mimeTypes:['image/png'],maxBytes:5242880},
-  capabilities:async()=>({role,read:true,edit:role==='editor',media:role==='editor',publish:role==='publisher'}),
+  capabilities:async()=>({role,read:true,edit:role==='editor',media:role==='editor',publish:role==='publisher',manage_media:siteOwner}),
   list:async()=>({records:[article],total:1}),listMedia:async()=>media,coverUrl:publicCmsImage,
   save:async record=>{article={...record,version:record.version+1,status:'draft'};writes.push(article);return article;},
   uploadMedia:async(file,metadata)=>{writes.push({file,metadata});return {...makeItem(3),...metadata};},
@@ -208,6 +208,7 @@ test('article editor previews and replaces covers; media metadata is bilingual a
  const submit=selector=>select(selector).dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
  try{
   await cms.ready;
+  assert.equal(select('[data-action=media]'),null,'editors can use covers without opening the inventory');
   select('[data-action=edit]').click();await settle();
   assert.equal(select('[data-field=slug]'),null);
   assert.doesNotMatch(select('[data-cms-editor]').textContent,/Page address|Đường dẫn trang|approved for public use|được phép sử dụng công khai/);
@@ -235,6 +236,7 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   submit('[data-cms-editor]');await settle();
   assert.equal(writes.at(-1).data.image_url,'');
   select('[data-action=close]').click();await settle();
+  siteOwner=true;await cms.refresh();
   select('[data-action=media]').click();await settle();
   const editing=select('[data-cms-media-metadata]');
   editing.elements.caption_en.value='Updated English';
@@ -249,7 +251,8 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   assert.equal(writes.at(-1).metadata.publicConfirmed,true);
   select('[data-action=remove-media]').click();await settle();
   assert.equal(select('.cms-media-grid').children.length,1);
-  role='publisher';await cms.refresh();
+  role='publisher';siteOwner=false;await cms.refresh();
+  assert.equal(select('[data-action=media]'),null);
   assert.equal(select('[data-cms-upload]'),null);
   assert.equal(select('[data-action=remove-media]'),null);
   assert.equal(select('[data-cms-media-metadata]'),null);

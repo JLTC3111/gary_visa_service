@@ -86,6 +86,158 @@ async function installConflictHotfix(h){
  await h.db.exec(await sql(`migrations/${conflictMigration}`));
 }
 
+const visibilityMigration='20261125182549_visa_staff_visibility_and_media_ownership.sql';
+
+test('Visa staff visibility, direct requests and media management respect both roles and verified ownership',async()=>{
+ const h=await setup({teamManagement:true,cmsLifecycle:true});
+ try{
+  await installTrashLifecycle(h);
+  await h.db.exec(await sql('migrations/20261118154222_visa_profile_avatars.sql'));
+  await h.db.exec(await sql(`migrations/${visibilityMigration}`));
+  const operations=[null,'staff','manager','admin'], cms=[null,'editor','publisher','admin'];
+  const pairs=operations.flatMap((ops,opRank)=>cms.flatMap((content,cmsRank)=>[0,1].map(peer=>({
+   id:id(100+8*opRank+2*cmsRank+peer),ops,content,opRank,cmsRank,
+  }))));
+  const owner={id:id(140),ops:'staff',content:null,siteOwner:true,opRank:1,cmsRank:0};
+  const otherOwner={id:id(141),ops:null,content:'editor',siteOwner:true,opRank:0,cmsRank:1};
+  const inactiveCmsAdmin={id:id(142),ops:'staff',content:'admin',cmsActive:false,opRank:1,cmsRank:3};
+  const fixtures=[...pairs,owner,otherOwner,inactiveCmsAdmin];
+  const fixtureIds=new Set(fixtures.map(person=>person.id));
+  const email=person=>`member-${person.id.slice(-3)}@example.test`;
+  for(const person of fixtures){
+   await h.q('insert into auth.users(id,email) values($1,$2)',[person.id,email(person)]);
+   await h.q('insert into gary_private.staff_members(user_id,operations_role,site_owner) values($1,$2,$3)',[
+    person.id,person.ops,person.siteOwner??false
+   ]);
+   if(person.content)await h.q('insert into gary_private.cms_members(user_id,role,active) values($1,$2,$3)',[
+    person.id,person.content,person.cmsActive??true
+   ]);
+   await h.q("insert into public.gary_profiles(id,full_name,contact_email) values($1,'Test staff',$2)",[person.id,email(person)]);
+   await h.q("insert into storage.objects(bucket_id,name) values('gary-visa-avatars',$1)",[person.id+'/avatar']);
+  }
+  // all 16 role pairs, two peers per pair and protected Owners.
+  {
+   for(const viewer of [...pairs,owner,otherOwner]){
+    await h.as(viewer.id);
+    const data=await h.rpc('gary_staff_access_list');
+    const visible=fixtures.filter(target=>viewer.siteOwner||target.id===viewer.id||(
+     !target.siteOwner&&target.opRank<=viewer.opRank&&target.cmsRank<=viewer.cmsRank&&
+     (target.opRank<viewer.opRank||target.cmsRank<viewer.cmsRank)
+    )).map(person=>person.id).sort();
+    assert.deepEqual(data.members.filter(row=>fixtureIds.has(row.user_id)).map(row=>row.user_id).sort(),visible,`${viewer.ops}/${viewer.content}`);
+    const portraits=(await h.q("select split_part(name,'/',1) id from storage.objects where bucket_id='gary-visa-avatars' order by name")).rows;
+    assert.deepEqual(portraits.map(row=>row.id),visible,'direct Storage read follows the account list');
+    for(const row of data.members){
+     if(row.self||row.user_id===owner.id||row.user_id===otherOwner.id)
+      assert.equal(row.manage_operations||row.manage_cms||row.manage_membership,false);
+     if(viewer.ops!=='admin')assert.equal(row.manage_operations,false);
+     if(viewer.content!=='admin')assert.equal(row.manage_cms,false);
+    }
+   }
+  }
+
+  // direct requests cannot enumerate hidden accounts and counts and pagination run after RLS.
+  {
+   await h.owner();
+   const protectedContact=await h.one("insert into public.gary_crm_contacts(profile_id,full_name,email,stage,source,deleted_at) values($1,'Protected contact',$2,'lead','manual',now()) returning id",[
+    owner.id,email(owner)
+   ]);
+   const opsAdmin=pairs.find(person=>person.ops==='admin'&&person.content===null);
+   await h.as(opsAdmin.id);
+   const opsStaff=pairs.find(person=>person.ops==='staff'&&person.content===null);
+   const opsPeer=pairs.find(person=>person.ops==='admin'&&person.content===null&&person.id!==opsAdmin.id);
+   const missing=id(999);
+   const expectError=async(name,args,code,message)=>assert.rejects(h.rpc(name,args),error=>error.code===code&&error.message===message);
+   for(const target of [email(owner),email(opsPeer),email(inactiveCmsAdmin),'missing@example.test']){
+    await expectError('gary_lookup_staff_account',[target],'P0002','AGENCY_ACCOUNT_UNAVAILABLE');
+    await expectError('gary_add_staff_member',[target,'staff',null],'P0002','AGENCY_ACCOUNT_UNAVAILABLE');
+    await expectError('gary_add_staff_member',[target,'staff',null,'Example'],'P0002','AGENCY_ACCOUNT_UNAVAILABLE');
+   }
+   assert.equal((await h.rpc('gary_lookup_staff_account',[email(opsStaff)])).email,email(opsStaff));
+   for(const target of [owner.id,opsPeer.id,inactiveCmsAdmin.id,missing]){
+    await expectError('gary_set_operations_role',[target,'staff',null],'P0002','AGENCY_STAFF_MISSING');
+    await expectError('gary_edit_staff_member',[target,null,null,null,null,null,null],'P0002','AGENCY_STAFF_MISSING');
+    await expectError('gary_remove_staff_member',[target,null,null],'P0002','AGENCY_STAFF_MISSING');
+   }
+   assert.deepEqual((await h.q('select id from public.gary_profiles where id=$1',[owner.id])).rows,[]);
+   assert.deepEqual((await h.q('select id from public.gary_crm_contact_directory where profile_id=$1',[owner.id])).rows,[]);
+   assert.deepEqual((await h.q('select id from public.gary_crm_contacts where id=$1',[protectedContact.id])).rows,[]);
+   for(const offset of [0,1]){
+    assert.deepEqual(await h.rpc('gary_trash_directory',['contact','Protected contact','',offset,1]),{records:[],total:0});
+    assert.deepEqual(await h.rpc('gary_list_trash',['contact',offset,1]),{records:[],total:0});
+   }
+   await expectError('gary_trash_record',['contact',protectedContact.id,null],'P0002','AGENCY_RECORD_MISSING');
+   await expectError('gary_restore_record',['contact',protectedContact.id,null],'P0002','AGENCY_RECORD_MISSING');
+   assert.equal(await h.count("select id from public.gary_profiles where contact_email like 'member-%'"),7);
+   assert.equal(await h.count('select id from public.gary_profiles where contact_email=$1',[email(owner)]),0);
+   assert.deepEqual((await h.q("select id from public.gary_profiles where contact_email like 'member-%' order by id offset 7 limit 1")).rows,[]);
+   assert.ok((await h.q('select * from public.gary_staff_directory() where user_id=$1',[owner.id])).rows[0]?.assignable,
+    'an Operations assignee is still selectable by the Operations team');
+   await denied(h.q('select * from gary_private.staff_members'));
+   await h.as(opsStaff.id);
+   await denied(h.rpc('gary_set_operations_role',[opsAdmin.id,'staff',null]));
+   assert.deepEqual((await h.q('select user_id from public.gary_staff_directory()')).rows,[{user_id:opsStaff.id}]);
+   await h.as('cmsAdmin');
+   await expectError('gary_set_cms_role',[owner.id,'editor',null],'P0002','AGENCY_STAFF_MISSING');
+   await h.as(opsAdmin.id);
+   assert.equal((await h.rpc('gary_set_operations_role',[opsStaff.id,'manager','staff'])).operations_role,'manager');
+   await h.owner();
+   await h.q("update gary_private.staff_members set operations_role='admin' where user_id=$1",[owner.id]);
+   await h.as(owner.id);
+   assert.equal((await h.rpc('gary_trash_directory',['contact','Protected contact','',0,1])).records[0].id,protectedContact.id);
+   await expectError('gary_set_operations_role',[otherOwner.id,'staff',null],'42501','AGENCY_PROTECTED_ROLE');
+   await h.as('customer');
+   await denied(h.rpc('gary_staff_access_list'));
+   await denied(h.q('select * from public.gary_staff_directory()'));
+   await h.as(null);
+   await denied(h.rpc('gary_staff_access_list'));
+  }
+
+  // media inventory, orphan removal and retention require a verified site Owner; editors can upload covers.
+  {
+   const path=uid.editor+'/11111111-1111-4111-8111-111111111111.png';
+   const mediaRecord=async(name,args)=>(
+    await h.one(`select to_jsonb(public.${name}(${args.map((_,index)=>`$${index+1}`).join(',')})) result`,args)
+   ).result;
+   await h.as('editor');
+   const reserved=await mediaRecord('gary_cms_reserve_media',[path,'Cover.png','image/png',100,'Cover','Ảnh bìa','','',true]);
+   await h.q("select set_config('test.storage_operation','object.upload',false)");
+   assert.equal((await h.q("insert into storage.objects(bucket_id,name,metadata) values('gary-cms-media',$1,'{\"mimetype\":\"image/png\",\"size\":100}') returning name",[path])).rows[0].name,path);
+   await h.q("select set_config('test.storage_operation','object.list',false)");
+   assert.equal(await h.count("select name from storage.objects where bucket_id='gary-cms-media'"),0);
+   assert.equal((await mediaRecord('gary_cms_register_media',[path,'Cover.png','image/png',100,'Cover','Ảnh bìa'])).state,'ready');
+   for(const actor of ['editor','cmsAdmin','admin','publisher','customer']){
+    await h.as(actor);
+    assert.equal((await h.rpc('gary_cms_capabilities')).manage_media,false,actor);
+    assert.equal(await h.count('select id from public.gary_cms_media'),0,actor);
+    assert.equal(await h.count("select name from storage.objects where bucket_id='gary-cms-media'"),0,actor);
+    await denied(h.rpc('gary_cms_update_media',[reserved.id,2,'New','Mới','','']));
+    await denied(h.rpc('gary_cms_prepare_media_removal',[reserved.id]));
+    await denied(h.rpc('gary_cms_confirm_media_removal',[reserved.id]));
+    await denied(h.rpc('gary_set_trash_retention',['article',7]));
+   }
+   await h.as('editor');
+   assert.deepEqual((await h.q('select * from public.gary_cms_ready_images()')).rows,[{file_name:'Cover.png',object_path:path}]);
+   await h.as(owner.id);
+   assert.equal((await h.rpc('gary_cms_capabilities')).manage_media,true);
+   assert.equal(await h.count('select id from public.gary_cms_media'),1);
+   await h.rpc('gary_set_trash_retention',['article',7]);
+   assert.equal((await mediaRecord('gary_cms_prepare_media_removal',[reserved.id])).state,'deleting');
+   await h.as('cmsAdmin');
+   assert.deepEqual((await h.q("delete from storage.objects where bucket_id='gary-cms-media' and name=$1 returning id",[path])).rows,[]);
+   await h.as(owner.id);
+   assert.equal((await h.q("delete from storage.objects where bucket_id='gary-cms-media' and name=$1 returning id",[path])).rows.length,1);
+   assert.equal(await h.rpc('gary_cms_confirm_media_removal',[reserved.id]),true);
+   await h.owner();
+   assert.equal((await h.one("select minimum_days from gary_private.trash_retention where kind='article'")).minimum_days,7);
+   await h.q("update auth.users set banned_until=now()+interval '1 hour' where id=$1",[owner.id]);
+   await h.as(owner.id);
+   await denied(h.rpc('gary_staff_access_list'));
+   await denied(h.rpc('gary_set_trash_retention',['article',1]));
+  }
+ }finally{await h.db.close();}
+});
+
 test('Application Trash preserves workflow status and resumes safe permanent deletion after partial Storage cleanup',async()=>{
  const h=await setup({teamManagement:true,cmsLifecycle:true});
  const app=h.ids.assigned,linked=`${app}/${uid.customer}/passport.pdf`,orphan=`${app}/${uid.customer}/orphan.pdf`,other=`${h.ids.other}/${uid.customer2}/keep.pdf`;

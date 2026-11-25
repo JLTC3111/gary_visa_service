@@ -50,12 +50,13 @@ export function mountCms(root, options) {
   function confirmAction(message) {
     if (!disposed) showActionToast(root.ownerDocument, message, {language});
   }
+  const canManageMedia = () => capabilities.manage_media === true;
   function canLeave() { return !dirty() || root.ownerDocument.defaultView.confirm(t('discard')); }
   function shell() {
     editorWorkspace?.destroy(); editorWorkspace = null;
     root.classList.add('gary-cms'); root.dataset.cmsApp = options.appId || 'content';
-    const tabs = options.collections.map(item => button('collection', label(item.label), `data-kind="${escape(item.kind)}" aria-pressed="${item.kind === kind && view === 'content'}"`)).join('');
-    root.innerHTML = `<header class="cms-header"><div><p class="cms-eyebrow">${escape(options.appName || options.appId || 'Gary Group')}</p><h2>${escape(label(options.heading) || t('cms'))}</h2><p>${t('intro')}</p></div><div class="cms-role">${t('role')}: ${escape(capabilities.role ? t(capabilities.role) : t('readOnly'))}</div></header><p class="cms-notice" data-cms-notice role="${noticeKind}" aria-live="polite">${escape(notice)}</p><nav class="cms-collections" aria-label="${t('content')}">${tabs}${button('media', t('media'), `aria-pressed="${view === 'media'}"`)}</nav><div class="cms-workspace" data-cms-workspace></div><dialog class="cms-dialog" id="${id}-editor" aria-labelledby="${id}-editor-heading"></dialog>`;
+    const tabs = capabilities.role === null ? '' : options.collections.map(item => button('collection', label(item.label), `data-kind="${escape(item.kind)}" aria-pressed="${item.kind === kind && view === 'content'}"`)).join('');
+    root.innerHTML = `<header class="cms-header"><div><p class="cms-eyebrow">${escape(options.appName || options.appId || 'Gary Group')}</p><h2>${escape(label(options.heading) || t('cms'))}</h2><p>${t('intro')}</p></div><div class="cms-role">${t('role')}: ${escape(capabilities.role ? t(capabilities.role) : t('readOnly'))}</div></header><p class="cms-notice" data-cms-notice role="${noticeKind}" aria-live="polite">${escape(notice)}</p><nav class="cms-collections" aria-label="${t('content')}">${tabs}${canManageMedia() ? button('media', t('media'), `aria-pressed="${view === 'media'}"`) : ''}</nav><div class="cms-workspace" data-cms-workspace></div><dialog class="cms-dialog" id="${id}-editor" aria-labelledby="${id}-editor-heading"></dialog>`;
     renderWorkspace();
   }
   function renderWorkspace() {
@@ -82,6 +83,8 @@ export function mountCms(root, options) {
         if (disposed || requestEpoch !== epoch) return;
         if (!capabilities.read) { shell(); return; }
       }
+      if (capabilities.role === null && canManageMedia()) view = 'media';
+      if (view === 'media' && !canManageMedia()) { view = 'content'; media = []; }
       if (view === 'media') {
         const result = adapter.listMedia ? await adapter.listMedia() : [];
         if (disposed || requestEpoch !== epoch) return;
@@ -243,7 +246,7 @@ export function mountCms(root, options) {
     const action = `data-index="${index}"`;
     const preview = url && (item.mime_type || item.type || '').startsWith('image/') ? `<figure><img src="${escape(url)}" alt="${escape(alt)}" loading="lazy">${caption ? `<figcaption>${escape(caption)}</figcaption>` : ''}</figure>` : '';
     const metadata = url && capabilities.media && adapter.updateMedia ? `<details><summary>${t('mediaDetails')}</summary><form data-cms-media-metadata ${action}>${mediaFields(item)}${mediaSubmit('save')}</form></details>` : '';
-    const canManageItem = capabilities.media && (item.owned || capabilities.delete);
+    const canManageItem = canManageMedia();
     const remove = canManageItem && adapter.removeMedia ? button('remove-media', t(item.state === 'deleting' ? 'retryRemoval' : 'removeMedia'), action) : '';
     let pending = '';
     if (item.state === 'reserved') {
@@ -355,7 +358,7 @@ export function mountCms(root, options) {
     if (action === 'new') { if (capabilities.edit) return openEditor(); return; }
     if (action === 'remove-cover') return setCover('');
     if (action === 'upload-cover') return uploadCover();
-    if (action === 'collection' || action === 'media') {
+    if (action === 'collection' || (action === 'media' && canManageMedia())) {
       if (!canLeave()) return; draft = null; baseline = ''; query = ''; page = 1;
       if (action === 'collection') { kind = target.dataset.kind; view = 'content'; } else view = 'media';
       shell(); return refresh();
@@ -383,7 +386,7 @@ export function mountCms(root, options) {
     }
     if (action === 'finish-media' || action === 'remove-media') {
       const item = media[Number(target.dataset.index)];
-      if (!item || busy || !capabilities.media || (!item.owned && !capabilities.delete)) return;
+      if (!item || busy || !canManageMedia()) return;
       if (action === 'finish-media' && adapter.finishMedia) return changeMedia(() => adapter.finishMedia(item), t('mediaSaved'), target);
       if (action === 'remove-media' && adapter.removeMedia && root.ownerDocument.defaultView.confirm(t('mediaRemoveConfirm'))) {
         return changeMedia(() => adapter.removeMedia(item.id), t('mediaRemoved'), target, true);

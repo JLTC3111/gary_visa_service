@@ -94,7 +94,7 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   async capabilities(){
    const caps=await rpc('gary_cms_capabilities');
    const canEdit=caps.role==='editor'||caps.role==='admin';
-   return {...caps,edit:canEdit&&caps.edit===true,media:canEdit&&caps.media===true,delete:caps.trash===true};
+   return {...caps,edit:canEdit&&caps.edit===true,media:(canEdit||caps.manage_media===true)&&caps.media===true,delete:caps.trash===true};
   },
   async list({kind,query='',status='',page=1,pageSize=20}={}){
    allowed();page=Math.max(1,Math.trunc(page));pageSize=Math.min(100,Math.max(1,Math.trunc(pageSize)));
@@ -128,10 +128,14 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   restore:async(id,revisionId,{expectedVersion}={})=>rpc('gary_cms_restore',{p_id:id,p_revision_id:revisionId,p_expected_version:expectedVersion}),
   async listMedia({readyOnly=false}={}){
    allowed();
+   if(readyOnly){
+    const rows=await rpc('gary_cms_ready_images');
+    return rows.map(row=>presentMedia({...row,state:'ready'}));
+   }
    const request=db.from('gary_cms_media')
     .select('id,file_name,object_path,mime_type,size_bytes,created_at,uploaded_by,state,version,alt_en,alt_vi,caption_en,caption_vi')
     .order('created_at',{ascending:false}).limit(200);
-   const rows=take(await (readyOnly?request.eq('state','ready'):request.neq('state','removed')));
+   const rows=take(await request.neq('state','removed'));
    return (Array.isArray(rows)?rows:rows?[rows]:[]).map(presentMedia);
   },
   async uploadMedia(file,metadata={}){

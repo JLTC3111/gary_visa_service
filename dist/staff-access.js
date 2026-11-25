@@ -46,7 +46,7 @@ const expected = member => ({
 });
 
 export function createStaffAccess({
- db,doc,t,canManage,notify=()=>{},onSaved=()=>{},showDialog=node=>node.showModal(),closeDialog=node=>node.close()
+ db,doc,t,canView,notify=()=>{},onSaved=()=>{},showDialog=node=>node.showModal(),closeDialog=node=>node.close()
 }){
  const {$,el,take}=workspaceUI(doc,t);
  const view=$('#staff-access-view'),list=$('#staff-access-list'),drawer=$('#staff-access-drawer');
@@ -65,7 +65,7 @@ export function createStaffAccess({
  const canEdit = member => member.manage_membership || scopes.some(scope=>member['manage_'+scope]);
  const blocked = () => state.loading || Boolean(state.busy);
  const canAdd = () => scopes.some(scope=>state.authority?.[scope]);
- const canAct = () => canManage() && state.authority && !blocked();
+ const canAct = () => canView() && state.authority && !blocked();
 
  function paint(node,value){
   const message=value?t(value.key):'';
@@ -129,7 +129,7 @@ export function createStaffAccess({
  }
 
  function restoreDrawerFocus(draft){
-  if(view.hidden||!canManage())return;
+  if(view.hidden||!canView())return;
   const button=draft.member?rowAction(draft.member.user_id,'edit'):addButton;
   (button&&!button.disabled?button:search).focus({preventScroll:true});
  }
@@ -224,9 +224,10 @@ export function createStaffAccess({
  }
 
  function render(){
-  if(!canManage())return;
+  if(!canView())return;
   renderDrawer();renderDirectory();paint(notice,state.notice);
   refreshButton.disabled=blocked();
+  addButton.hidden=!canAdd();
   addButton.disabled=blocked()||!canAdd();
   formControls.refresh();
  }
@@ -279,7 +280,7 @@ export function createStaffAccess({
   if(!db.storage||!byPath.size)return;
   try{
    const {data,error}=await db.storage.from(avatarBucket).createSignedUrls([...byPath.keys()],600);
-   if(error||generation!==state.generation||request!==state.request||!canManage())return;
+   if(error||generation!==state.generation||request!==state.request||!canView())return;
    for(const {path,signedUrl} of data||[]){
     const member=byPath.get(path);
     if(member&&signedUrl)state.photos.set(member.user_id,signedUrl);
@@ -293,12 +294,12 @@ export function createStaffAccess({
  }
 
  async function load(){
-  if(!canManage())return;
+  if(!canView())return;
   const generation=state.generation,request=++state.request;
   state.loading=true;state.failed=false;render();
   try{
    const result=take(await db.rpc('gary_staff_access_list'));
-   if(generation!==state.generation||request!==state.request||!canManage())return;
+   if(generation!==state.generation||request!==state.request||!canView())return;
    if(!Array.isArray(result?.members))throw new Error('Invalid staff list');
    state.members=result.members;state.photos.clear();
    state.authority={operations:result.operations_role==='admin',cms:result.cms_role==='admin'};
@@ -333,7 +334,7 @@ export function createStaffAccess({
   state.busy='lookup';editorNotice(draft,null);render();
   try{
    const result=take(await db.rpc('gary_lookup_staff_account',{p_email:address}));
-   if(generation!==state.generation||!canManage())return;
+   if(generation!==state.generation||!canView())return;
    if(!result?.email)throw new Error('AGENCY_ACCOUNT_UNAVAILABLE');
    const name=(result.full_name||'').slice(0,fullName.maxLength);
    draft.values.email=result.email;
@@ -341,11 +342,11 @@ export function createStaffAccess({
    draft.match={email:result.email.toLowerCase(),name};found=true;
    editorNotice(draft,'staffAccountFound');
   }catch(error){
-   if(generation===state.generation&&canManage())editorNotice(draft,errorKey(error,'staffLookupError'),true);
+   if(generation===state.generation&&canView())editorNotice(draft,errorKey(error,'staffLookupError'),true);
   }finally{
    if(generation===state.generation){
     state.busy=null;render();
-    if(canManage()&&state.editor===draft)(found?fullName:email).focus();
+    if(canView()&&state.editor===draft)(found?fullName:email).focus();
    }
   }
  }
@@ -376,7 +377,7 @@ export function createStaffAccess({
   state.busy=null;
   if(saved||refresh)await load();
   else render();
-  if(generation!==state.generation||!canManage()||view.hidden)return;
+  if(generation!==state.generation||!canView()||view.hidden)return;
   if(restore)restoreDrawerFocus(draft);
   else if(draft&&state.editor===draft)feedback.focus({preventScroll:true});
   else if(!draft)(state.notice?notice:refreshButton).focus({preventScroll:true});
@@ -440,7 +441,7 @@ export function createStaffAccess({
   if(state.menu&&!state.menu.group.contains(event.target))closeMenu();
  }
 
- function updateFilters(){if(canManage())renderDirectory();}
+ function updateFilters(){if(canView())renderDirectory();}
  list.addEventListener('click',listAction);
  list.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&state.menu){event.preventDefault();closeMenu(true);}

@@ -26,6 +26,7 @@ async function harness(){
  });
  w.element=(tag,attrs,text)=>{const el=doc.createElement(tag);for(const [name,value] of Object.entries(attrs))el.setAttribute(name,value);el.textContent=text;return el};
  w.staff=()=>w.state.role==='staff';w.operationsRole=()=>w.state.access?.operations;w.cmsRole=()=>w.state.access?.cms;
+ w.ownsSite=()=>w.staff()&&w.state.access?.site_owner===true;
  w.feedback=()=>{};w.toast=()=>{};w.setView=view=>{w.state.view=view;w.$('#workspace').hidden=false;w.$('#profile-view').hidden=view!=='profile'};
  w.accountRoleLabel=accountRoleLabel;w.staffAccountPhoto='';w.homeView=()=>w.operationsRole()?'applications':'cms';w.viewAllowed=view=>view==='profile';
  w.staffAccountMenu=mountAccountMenu(w.$('#staff-account-menu'),{staff:true,destinations:{staffProfile:()=>w.openAccountView('profile')}});

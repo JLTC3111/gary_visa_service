@@ -36,11 +36,12 @@ const operationsRole=()=>staff()?state.access?.operations??null:null,cmsRole=()=
 const operations=()=>operationsRole()!==null,oversees=()=>['manager','admin'].includes(operationsRole());
 const canEditStaffCase=application=>Boolean(application&&operations()&&(operationsRole()!=='manager'||application.assigned_staff_id===state.user?.id));
 const trashKinds=()=>[...(operationsRole()==='admin'?['case','contact']:[]),...(cmsRole()==='admin'?['article','cms']:[])];
-const managesStaff=()=>operationsRole()==='admin'||cmsRole()==='admin';
+const ownsSite=()=>staff()&&state.access?.site_owner===true;
+const canOpenCms=()=>cmsRole()!==null||ownsSite();
 const contentViews=['cms','news-guides'];
 const VIEWS=['applications','profile','customers','inbox',...contentViews,'trash','staff-access'];
-const viewAllowed=view=>view==='profile'||(view==='applications'?!staff()||operations():view==='customers'||view==='inbox'?operations():contentViews.includes(view)?cmsRole()!==null:view==='trash'?trashKinds().length>0:view==='staff-access'&&managesStaff());
-const homeView=()=>staff()&&cmsRole()?'news-guides':!staff()||operations()?'applications':'profile';
+const viewAllowed=view=>view==='profile'||(view==='applications'?!staff()||operations():view==='customers'||view==='inbox'?operations():contentViews.includes(view)?canOpenCms():view==='trash'?trashKinds().length>0:view==='staff-access'&&staff());
+const homeView=()=>cmsRole()?'news-guides':!staff()||operations()?'applications':ownsSite()?'news-guides':'profile';
 const badge=status=>element('span',{class:`status-badge status-${status}`},t(`status_${status}`));
 let searchTimer,customerSearchTimer;
 const caseStatIds=['total','active','attention','completed'].map(key=>'stat-'+key);
@@ -62,10 +63,10 @@ async function getRoster(){
 }
 const {staffOptions}=workspaceUI(document,t);
 const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,canTrash:()=>operationsRole()==='admin',getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:id=>{if(navigateView('inbox',false))inbox.enter(id)}});
-const cms=createAgencyCms({doc:document,db,isStaff:()=>cmsRole()!==null,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
+const cms=createAgencyCms({doc:document,db,isStaff:canOpenCms,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
 const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
-const staffAccess=createStaffAccess({db,doc:document,t,canManage:managesStaff,showDialog,closeDialog,notify:toast,onSaved:()=>{rosterCache=null;schedulePermissionRefresh()}});
+const staffAccess=createStaffAccess({db,doc:document,t,canView:staff,showDialog,closeDialog,notify:toast,onSaved:()=>{rosterCache=null;schedulePermissionRefresh()}});
 let staffAccountPhoto='';
 const staffAccountMenu=mountAccountMenu($('#staff-account-menu'),{
  staff:true,
@@ -177,7 +178,8 @@ async function loadWorkspace(requested){
   state.role=access.member?'staff':'customer';
   state.access=access.member?{
    operations:['staff','manager','admin'].includes(access.operations)?access.operations:null,
-   cms:['editor','publisher','admin'].includes(access.cms)?access.cms:null
+   cms:['editor','publisher','admin'].includes(access.cms)?access.cms:null,
+   site_owner:access.site_owner===true
   }:null;
   if(state.area==='staff'&&!access.member){setScreen('auth-screen');feedback('#auth-notice','roleError',true);return}
   const profile=await ensureProfile(data.user);if(generation!==state.generation)return;
@@ -207,7 +209,7 @@ async function refreshPermissions(denied=false){
   if(identity.error){if([401,403].includes(identity.error.status)||['AuthSessionMissingError','AuthInvalidJwtError'].includes(identity.error.name)||['session_not_found','user_banned','user_not_found','bad_jwt'].includes(identity.error.code))resetWorkspace();else if(denied||permissionDenied){resetWorkspace();feedback('#auth-notice','permissionChanged',true)}return}
   if(identity.data?.user?.id!==id){resetWorkspace();await loadWorkspace();return}
   const next=unwrap(await permissionDeadline(db.rpc('gary_my_access')));if(generation!==state.generation)return;
-  const changed=!!next?.member!==staff()||(next?.operations??null)!==(state.access?.operations??null)||(next?.cms??null)!==(state.access?.cms??null);
+  const changed=!!next?.member!==staff()||(next?.operations??null)!==(state.access?.operations??null)||(next?.cms??null)!==(state.access?.cms??null)||(next?.site_owner===true)!==ownsSite();
   if(changed||denied||permissionDenied){
    const view=state.view;resetWorkspace();await loadWorkspace(view);toast('permissionChanged','warning');
   }else if(state.profile){
@@ -270,7 +272,7 @@ $('#sidebar-profile-button').addEventListener('click',()=>{
 
 function renderIdentity(){
  $('#application-kind-filter').hidden=$('#application-kind-label').hidden=!operations();
- document.body.dataset.role=state.role;renderAccountIdentity();$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('[data-view=applications]').hidden=!viewAllowed('applications');$('#customers-nav').hidden=!operations();$('#inbox-nav').hidden=!operations();for(const content of contentViews)$('#'+content+'-nav').hidden=!viewAllowed(content);$('#trash-nav').hidden=!viewAllowed('trash');$('#staff-access-nav').hidden=!managesStaff();$('#staff-no-access').hidden=!staff()||operations()||cmsRole()!==null;$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?oversees()?'allApplications':'assignedApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?oversees()?'staffDashboardIntro':'assignedDashboardIntro':'dashboardIntro');
+ document.body.dataset.role=state.role;renderAccountIdentity();$('#workspace-role').textContent=t(staff()?'staffWorkspace':'customerWorkspace');$('[data-view=applications]').hidden=!viewAllowed('applications');$('#customers-nav').hidden=!operations();$('#inbox-nav').hidden=!operations();for(const content of contentViews)$('#'+content+'-nav').hidden=!viewAllowed(content);$('#trash-nav').hidden=!viewAllowed('trash');$('#staff-access-nav').hidden=!staff();$('#staff-no-access').hidden=!staff()||operations()||canOpenCms();$('#new-application').hidden=staff();$('#dashboard-title').textContent=t(staff()?oversees()?'allApplications':'assignedApplications':'yourApplications');$('#dashboard-eyebrow').textContent=t(staff()?'teamWorkspace':'yourJourney');$('#dashboard-intro').textContent=t(staff()?oversees()?'staffDashboardIntro':'assignedDashboardIntro':'dashboardIntro');
 }
 function setView(view,load=true){
  if(!viewAllowed(view))return;
