@@ -64,7 +64,7 @@ async function getRoster(){
 const {staffOptions}=workspaceUI(document,t);
 const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,canTrash:()=>operationsRole()==='admin',getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:id=>{if(navigateView('inbox',false))inbox.enter(id)}});
 const cms=createAgencyCms({doc:document,db,isStaff:canOpenCms,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
-const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,kinds:trashKinds,notify:toast});
+const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,isOwner:ownsSite,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
 const staffAccess=createStaffAccess({db,doc:document,t,canView:staff,showDialog,closeDialog,notify:toast,onSaved:()=>{rosterCache=null;schedulePermissionRefresh()}});
 let staffAccountPhoto='';

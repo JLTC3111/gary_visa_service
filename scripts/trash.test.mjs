@@ -9,7 +9,7 @@ const flush=async()=>{for(let i=0;i<10;i++)await new Promise(resolve=>setImmedia
 const record=(index,category='case')=>({id:'record-'+index,category,kind:category==='article'?'cms':category,
  title_en:index===0?'<img src=x>':'Record '+index,title_vi:'Hồ sơ '+index,version:category==='cms'||category==='article'?8:null,
  deleted_at:'2026-11-16T06:00:00Z',deleted_by_name:'Fixture administrator',previous_status:category==='case'?'processing':category==='contact'?'lead':'published'});
-async function setup({rows=[record(0),record(1,'contact'),record(2,'cms')],rpc,storage,staff=true,kinds}={}){
+async function setup({rows=[record(0),record(1,'contact'),record(2,'cms')],rpc,storage,staff=true,owner=false,kinds}={}){
  const dom=new JSDOM(await readFile(new URL('../dist/portal.html',import.meta.url),'utf8'),{url:'https://visa.garyhome.vn/portal.html'}),doc=dom.window.document,calls=[],notices=[];let allowed=staff;
  const db={storage,rpc:async(name,args)=>{
   calls.push({name,args});const result=await rpc?.(name,args);if(result)return result;
@@ -24,7 +24,7 @@ async function setup({rows=[record(0),record(1,'contact'),record(2,'cms')],rpc,s
   }
   throw new Error(name);
  }};
- const controller=createTrash({db,doc,t:key=>portalCopy[doc.documentElement.lang]?.[key]||portalCopy.en[key]||key,isStaff:()=>allowed,kinds,notify:key=>notices.push(key)});
+ const controller=createTrash({db,doc,t:key=>portalCopy[doc.documentElement.lang]?.[key]||portalCopy.en[key]||key,isStaff:()=>allowed,isOwner:()=>owner,kinds,notify:key=>notices.push(key)});
  return {dom,doc,calls,notices,controller,setStaff(value){allowed=value},close(){controller.reset();dom.window.close()}};
 }
 
@@ -155,4 +155,32 @@ test('sign-out reset ignores delayed Trash results and clears private rows',asyn
   const pending=h.controller.enter();h.setStaff(false);h.controller.reset();finish({data:{records:[record(1)],total:1}});await pending;
   assert.equal(h.doc.querySelector('#trash-list').textContent,'');assert.equal(h.doc.querySelector('#trash-page-summary').textContent,'');assert.equal(h.doc.querySelector('#trash-notice').textContent,'');
  }finally{h.close()}
+});
+
+test('missing category policy has an accessible blocker and only the protected Owner can configure it',async()=>{
+ const rows=[{...record(1),purge_blocker:'AGENCY_PURGE_POLICY_MISSING'}];
+ const ordinary=await setup({rows,kinds:()=>['case']});
+ try{
+  await ordinary.controller.enter();
+  const remove=ordinary.doc.querySelector('.trash-permanent');
+  assert.equal(remove.disabled,true);
+  assert.match(ordinary.doc.getElementById(remove.getAttribute('aria-describedby')).textContent,/Owner.*retention/);
+  assert.equal(ordinary.doc.querySelector('.trash-policy-form'),null);
+ }finally{ordinary.close()}
+ const protectedOwner=await setup({rows,owner:true,kinds:()=>['case'],rpc:async(name,args)=>{
+  if(name!=='gary_set_trash_retention')return;
+  assert.deepEqual(args,{p_kind:'case',p_minimum_days:7});
+  delete rows[0].purge_blocker;
+  return {data:null};
+ }});
+ try{
+  await protectedOwner.controller.enter();
+  const form=protectedOwner.doc.querySelector('.trash-policy-form');
+  protectedOwner.dom.window.confirm=()=>true;
+  form.elements.retentionDays.value='7';
+  form.dispatchEvent(new protectedOwner.dom.window.Event('submit',{cancelable:true}));
+  await flush();
+  assert.deepEqual(protectedOwner.notices,['trashPolicySaved']);
+  assert.equal(protectedOwner.doc.querySelector('.trash-permanent').disabled,false);
+ }finally{protectedOwner.close()}
 });

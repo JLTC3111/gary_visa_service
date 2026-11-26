@@ -20,7 +20,7 @@ const purgeMessages={
  AGENCY_TRASH_CHANGED:'trashChanged'
 };
 
-export function createTrash({db,doc,t,isStaff,kinds=()=>['case','article','contact','cms'],notify=()=>{}}){
+export function createTrash({db,doc,t,isStaff,isOwner=()=>false,kinds=()=>['case','article','contact','cms'],notify=()=>{}}){
  const {$,el,button,date,take}=workspaceUI(doc,t);
  const tabs=[...$('#trash-tabs').querySelectorAll('[role=tab]')];
  const state={category:'',search:'',status:'',rows:[],total:0,page:0,busy:false,failed:false,generation:0,request:0};
@@ -57,6 +57,9 @@ export function createTrash({db,doc,t,isStaff,kinds=()=>['case','article','conta
 
  function renderRecord(record){
   const category=record.category,canPurge=category==='case'||category==='article';
+  const blocker=record.purge_blocker?(purgeMessages[record.purge_blocker]||'trashPermanentUnavailable'):'';
+  const hint=blocker||(record.purge_started?'trashPurgeStarted':'');
+  const hintId='trash-purge-reason-'+category+'-'+record.id;
   const restore=button(t('restoreRecord'),()=>void restoreRecord(record),'pagination-button trash-restore');
   restore.dataset.buttonVariant='restore';
   restore.disabled=state.busy||record.purge_started;
@@ -65,22 +68,47 @@ export function createTrash({db,doc,t,isStaff,kinds=()=>['case','article','conta
    const remove=button(t(record.purge_started?'trashRetryPermanent':'trashPermanentAction'),()=>void purgeRecord(record),'pagination-button trash-permanent');
    remove.dataset.buttonVariant='danger';
    remove.disabled=state.busy||Boolean(record.purge_blocker);
-   actions.append(remove);
+   if(blocker){
+    remove.setAttribute('aria-describedby',hintId);
+    actions.append(el('span',{tabindex:'0',title:t(blocker),'aria-describedby':hintId},remove));
+   }else actions.append(remove);
   }
   const title=doc.documentElement.lang==='vi'?(record.title_vi||record.title_en):(record.title_en||record.title_vi);
   const actor=record.deleted_by_name||(record.deleted_by?record.deleted_by.slice(0,8).toUpperCase():t('trashUnknownActor'));
   const details=[
    ['deletedAt',date(record.deleted_at)],['trashDeletedBy',actor],['trashPreviousStatus',statusLabel(category,record.previous_status)]
   ];
-  const hint=purgeMessages[record.purge_blocker]||(record.purge_started?'trashPurgeStarted':'');
   return el('article',{class:'trash-record'},[
    el('div',{class:'trash-record-identity'},[
     el('span',{class:'relationship-badge'},t(categories[category])),
     el('h2',{},title||t('unnamedCustomer')),
     el('dl',{class:'trash-record-details'},details.map(([key,value])=>el('div',{},[el('dt',{},t(key)),el('dd',{},value)]))),
-    hint?el('p',{class:'trash-record-hint'},t(hint)):null
+    hint?el('p',{id:hintId,class:'trash-record-hint'},t(hint)):null
    ]),actions
   ]);
+ }
+
+ function policyForm(category){
+  const field=el('input',{type:'number',min:'0',step:'1',required:'',name:'retentionDays'});
+  const submit=el('button',{type:'submit',class:'pagination-button'},t('trashPolicySave'));
+  field.disabled=submit.disabled=state.busy;
+  const form=el('form',{class:'trash-record trash-policy-form'},[
+   el('label',{},[t('trashPolicyDays')+' · '+t(categories[category]),field]),submit
+  ]);
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const days=field.valueAsNumber;
+   if(state.busy||!isStaff()||!isOwner()||!kinds().includes(category)||!Number.isInteger(days)||days<0||days>2147483647)return;
+   if(!doc.defaultView.confirm(t('trashPolicyConfirm')))return;
+   const generation=state.generation,current=()=>generation===state.generation&&isStaff()&&isOwner();
+   state.busy=true;field.disabled=submit.disabled=true;notice('');
+   try{
+    take(await db.rpc('gary_set_trash_retention',{p_kind:category,p_minimum_days:days}));
+    if(current()){notify('trashPolicySaved');await load();}
+   }catch(error){if(current())notice(errorKey(error,'trashPolicyError'),true);}
+   finally {if(current()){state.busy=false;field.disabled=submit.disabled=false;}}
+  });
+  return form;
  }
 
  function render(){
@@ -92,7 +120,11 @@ export function createTrash({db,doc,t,isStaff,kinds=()=>['case','article','conta
   $('#trash-page-summary').textContent=(state.total?state.page*pageSize+1:0)+'–'+end+' '+t('of')+' '+state.total;
   $('#trash-previous').disabled=state.busy||state.page===0;
   $('#trash-next').disabled=state.busy||end>=state.total;
-  if(state.rows.length){list.replaceChildren(...state.rows.map(renderRecord));return;}
+  if(state.rows.length){
+   const missing=isOwner()?new Set(state.rows.filter(row=>row.purge_blocker==='AGENCY_PURGE_POLICY_MISSING'
+    &&['case','article'].includes(row.category)&&kinds().includes(row.category)).map(row=>row.category)):new Set();
+   list.replaceChildren(...[...missing].map(policyForm),...state.rows.map(renderRecord));return;
+  }
   const heading=state.busy?'trashLoading':state.failed?'trashUnavailable':state.search||state.status?'trashNoMatches':'trashEmpty';
   list.replaceChildren(el('div',{class:'empty-state'},[el('h3',{},t(heading)),el('p',{},t(state.failed?'trashLoadError':'trashIntro'))]));
  }
