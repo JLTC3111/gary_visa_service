@@ -58,6 +58,16 @@
     <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24">
+      <path d="
+        M3 5h3m4 0h11
+        M3 12h11m4 0h3
+        M3 19h5m4 0h9
+      "/>
+      <circle cx="8" cy="5" r="2"/>
+      <circle cx="16" cy="12" r="2"/>
+      <circle cx="10" cy="19" r="2"/>
+    </symbol>
   </svg>
 
   <div class="topbar">
@@ -69,7 +79,7 @@
       <nav class="desktop-nav" aria-label="Main navigation" data-i18n-aria="mainNav"><a href="#services" data-i18n="navServices">Services</a><a href="#contact" data-i18n="letsTalk">Support</a></nav>
       <div class="header-actions"><div class="gary-apps-slot" data-gary-apps="header"></div>
         <div class="visa-preferences">
-          <button type="button" class="preferences-trigger" id="visa-preferences-trigger" data-open-preferences aria-label="Website preferences" aria-haspopup="dialog" aria-controls="visa-preferences-panel" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg></button>
+          <button type="button" class="preferences-trigger" id="visa-preferences-trigger" data-open-preferences aria-label="Website preferences" aria-haspopup="dialog" aria-controls="visa-preferences-panel" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-sliders"/></svg></button>
           <div class="visa-preferences-panel" id="visa-preferences-panel" role="dialog" aria-modal="false" aria-labelledby="visa-preferences-title" hidden>
             <div class="preferences-heading"><h2 id="visa-preferences-title" data-preferences-title>Website preferences</h2><button type="button" class="preferences-close" data-close-preferences aria-label="Close preferences"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
             <fieldset>
