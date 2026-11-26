@@ -222,7 +222,7 @@
               <small id="profile-avatar-formats" data-p="avatarFormats">JPG, JPEG, PNG or WebP. Up to 5 MB.</small>
             </div>
             <div id="profile-avatar-preview" hidden>
-              <canvas id="profile-avatar-canvas" role="img" width="384" height="384"></canvas>
+              <canvas id="profile-avatar-canvas" role="img" width="512" height="512"></canvas>
               <label class="profile-zoom-label" for="profile-avatar-zoom" data-p="avatarZoom">Crop zoom</label>
               <div class="profile-zoom">
                 <button id="profile-zoom-out" type="button" aria-label="Zoom out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
@@ -239,6 +239,7 @@
               </div>
             </div>
             <p id="profile-avatar-feedback" class="form-feedback error" role="alert"></p>
+            <button id="profile-avatar-retry" type="button" class="pagination-button" data-p="avatarRetry" hidden>Retry picture</button>
             <button id="profile-avatar-remove" type="button" data-button-variant="danger" class="pagination-button" data-p="avatarRemove" hidden>Remove picture</button>
           </section>
         </div><form id="profile-form" class="profile-panel"><div class="form-row"><div class="form-field"><label for="profile-name" data-p="fullName">Full name</label><input id="profile-name" name="full_name" required minlength="2" maxlength="100" autocomplete="name"></div><div class="form-field"><label for="profile-email" data-p="contactEmail">Contact email</label><input id="profile-email" name="contact_email" type="email" maxlength="254" autocomplete="email" required></div></div><div class="form-row"><div class="form-field"><label for="profile-phone" data-p="phone">Phone number</label><input id="profile-phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></div><div class="form-field"><label for="profile-nationality" data-p="nationality">Nationality (optional)</label><input id="profile-nationality" name="nationality" maxlength="80" autocomplete="country-name"></div></div><div class="form-field"><label for="profile-language" data-p="preferredLanguage">Preferred language</label><select id="profile-language" name="preferred_language"><option value="en">English</option><option value="vi">Tiếng Việt</option></select></div><button type="submit" class="button button-small" data-p="saveProfile" data-button-variant="save">Save profile</button><p id="profile-notice" class="form-feedback" role="status"></p></form></section>

@@ -1,5 +1,5 @@
 import {accountRoleLabel, mountAccountMenu} from './account-menu.js';
-import {avatarBucket, avatarPath} from './profile-avatar.js';
+import {readVisaAvatarReferences} from './profile-avatar.js';
 import {portalCopy} from './portal-copy.js';
 import {db} from './backend.js';
 
@@ -106,7 +106,9 @@ export function mountPublicAccountMenu(doc, client = db) {
       if (signal.aborted) return;
       if (data?.full_name?.trim()) name = data.full_name.trim();
       render();
-      const avatar = await client.storage.from(avatarBucket).createSignedUrl(avatarPath(id), 300);
+      const reference = (await readVisaAvatarReferences(client, [id])).get(id);
+      if (signal.aborted) return;
+      const avatar = reference.path ? await client.storage.from(reference.bucket).createSignedUrl(reference.path, 300) : {};
       if (signal.aborted) return;
       photo = avatar.data?.signedUrl ?? '';
       render();

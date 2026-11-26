@@ -43,6 +43,8 @@ test('Visa public account menu keeps sign-in and verified routes distinct', asyn
  const dom = environment(html), w = dom.window, doc = w.document;
  try {
   let user, accessResult, subscription, signoutOptions, signoutError;
+  const signed = [], version='82000000-0000-4000-8000-000000000001';
+  const currentPath='customer-fixture/'+version+'.webp';
   const client = {
    auth: {
     onAuthStateChange: callback => { subscription = callback; },
@@ -53,9 +55,17 @@ test('Visa public account menu keeps sign-in and verified routes distinct', asyn
     assert.equal(name, 'gary_my_access');
     return {abortSignal: () => accessResult};
    },
-   from: () => ({select() { return this; }, eq() { return this; }, abortSignal() { return this; },
-    maybeSingle: async () => ({data: {full_name: 'Alex Nguyễn'}})}),
-   storage: {from: () => ({createSignedUrl: async () => ({data: {signedUrl: 'https://example.test/avatar'}})})}
+   from: table => ({select() { return this; }, eq() { return this; }, abortSignal() { return this; },
+    maybeSingle: async () => ({data: {full_name: 'Alex Nguyễn'}}),
+    in: async (_column,[id])=>{
+     assert.equal(table,'visa_avatar_profiles');
+     return {data:[{user_id:id,version,path:id==='customer-fixture'?currentPath:null}]};
+    },
+   }),
+   storage: {from: bucket => ({createSignedUrl: async path => {
+    signed.push({bucket,path});
+    return {data: {signedUrl: 'https://example.test/avatar'}};
+   }})}
   };
   mountPublicAccountMenu(doc, client);
   const root = doc.querySelector('#public-account-menu'), trigger = root.querySelector('button');
@@ -95,6 +105,8 @@ test('Visa public account menu keeps sign-in and verified routes distinct', asyn
   assert.equal(destination('profile').search, '?view=profile');
   assert.equal(panel.querySelector('.visa-account-identity strong').textContent, 'Alex Nguyễn');
   assert.equal(panel.querySelector('.visa-account-identity small').textContent, 'customer@example.test');
+  assert.deepEqual(signed,[{bucket:'gary-visa-profile-photos',path:currentPath}]);
+  assert.equal(panel.querySelector('.visa-account-identity img').src,'https://example.test/avatar');
 
   session('SIGNED_IN', {id: 'cms-fixture', email: 'cms@example.test'});
   accessResult = {error: {status: 503}};
@@ -110,6 +122,8 @@ test('Visa public account menu keeps sign-in and verified routes distinct', asyn
   assert.equal(destination('staffProfile').search, '?area=staff&view=profile');
   assert.equal(destination('staffProfile').querySelector('.visa-account-item-label').textContent, 'Hồ sơ nhân viên của tôi');
   assert.match(panel.querySelector('.visa-account-badges').textContent, /Biên tập/);
+  assert.equal(signed.length,1);
+  assert.equal(panel.querySelector('.visa-account-identity img'),null);
   const signout = panel.querySelector('.visa-account-signout');
   const description = doc.getElementById(signout.getAttribute('aria-describedby'));
   assert.equal(signout.nextElementSibling, description);

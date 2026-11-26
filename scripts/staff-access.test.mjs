@@ -11,7 +11,7 @@ const ids=Object.fromEntries(['self','peer','staff','editor'].map((name,i)=>[nam
 const result=data=>({data,error:null});
 const failure=(code,message)=>({data:null,error:{code,message}});
 
-function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage,width=1440}={}){
+function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage,avatarReferences=[],width=1440}={}){
  const dom=new JSDOM(html,{url:'http://localhost:4173/portal.html?area=staff',pretendToBeVisual:true});
  dom.window.innerWidth=width;
  const doc=dom.window.document,$=selector=>doc.querySelector(selector),calls=[],notices=[];
@@ -32,7 +32,10 @@ function harness({operationsAdmin=true,cmsAdmin=false,respond=()=>null,storage,w
   manage_membership:!member.self&&member.operations_role!=='admin'&&member.cms_role!=='admin'&&
    (!member.operations_role||operationsAdmin)&&(!member.cms_role||cmsAdmin)
  });
- const db={storage,rpc:async(name,args)=>{
+ const db={storage,from(table){
+  assert.equal(table,'visa_avatar_profiles');
+  return {select:()=>({in:async (_column,ids)=>result(avatarReferences.filter(row=>ids.includes(row.user_id)))})};
+ },rpc:async(name,args)=>{
   calls.push({name,args});
   const custom=respond(name,args);if(custom)return custom;
   if(name==='gary_staff_access_list')return result({members:members.map(capabilities),operations_role:operationsAdmin?'admin':null,cms_role:cmsAdmin?'admin':null});
@@ -97,6 +100,7 @@ test('Team Access preserves eligible portraits, initials and action focus',async
  }}});
  try{
   await h.controller.enter();
+  await settle();
   const button=h.action(ids.staff,'edit'),avatar=h.row(ids.staff).querySelector('[data-staff-avatar]');
   assert.equal(avatar.textContent,'CS');
   assert.ok(paths.includes(`${ids.staff}/avatar`));assert.ok(!paths.includes(`${ids.editor}/avatar`));
@@ -108,6 +112,24 @@ test('Team Access preserves eligible portraits, initials and action focus',async
   assert.equal(h.row(ids.editor).querySelector('img'),null);
   avatar.querySelector('img').dispatchEvent(new h.dom.window.Event('error'));
   assert.equal(avatar.textContent,'CS');
+ }finally{h.close();}
+});
+
+test('Team Access signs active version paths and skips explicit removals',async()=>{
+ const version='a0000000-0000-4000-8000-000000000001';
+ const path=`${ids.staff}/${version}.webp`,batches=new Map();
+ const h=harness({avatarReferences:[
+  {user_id:ids.staff,version,path},{user_id:ids.peer,version,path:null},
+ ],storage:{from(bucket){return {async createSignedUrls(names){
+  batches.set(bucket,names);return result(names.map(path=>({path,signedUrl:'https://storage.example.test/'+path})));
+ }}}}});
+ try{
+  await h.controller.enter();
+  await settle();
+  assert.deepEqual(batches.get('gary-visa-profile-photos'),[path]);
+  assert.deepEqual(batches.get('gary-visa-avatars'),[`${ids.self}/avatar`]);
+  assert.equal(h.row(ids.staff).querySelector('img')?.src,'https://storage.example.test/'+path);
+  assert.equal(h.row(ids.peer).querySelector('img'),null);
  }finally{h.close();}
 });
 

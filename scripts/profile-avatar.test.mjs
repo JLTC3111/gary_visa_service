@@ -7,6 +7,8 @@ import {portalCopy} from '../dist/portal-copy.js';
 
 const html = await readFile(new URL('../dist/portal.html', import.meta.url), 'utf8');
 const owner = '80000000-0000-4000-8000-000000000001';
+const revision = '80000000-0000-4000-8000-000000000002';
+const removed = '80000000-0000-4000-8000-000000000003';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 function fixture(existing, {reducedMotion = false} = {}) {
@@ -14,7 +16,7 @@ function fixture(existing, {reducedMotion = false} = {}) {
  const doc = window.document, get = id => doc.getElementById(id);
  const calls = [], notices = [], draws = [], revoked = [];
  const fileInput = get('profile-avatar-file'), canvas = get('profile-avatar-canvas');
- let url = 0, uploadError = null;
+ let url = 0, uploadError = null, record = null;
  window.matchMedia = () => ({matches: reducedMotion});
  window.URL.createObjectURL = () => `blob:https://visa.example.test/${++url}`;
  window.URL.revokeObjectURL = value => revoked.push(value);
@@ -22,17 +24,27 @@ function fixture(existing, {reducedMotion = false} = {}) {
  canvas.getContext = () => ({clearRect() {}, drawImage(image, ...crop) { draws.push(crop); }});
  canvas.toBlob = callback => callback(new window.Blob(['cropped image'], {type: 'image/webp'}));
  const db = {
+  from(table) {
+   assert.equal(table,'visa_avatar_profiles');
+   return {select:()=>({in:async (column,ids)=>{
+    assert.equal(column,'user_id');assert.deepEqual(ids,[owner]);
+    return {data:record?[record]:[]};
+   }})};
+  },
   storage: {from(bucket) {
-   assert.equal(bucket, 'gary-visa-avatars');
+   assert.equal(bucket, record ? 'gary-visa-profile-photos' : 'gary-visa-avatars');
    return {async download(path) {
-    assert.equal(path, `${owner}/avatar`);
+    assert.equal(path, record?.path || `${owner}/avatar`);
     return {data: existing ? new window.Blob(['current photo'], {type: 'image/png'}) : null};
    }};
   }},
   functions: {async invoke(name, options) {
    assert.equal(name, 'visa-profile-avatar');
    calls.push(options);
-   return uploadError ? {error: uploadError} : {data: {ok: true}};
+   if(uploadError)return {error:uploadError};
+   const removing=options.method==='DELETE';
+   record={user_id:owner,version:removing?removed:revision,path:removing?null:`${owner}/${revision}.webp`};
+   return {data:{ok:true,...record}};
   }},
  };
  const controller = createProfileAvatar({db, doc, name: () => 'Nguyễn Mai Ly', t: key => portalCopy[doc.documentElement.lang][key], notify: key => notices.push(key)});
@@ -69,7 +81,7 @@ test('native crop zoom redraws continuously and translated controls stay within 
    zoom.value=value;
    zoom.dispatchEvent(new h.window.Event('input'));
    const side=400/Number(value);
-   assert.deepEqual(h.draws.at(-1),[(800-side)/2,(400-side)/2,side,side,0,0,384,384]);
+   assert.deepEqual(h.draws.at(-1),[(800-side)/2,(400-side)/2,side,side,0,0,Math.floor(side),Math.floor(side)]);
   }
   assert.equal(slider.style.getPropertyValue('--visa-zoom-fill'),'75%');
   assert.equal(zoom.getAttribute('aria-valuetext'),'250%');
@@ -83,7 +95,7 @@ test('native crop zoom redraws continuously and translated controls stay within 
   assert.equal(zoom.value,'3');assert.equal(h.get('profile-zoom-in').getAttribute('aria-disabled'),'true');
   zoom.value='1.05';zoom.dispatchEvent(new h.window.Event('input'));
   await h.click('profile-zoom-out');await h.click('profile-zoom-out');
-  assert.equal(zoom.value,'1');assert.deepEqual(h.draws.at(-1),[200,0,400,400,0,0,384,384]);
+  assert.equal(zoom.value,'1');assert.deepEqual(h.draws.at(-1),[200,0,400,400,0,0,400,400]);
  } finally { h.window.close(); }
 });
 
@@ -136,14 +148,14 @@ test('account pictures preview a square crop and update both profile and sidebar
   assert.equal(h.get('profile-avatar').textContent,'NL');
   await h.choose('image/png');
   assert.equal(h.get('profile-avatar-preview').hidden, false);
-  assert.deepEqual(h.draws.at(-1), [200,0,400,400,0,0,384,384]);
+  assert.deepEqual(h.draws.at(-1), [200,0,400,400,0,0,400,400]);
   const zoom = h.get('profile-avatar-zoom');
   zoom.value = '2';
   zoom.dispatchEvent(new h.window.Event('input'));
-  assert.deepEqual(h.draws.at(-1), [300,100,200,200,0,0,384,384]);
+  assert.deepEqual(h.draws.at(-1), [300,100,200,200,0,0,200,200]);
   assert.equal(h.calls.length, 0);
   await h.click('profile-avatar-save');
-  assert.deepEqual(h.calls[0].headers, {'x-visa-avatar-owner':owner,'Content-Type':'image/webp'});
+  assert.deepEqual(h.calls[0].headers, {'x-visa-avatar-owner':owner,'x-avatar-version':'none','Content-Type':'image/webp'});
   assert.equal(h.picture('profile-avatar'), h.picture('user-avatar'));
   assert.ok(h.picture('profile-avatar')?.startsWith('blob:'));
   assert.equal(h.get('profile-avatar-preview').hidden,true);
@@ -163,12 +175,14 @@ test('existing pictures can be replaced and removed, releasing old object URLs a
   assert.notEqual(replacement,original);
   assert.ok(h.revoked.includes(original));
   await h.click('profile-avatar-remove');
-  assert.deepEqual(h.calls.at(-1), {method:'DELETE',headers:{'x-visa-avatar-owner':owner}});
+  assert.deepEqual(h.calls.at(-1), {method:'DELETE',headers:{'x-visa-avatar-owner':owner,'x-avatar-version':revision},signal:undefined});
   assert.ok(h.revoked.includes(replacement));
   assert.equal(h.picture('user-avatar'),undefined);
   assert.equal(h.get('user-avatar').textContent,'NL');
   assert.equal(h.get('profile-avatar-remove').hidden,true);
   assert.deepEqual(h.notices,['avatarSaved','avatarRemoved']);
+  await h.controller.load(owner);
+  assert.equal(h.picture('user-avatar'),undefined,'a removal never falls back to legacy');
  } finally { h.window.close(); }
 });
 
@@ -186,11 +200,28 @@ test('invalid formats and oversized files stay local and a server rejection pres
   h.fail(415);
   await h.choose('image/webp');
   await h.click('profile-avatar-save');
-  assert.equal(notice.textContent, portalCopy.vi.avatarType);
+  assert.equal(notice.textContent, portalCopy.vi.avatarOutputError);
   assert.equal(h.get('profile-avatar-preview').hidden,false);
   assert.deepEqual(h.notices,[]);
   h.controller.reset();
   assert.equal(h.get('profile-avatar-preview').hidden,true);
   assert.equal(h.get('profile-avatar-file').disabled,true);
  } finally { h.window.close(); }
+});
+
+test('encoding uses the quality floor and a smaller crop when the byte limit is exceeded', async () => {
+ const {encodeProfilePhoto} = await import('../dist/profile-photo-editor.js');
+ const attempts = [];
+ const surface = width => ({
+  width, height: width,
+  getContext: () => ({drawImage() {}}),
+  toBlob(callback, mime, quality) {
+   attempts.push([this.width, mime, quality]);
+   callback(new Blob([new Uint8Array(this.width > 448 ? 150000 : 88000)], {type: mime}));
+  },
+ });
+ const blob = await encodeProfilePhoto(surface(512), {document: {createElement: () => surface(1)}});
+ assert.equal(blob.size, 88000);
+ assert.deepEqual(attempts, [[512,'image/webp',0.88],[512,'image/webp',0.82],[448,'image/webp',0.88]]);
+ await assert.rejects(encodeProfilePhoto({...surface(512), toBlob: cb => cb(new Blob(['png'], {type:'image/png'}))}), /WebP/);
 });

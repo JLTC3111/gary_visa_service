@@ -1,7 +1,7 @@
 import {workspaceUI} from './workspace-ui.js';
 import {isConflictResponse} from './conflict-response.js';
 import {initFormControls} from './form-controls.js';
-import {avatarBucket,avatarPath,renderAvatar} from './profile-avatar.js';
+import {readVisaAvatarReferences,renderAvatar} from './profile-avatar.js';
 import {narrowWorkspaceCopy} from './workspace-copy.js';
 
 const choices = {operations:['staff','manager'],cms:['editor','publisher']};
@@ -335,15 +335,22 @@ export function createStaffAccess({
  }
 
  async function loadPhotos(generation,request){
-  const byPath=new Map(state.members.filter(member=>member.account!=='unavailable').map(member=>[avatarPath(member.user_id),member]));
-  if(!db.storage||!byPath.size)return;
+  const ids=state.members.filter(member=>member.account!=='unavailable').map(member=>member.user_id);
+  if(!db.storage||!ids.length)return;
   try{
-   const {data,error}=await db.storage.from(avatarBucket).createSignedUrls([...byPath.keys()],600);
-   if(error||generation!==state.generation||request!==state.request||!canView())return;
-   for(const {path,signedUrl} of data||[]){
-    const member=byPath.get(path);
-    if(member&&signedUrl)state.photos.set(member.user_id,signedUrl);
+   const references=await readVisaAvatarReferences(db,ids);
+   const groups=new Map();
+   for(const [id,{bucket,path}] of references){
+    if(!path)continue;
+    if(!groups.has(bucket))groups.set(bucket,new Map());
+    groups.get(bucket).set(path,id);
    }
+   const batches=await Promise.all([...groups].map(async ([bucket,paths])=>{
+    const {data}=await db.storage.from(bucket).createSignedUrls([...paths.keys()],600);
+    return (data||[]).filter(item=>item.signedUrl&&paths.has(item.path)).map(item=>[paths.get(item.path),item.signedUrl]);
+   }));
+   if(generation!==state.generation||request!==state.request||!canView())return;
+   state.photos=new Map(batches.flat());
    const members=new Map(state.members.map(member=>[member.user_id,member]));
    for(const avatar of list.querySelectorAll('[data-staff-avatar]')){
     const member=members.get(avatar.dataset.staffAvatar);

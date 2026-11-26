@@ -1,7 +1,6 @@
 // This module is also shipped with Visa and Jobs so each app can deploy independently.
 export const propertyPhoto = {targetBytes:240_000, maxBytes:500_000, maxEdge:1920, minEdge:1280};
 export const editorialPhoto = {targetBytes:300_000, maxBytes:650_000, maxEdge:2400, minEdge:1600, keepProtectedResolution:true};
-export const avatarPhoto = {targetBytes:45_000, maxBytes:100_000, maxEdge:384, minEdge:256};
 const qualities = [0.86, 0.78, 0.72];
 const extensions = {'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/avif':'avif'};
 export const imageTypes = Object.keys(extensions);
@@ -318,11 +317,4 @@ export async function optimizeImage(file, profile, options = {}) {
   } finally {
     decoded.release();
   }
-}
-
-export async function encodeAvatarCrop(canvas, win = globalThis) {
-  const body = await encode(canvas,'image/webp',0.84);
-  if (body?.size > 0 && body.size <= avatarPhoto.targetBytes && imageTypes.includes(body.type)) return body;
-  if (!body?.size) throw imageError('IMAGE_UNREADABLE');
-  return (await optimizeImage(body,avatarPhoto,{win})).body;
 }

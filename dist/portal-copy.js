@@ -61,3 +61,14 @@ Object.assign(portalCopy.vi,{
  avatarPreviewError:'Không thể mở ảnh này. Hãy chọn tệp khác.',avatarSaveError:'Không thể cập nhật ảnh. Vui lòng thử lại.',
  avatarSetupNeeded:'Cổng thông tin này chưa hỗ trợ tải ảnh lên.'
 });
+
+Object.assign(portalCopy.en,{
+ avatarRetry:'Retry picture',avatarLoadError:'The current picture could not be checked. Try again.',
+ avatarConflict:'The picture changed in another session. Review the current picture and try again.',
+ avatarOutputError:'Could not make an optimized WebP. Choose a different picture or browser.'
+});
+Object.assign(portalCopy.vi,{
+ avatarRetry:'Tải lại ảnh',avatarLoadError:'Chưa thể kiểm tra ảnh hiện tại. Vui lòng thử lại.',
+ avatarConflict:'Ảnh đã thay đổi trong phiên khác. Hãy xem ảnh hiện tại rồi thử lại.',
+ avatarOutputError:'Không thể tạo ảnh WebP tối ưu. Hãy chọn ảnh khác hoặc đổi trình duyệt.'
+});
