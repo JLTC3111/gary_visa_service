@@ -27,5 +27,5 @@ export function createAgencyCms({doc,db,isStaff,getUser,getLanguage,getView=()=>
  }
  function reset(){epoch++;controller?.destroy?.({force:true});controller=null;root?.replaceChildren();root=null;}
  function translate(){controller?.setLanguage?.(getLanguage());if(!controller&&root&&isStaff())void enter()}
- return {enter,reset,translate,canLeave:()=>controller?.canLeave?.()??true};
+ return {enter,reset,translate,canLeave:()=>controller?.canLeave()??true,confirmLeave:()=>controller?.confirmLeave()??true};
 }

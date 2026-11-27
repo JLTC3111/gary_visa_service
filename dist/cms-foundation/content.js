@@ -47,7 +47,9 @@ export function validateEntry(record, collection, publish = false) {
     const value = getValue(record, field.key);
     if (publish && field.required && (value === '' || value === null || value === undefined || Array.isArray(value) && !value.length)) issue('cms-field-required', field.key, { field: field.label?.en || field.key, language: field.locale || '' });
     if (value !== '' && value !== undefined && value !== null) {
-      if (field.type === 'url' && !safeMediaUrl(String(value))) issue('cms-url-invalid', field.key);
+      if (field.key === 'data.image_url' && collection.coverValue) {
+        if (collection.coverValue(value) === null) issue('cms-cover-invalid', field.key);
+      } else if (field.type === 'url' && !safeMediaUrl(String(value))) issue('cms-url-invalid', field.key);
       if (field.type === 'number' && (!Number.isFinite(Number(value)) || field.min !== undefined && Number(value) < field.min || field.max !== undefined && Number(value) > field.max)) issue('cms-number-invalid', field.key);
       if (field.type === 'select' && !field.options?.some(option => String(typeof option === 'object' ? option.value : option) === String(value))) issue('cms-option-invalid', field.key);
       if (field.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(String(value))) issue('cms-date-invalid', field.key);

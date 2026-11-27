@@ -66,7 +66,7 @@ test('archive and detail render localized fallback copy, safe paragraphs and per
   try{
     renderArticlePage(doc,{entries:[guide],language:'vi',slug:'guide'});
     assert.equal(doc.querySelector('h1').textContent,'Hướng dẫn');
-    assert.equal(doc.querySelector('.cms-article-body img[src="x"]'),null);
+    assert.equal(doc.querySelector('.cms-article-body figure'),null,'a detail page without a cover renders without a cover figure');
     assert.match(doc.querySelector('.cms-article-body p:last-of-type').textContent,/<img src=x/);
     assert.equal(doc.querySelector('meta[name=description]').content,'An approved description.');
     assert.equal(doc.querySelector('meta[property="og:type"]').content,'article');
@@ -78,6 +78,7 @@ test('archive and detail render localized fallback copy, safe paragraphs and per
     renderArticlePage(doc,{entries:[guide],language:'en'});
     assert.equal(doc.querySelector('h1').textContent,'News & Guides');
     assert.equal(doc.querySelector('article h2').textContent,'Title: guide');
+    assert.match(doc.querySelector('article img[data-article-cover]').src,/vietnam-city\.jpg$/);
     assert.equal(doc.querySelector('script[type="application/ld+json"]'),null);
     renderArticlePage(doc,{entries:[],slug:'guide'});
     assert.equal(doc.querySelector('meta[name=robots]').content,'noindex, follow');

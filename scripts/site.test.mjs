@@ -343,7 +343,8 @@ test('leaving CMS keeps a rejected dirty draft, but confirmed discard resets it 
  let consent=false,resets=0,enters=0,checks=0;
  const cmsFactory=({doc})=>({
   enter(){enters++;doc.querySelector('#cms-root').textContent='Private unsaved draft'},
-  canLeave(){checks++;return consent},
+  canLeave(){checks++;return false},
+  async confirmLeave(){return consent},
   reset(){resets++;doc.querySelector('#cms-root').replaceChildren()},translate(){}
  });
  const env=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff',cmsFactory),{doc,w}=env;
@@ -352,8 +353,8 @@ test('leaving CMS keeps a rejected dirty draft, but confirmed discard resets it 
   doc.querySelector('#auth-form').dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
   const before=resets;
   assert.equal(enters,1);assert.equal(doc.querySelector('#news-guides-view').hidden,false);
-  doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#news-guides-view').hidden,false);assert.equal(resets,before);assert.match(doc.querySelector('#cms-root').textContent,/Private unsaved/);
-  consent=true;doc.querySelector('[data-view=profile]').click();assert.equal(doc.querySelector('#cms-view').hidden,true);assert.equal(doc.querySelector('#profile-view').hidden,false);assert.equal(resets,before+1);assert.equal(doc.querySelector('#cms-root').children.length,0);
+  doc.querySelector('[data-view=profile]').click();await flush();assert.equal(doc.querySelector('#news-guides-view').hidden,false);assert.equal(resets,before);assert.match(doc.querySelector('#cms-root').textContent,/Private unsaved/);
+  consent=true;doc.querySelector('[data-view=profile]').click();await flush();assert.equal(doc.querySelector('#cms-view').hidden,true);assert.equal(doc.querySelector('#profile-view').hidden,false);assert.equal(resets,before+1);assert.equal(doc.querySelector('#cms-root').children.length,0);
   doc.querySelector('[data-view=cms]').click();await flush();assert.equal(enters,2,'a later visit initializes clean CMS state');
   consent=false;const previousChecks=checks;doc.querySelector('#signout').click();await flush();assert.equal(doc.querySelector('#cms-root').textContent,'');assert.equal(checks,previousChecks,'signout clears private drafts without a dirty-leave veto');assert.equal(resets,before+2);
  }finally{env.dom.window.close()}
@@ -422,9 +423,10 @@ test('portal areas and case controls follow each Operations and CMS role',async(
 });
 
 test('Visa staff branches follow browser history and reveal the active route', {timeout:5000}, async()=>{
- let canLeave=true;
- const cms=()=>({enter(){},canLeave:()=>canLeave,reset(){},translate(){}});
+ let canLeave=true,consent=false,confirmations=0;
+ const cms=()=>({enter(){},canLeave:()=>canLeave,async confirmLeave(){confirmations++;return consent},reset(){},translate(){}});
  const {w,doc,dom}=await portalEnvironment('staff','http://localhost:4173/portal.html?area=staff&view=applications',cms);
+ Object.defineProperty(w,'innerWidth',{value:1440,configurable:true});
  const $=selector=>doc.querySelector(selector);
  async function history(direction){
   const changed=new Promise(resolve=>w.addEventListener('popstate',resolve,{once:true}));
@@ -444,7 +446,9 @@ test('Visa staff branches follow browser history and reveal the active route', {
   await history('back');
   assert.equal(new URL(w.location.href).searchParams.get('view'),'cms');
   assert.equal($('[data-view=cms]').getAttribute('aria-current'),'page');
-  canLeave=true;await history('back');
+  consent=true;await history('back');
+  assert.equal(confirmations,2);
+  canLeave=true;
   assert.equal($('#inbox-view').hidden,false);
   assert.equal(operations.getAttribute('aria-expanded'),'true');
   assert.equal(inbox.getAttribute('aria-current'),'page');

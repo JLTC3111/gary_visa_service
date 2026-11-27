@@ -48,10 +48,19 @@ export function publicCmsImage(value,origin=newsOrigin){
   return /^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(?:jpg|png|webp|avif)$/.test(path)?value:'';
 }
 
-function coverFor(entry,language,origin){
+// The CMS stores site assets as paths and editorial uploads as bucket URLs.
+export function articleCoverValue(value){
+  if(value==null)return '';
+  if(typeof value!=='string')return null;
+  const url=value.trim();
+  const reference=url.startsWith(newsOrigin+'/assets/')?url.slice(newsOrigin.length):url;
+  return !reference||publicCmsImage(reference)?reference:null;
+}
+
+function coverFor(entry,language,origin,fallback=true){
   const src=publicCmsImage(entry?.data?.image_url,origin);
   return src?{src,alt:localized(entry.data,'image_alt',language),caption:localized(entry.data,'image_caption',language)}
-    :{src:new URL(fallbackCover,origin).href,alt:'',caption:''};
+    :{src:fallback?new URL(fallbackCover,origin).href:'',alt:'',caption:''};
 }
 function excerpt(entry,language){
   const value=(localized(entry,'summary',language)||localized(entry,'body',language)).replace(/\s+/gu,' ');
@@ -181,9 +190,10 @@ export function articleView({entries=[],total=null,language='en',slug=null,state
     const retry=state==='error'?`<a class="service-link" href="${escape(articlePath(language,slug,filters))}">${t('Try again','Thử lại')}</a>`:'';
     content+=`<div class="cms-news-empty${state==='loading'?' lattice-surface':''}">${state==='loading'?'<div class="lattice-slot" data-lattice="navigation" data-reserve></div>':''}<p role="status">${status}</p>${retry}</div>`;
   }else if(entry){
-    const cover=coverFor(entry,language,origin),summary=localized(entry,'summary',language),source=articleReference(entry.data?.source_url);
+    const cover=coverFor(entry,language,origin,false),summary=localized(entry,'summary',language),source=articleReference(entry.data?.source_url);
+    const figure=cover.src?`<figure>${image(cover,false)}${cover.caption?`<figcaption>${escape(cover.caption)}</figcaption>`:''}</figure>`:'';
     const paragraphs=localized(entry,'body',language).split(/\n\s*\n/u).map(text=>text.trim()).filter(Boolean);
-    content+=`<article class="cms-article-body"><div class="cms-news-meta">${escape(articleCategories[categoryFor(entry)][language])} · ${dateLabel(entry,language)}</div><figure>${image(cover,false)}${cover.caption?`<figcaption>${escape(cover.caption)}</figcaption>`:''}</figure>${summary&&summary!==paragraphs[0]?`<p class="cms-article-summary">${escape(summary)}</p>`:''}${paragraphs.map(p=>`<p>${escape(p)}</p>`).join('')}${source?`<a href="${escape(source)}" target="_blank" rel="noopener noreferrer">${t('Reference source','Nguồn tham khảo')}</a>`:''}</article>`;
+    content+=`<article class="cms-article-body"><div class="cms-news-meta">${escape(articleCategories[categoryFor(entry)][language])} · ${dateLabel(entry,language)}</div>${figure}${summary&&summary!==paragraphs[0]?`<p class="cms-article-summary">${escape(summary)}</p>`:''}${paragraphs.map(p=>`<p>${escape(p)}</p>`).join('')}${source?`<a href="${escape(source)}" target="_blank" rel="noopener noreferrer">${t('Reference source','Nguồn tham khảo')}</a>`:''}</article>`;
   }else{
     // The production query provides a page and a count. Raw snapshots remain
     // useful to tests and legacy clients that render the same view locally.

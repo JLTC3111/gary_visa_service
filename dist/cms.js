@@ -1,7 +1,7 @@
 import {responseError} from './conflict-response.js';
 // Agency adapter: shared presentation never owns this application's credentials,
 // membership decisions, queries, or publication snapshots.
-import {articleCategories,publicCmsImage} from './cms-articles.js';
+import {articleCategories,articleCoverValue,publicCmsImage} from './cms-articles.js';
 import {titleSlug} from './cms-foundation/content.js';
 import {editorialPhoto,imageOptimizationErrorText,optimizeImage} from './image-optimization.js';
 
@@ -11,7 +11,7 @@ export const agencyCollections=[
  {kind:'document',label:{en:'Document requirements',vi:'Giấy tờ cần chuẩn bị'},fields:[{key:'data.service_slug',type:'text',label:{en:'Related service slug',vi:'Đường dẫn dịch vụ liên quan'}},{key:'data.required',type:'select',options:[{value:'required',label:{en:'Required',vi:'Bắt buộc'}},{value:'conditional',label:{en:'Depending on the case',vi:'Tùy trường hợp'}},{value:'optional',label:{en:'Optional',vi:'Không bắt buộc'}}],label:{en:'Requirement',vi:'Yêu cầu'}},{key:'data.source_url',type:'url',label:{en:'Official source',vi:'Nguồn chính thức'}}]},
  {kind:'process',label:{en:'Process steps',vi:'Các bước thực hiện'},fields:[{key:'data.position',type:'number',label:{en:'Display order',vi:'Thứ tự hiển thị'}},{key:'label',bilingual:true,type:'text',label:{en:'Step label',vi:'Nhãn bước'}}]},
  {kind:'faq',label:{en:'FAQs',vi:'Câu hỏi thường gặp'},fields:[{key:'data.position',type:'number',label:{en:'Display order',vi:'Thứ tự hiển thị'}},{key:'data.service_slug',type:'text',label:{en:'Related service (optional)',vi:'Dịch vụ liên quan (không bắt buộc)'}}]},
- {kind:'article',label:{en:'Articles & guides',vi:'Bài viết & hướng dẫn'},cover:true,lockPublishedSlug:true,automaticSlug:true,publicPath:language=>`/${language==='vi'?'vi':'en'}/news/`,fields:[
+ {kind:'article',label:{en:'Articles & guides',vi:'Bài viết & hướng dẫn'},cover:true,coverValue:articleCoverValue,lockPublishedSlug:true,automaticSlug:true,publicPath:language=>`/${language==='vi'?'vi':'en'}/news/`,fields:[
   {key:'data.category',type:'select',label:{en:'Category',vi:'Chủ đề'},options:Object.entries(articleCategories).map(([value,label])=>({value,label}))},
   {key:'data.image_url',type:'url',label:{en:'Cover image URL',vi:'Đường dẫn ảnh bìa'}},
   {key:'data.source_url',type:'url',label:{en:'Reference source',vi:'Nguồn tham khảo'}},
@@ -19,7 +19,13 @@ export const agencyCollections=[
  ]},
  {kind:'landing',label:{en:'Landing-page content',vi:'Nội dung trang chủ'},requireBody:false,fields:[{key:'data.slot',type:'select',options:[{value:'hero',label:{en:'Opening section',vi:'Phần mở đầu'}},{value:'services',label:{en:'Services introduction',vi:'Giới thiệu dịch vụ'}},{value:'process',label:{en:'Process introduction',vi:'Giới thiệu quy trình'}},{value:'about',label:{en:'About the team',vi:'Về đội ngũ'}},{value:'faq',label:{en:'FAQ introduction',vi:'Giới thiệu câu hỏi thường gặp'}},{value:'contact',label:{en:'Contact introduction',vi:'Giới thiệu liên hệ'}}],label:{en:'Page section',vi:'Phần trên trang'}},{key:'accent',bilingual:true,type:'text',label:{en:'Second heading line',vi:'Dòng tiêu đề thứ hai'}},{key:'third_line',bilingual:true,type:'text',label:{en:'Third heading line (hero)',vi:'Dòng tiêu đề thứ ba (đầu trang)'}}]}
 ];
-const take=result=>{if(result.error)throw responseError(result);const value=result.data;return Array.isArray(value)&&value.length===1?value[0]:value};
+function take(result,request){
+ if(result.error){
+  const error=responseError(result);
+  throw Object.assign(new Error(error.message),error,{request,status:result.status??error.status});
+ }
+ return result.data;
+}
 const imageExtensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/avif':'avif'};
 const describeMedia=({alt_en='',alt_vi='',caption_en='',caption_vi=''}={})=>({
  p_alt_en:alt_en.trim(),p_alt_vi:alt_vi.trim(),p_caption_en:caption_en.trim(),p_caption_vi:caption_vi.trim()
@@ -27,24 +33,37 @@ const describeMedia=({alt_en='',alt_vi='',caption_en='',caption_vi=''}={})=>({
 const mediaText={
  CMS_MEDIA_INVALID:['Use a JPEG, PNG, WebP or AVIF under 5 MB and provide alt text in both languages.','Dùng ảnh JPEG, PNG, WebP hoặc AVIF dưới 5 MB và nhập văn bản thay thế bằng cả hai ngôn ngữ.'],
  CMS_MEDIA_PUBLIC_CONFIRMATION:['Confirm that the image is approved for public use.','Xác nhận ảnh được phép sử dụng công khai.'],
- CMS_MEDIA_NOT_PUBLIC:['Choose a ready image from the public media library or an existing site asset.','Chọn ảnh sẵn sàng từ thư viện công khai hoặc ảnh có sẵn trên trang.'],
+ CMS_MEDIA_NOT_PUBLIC:['The cover is unavailable for publication. Choose a ready image from the public media library, use a site asset, or remove the cover.','Ảnh bìa chưa thể dùng để đăng. Hãy chọn ảnh sẵn sàng từ thư viện công khai, dùng ảnh có sẵn trên trang hoặc bỏ ảnh bìa.'],
  CMS_MEDIA_IN_USE:['This image is still referenced by content or revision history and cannot be deleted.','Ảnh vẫn được nội dung hoặc lịch sử chỉnh sửa tham chiếu và chưa thể xóa.'],
  CMS_MEDIA_MISSING:['The stored file could not be verified. Check the upload or retry with the original file.','Chưa xác minh được tệp đã lưu. Kiểm tra lượt tải lên hoặc thử lại với tệp gốc.'],
  CMS_MEDIA_PENDING:['Removal is pending. Retry from the media library.','Đang chờ xóa. Hãy thử lại từ thư viện tư liệu.'],
- CMS_PUBLISHED_SLUG:['The address of a published article is fixed.','Không thể đổi đường dẫn của bài viết đã đăng.']
+ CMS_PUBLISHED_SLUG:['The address of a published article is fixed.','Không thể đổi đường dẫn của bài viết đã đăng.'],
+ CMS_PUBLISH_DENIED:['Only a publisher or CMS administrator can publish or archive content.','Chỉ người duyệt đăng hoặc quản trị viên CMS mới có thể đăng hoặc lưu trữ nội dung.'],
+ AGENCY_CMS_ADMIN_REQUIRED:['Only a CMS administrator can move content to Trash.','Chỉ quản trị viên CMS mới có thể chuyển nội dung vào Thùng rác.'],
+ CMS_RECORD_MISSING:['This entry is no longer available. Refresh the list before trying again.','Nội dung này không còn khả dụng. Hãy tải lại danh sách trước khi thử lại.']
 };
 export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
  const allowed=()=>{if(!isStaff()||!getUser()?.id)throw Object.assign(new Error('CMS_ACCESS_DENIED'),{code:'42501'})};
- const rpc=async(name,args)=>{allowed();return take(await db.rpc(name,args))};
+ const requestRpc=async(name,args)=>{allowed();return take(await db.rpc(name,args),name)};
+ const rpc=async(name,args)=>{
+  const value=await requestRpc(name,args);
+  return Array.isArray(value)&&value.length===1?value[0]:value;
+ };
  const imageBucket=()=>db.storage.from('gary-cms-media');
  const presentMedia=row=>({
   ...row,owned:row.uploaded_by===getUser()?.id,
   url:row.state==='ready'?publicCmsImage(imageBucket().getPublicUrl(row.object_path).data.publicUrl):''
  });
- const finishMedia=async item=>presentMedia(await rpc('gary_cms_register_media',{
-  p_path:item.object_path,p_name:item.file_name,p_mime:item.mime_type,p_size:item.size_bytes,
-  p_alt_en:item.alt_en,p_alt_vi:item.alt_vi
- }));
+ const finishMedia=async item=>{
+  const row=await rpc('gary_cms_register_media',{
+   p_path:item.object_path,p_name:item.file_name,p_mime:item.mime_type,p_size:item.size_bytes,
+   p_alt_en:item.alt_en,p_alt_vi:item.alt_vi
+  });
+  if(row?.state!=='ready'||row.object_path!==item.object_path)throw new Error('CMS_MEDIA_MISSING');
+  const ready=presentMedia(row);
+  if(!ready.url)throw new Error('CMS_MEDIA_NOT_PUBLIC');
+  return ready;
+ };
  const storeMedia=async(item,file)=>{
   allowed();
   try{
@@ -111,6 +130,12 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
    return moved;
   },
   async save(record,{expectedVersion}={}){
+   if(record?.kind==='article'){
+    const current=record.data?.image_url;
+    const cover=articleCoverValue(current);
+    if(cover===null)throw Object.assign(new Error('CMS_MEDIA_NOT_PUBLIC'),{code:'23514'});
+    if(current!==undefined&&current!==cover)record={...record,data:{...record.data,image_url:cover}};
+   }
    if(record?.kind==='article'&&!record.id){
     const payload=structuredClone(record),rejected=new Set();
     let lastError;
@@ -129,14 +154,14 @@ export function createAgencyCmsAdapter({db,isStaff=()=>false,getUser=()=>null}){
   async listMedia({readyOnly=false}={}){
    allowed();
    if(readyOnly){
-    const rows=await rpc('gary_cms_ready_images');
-    return rows.map(row=>presentMedia({...row,state:'ready'}));
+    const rows=await requestRpc('gary_cms_ready_images');
+    return (rows??[]).map(row=>presentMedia({...row,state:'ready'}));
    }
    const request=db.from('gary_cms_media')
     .select('id,file_name,object_path,mime_type,size_bytes,created_at,uploaded_by,state,version,alt_en,alt_vi,caption_en,caption_vi')
     .order('created_at',{ascending:false}).limit(200);
    const rows=take(await request.neq('state','removed'));
-   return (Array.isArray(rows)?rows:rows?[rows]:[]).map(presentMedia);
+   return (rows??[]).map(presentMedia);
   },
   async uploadMedia(file,metadata={}){
    allowed();

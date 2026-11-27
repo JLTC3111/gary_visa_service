@@ -62,7 +62,7 @@ async function getRoster(){
  if(generation!==state.generation||!operations())return [];rosterCache={data,expires:Date.now()+60000};return data;
 }
 const {staffOptions}=workspaceUI(document,t);
-const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,canTrash:()=>operationsRole()==='admin',getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:id=>{if(navigateView('inbox',false))inbox.enter(id)}});
+const crm=createCRM({db,doc:document,t,isStaff:operations,canAssign:oversees,canTrash:()=>operationsRole()==='admin',getUser:()=>state.user,getRoster,showDialog,closeDialog,notify:toast,openApplication:openCase,openChat:async id=>{if(await navigateView('inbox',false))inbox.enter(id)}});
 const cms=createAgencyCms({doc:document,db,isStaff:canOpenCms,getUser:()=>state.user,getLanguage:()=>language,getView:()=>state.view});
 const trash=createTrash({db,doc:document,t,isStaff:()=>trashKinds().length>0,isOwner:ownsSite,kinds:trashKinds,notify:toast});
 const inbox=createInbox({db,doc:document,t,isStaff:operations,canAssign:oversees,canGoOnline:oversees,getUser:()=>state.user,getRoster,openContact:id=>crm.openContact(id),notify:toast});
@@ -272,13 +272,12 @@ function renderStaffAccountMenu(){
  staffAccountMenu.update({signedIn,visible,current,roles:roles.length?roles:[t('staff')],
   name:state.profile.full_name?.trim()||state.user.email||t('account'),email:state.user.email,photo:staffAccountPhoto});
 }
-function openAccountView(view){
- if(!staff()||!navigateView(view))return;
+async function openAccountView(view){
+ if(!staff()||!await navigateView(view))return;
  if(view==='profile')$('#profile-title').focus();
 }
-$('#sidebar-profile-button').addEventListener('click',()=>{
- navigateView('profile');
- if(state.view==='profile')$('#profile-title').focus();
+$('#sidebar-profile-button').addEventListener('click',async()=>{
+ if(await navigateView('profile'))$('#profile-title').focus();
 });
 
 function renderIdentity(){
@@ -287,7 +286,7 @@ function renderIdentity(){
 }
 function setView(view,load=true){
  if(!viewAllowed(view))return;
- if(contentViews.includes(state.view)&&view!==state.view){if(!cms.canLeave())return;cms.reset();}
+ if(contentViews.includes(state.view)&&view!==state.view)cms.reset();
  if(state.view==='inbox'&&view!=='inbox')inbox.leave();
  if(state.view==='staff-access'&&view!=='staff-access')staffAccess.leave();
  state.view=view;
@@ -308,10 +307,15 @@ function syncStaffViewUrl(){
  }
  currentStaffViewUrl=location.href;
 }
-function navigateView(view,load=true){
+async function navigateView(view,load=true,{fromHistory=false}={}){
  const previous=state.view;
+ if(!viewAllowed(view))return false;
+ if(contentViews.includes(previous)&&view!==previous&&!cms.canLeave()){
+  const generation=state.generation;
+  if(!await cms.confirmLeave()||generation!==state.generation||state.view!==previous)return false;
+ }
  if(!setView(view,load))return false;
- if(staff()&&previous!==view){
+ if(staff()&&previous!==view&&!fromHistory){
   const url=new URL(location.href);
   url.searchParams.set('view',view);
   if(url.href!==location.href)history.pushState(history.state,'',url);
@@ -320,15 +324,13 @@ function navigateView(view,load=true){
  return true;
 }
 $$('[data-view]').forEach(button=>button.addEventListener('click',()=>navigateView(button.dataset.view)));
-window.addEventListener('popstate',()=>{
+window.addEventListener('popstate',async()=>{
  if(!staff()||$('#workspace').hidden)return;
- const requested=new URL(location.href).searchParams.get('view');
+ const previousUrl=location.href;
+ const requested=new URL(previousUrl).searchParams.get('view');
  const view=VIEWS.includes(requested)&&viewAllowed(requested)?requested:homeView();
- if(view!==state.view&&!setView(view)){
-  history.pushState(history.state,'',currentStaffViewUrl);
-  return;
- }
- syncStaffViewUrl();
+ if(view===state.view){syncStaffViewUrl();return;}
+ if(!await navigateView(view,true,{fromHistory:true})&&location.href===previousUrl)history.pushState(history.state,'',currentStaffViewUrl);
 });
 function renderProfile(){if(!state.profile)return;for(const key of ['full_name','contact_email','phone','nationality','preferred_language'])$('#profile-form').elements.namedItem(key).value=state.profile[key]??''}
 $('#profile-form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;feedback('#profile-notice','');await busy(form,async()=>{try{const values=Object.fromEntries(new FormData(form));for(const key of Object.keys(values))values[key]=String(values[key]).trim();const data=unwrap(await db.from('gary_profiles').update(values).eq('id',state.user.id).select().single());state.profile=data;renderIdentity();toast('profileSaved')}catch(error){feedback('#profile-notice',errorKey(error),true)}})});

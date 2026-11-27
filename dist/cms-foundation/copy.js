@@ -18,7 +18,34 @@ const additional = {
   automaticUrlPending: ['The URL is generated automatically from the title.', 'Đường dẫn được tạo tự động từ tiêu đề.'],
   priorPublicationLive: ['Earlier version is live', 'Phiên bản trước đang hiển thị công khai'],
   publicationMissing: ['No live snapshot', 'Chưa có phiên bản công khai'],
+  newArticle: ['New article', 'Tạo bài'],
+  editArticle: ['Edit article', 'Sửa bài viết'],
+  viewArticle: ['View article', 'Xem bài viết'],
+  publicArticle: ['View published article', 'Xem bài đã đăng'],
+  moreActions: ['More actions', 'Thao tác khác'],
+  shortMore: ['More', 'Khác'],
+  shortSave: ['Save', 'Lưu nháp'],
+  shortReview: ['Review', 'Gửi duyệt'],
+  shortPublish: ['Publish', 'Đăng'],
+  discardChanges: ['Discard changes', 'Bỏ thay đổi'],
+  discardWarning: ['Unsaved changes will be discarded.', 'Các thay đổi chưa lưu sẽ bị bỏ.'],
+  savingChanges: ['Saving changes…', 'Đang lưu thay đổi…'],
+  unconfirmed: ['The server did not confirm this change. Reopen the entry to check its current status before retrying.', 'Máy chủ chưa xác nhận thay đổi. Hãy mở lại nội dung để kiểm tra trạng thái trước khi thử lại.'],
+  saveFailed: ['The draft could not be saved. Your edits are still here.', 'Chưa lưu được bản nháp. Các thay đổi của bạn vẫn còn trong trình biên tập.'],
+  reviewFailed: ['The draft could not be submitted for review. Try again.', 'Chưa gửi được bản nháp để duyệt. Hãy thử lại.'],
+  publishFailed: ['Publication could not be confirmed. Check the article’s status before trying again.', 'Chưa xác nhận được việc đăng bài. Hãy kiểm tra trạng thái bài viết trước khi thử lại.'],
+  archiveFailed: ['Archiving could not be confirmed. Check the entry’s status before trying again.', 'Chưa xác nhận được việc lưu trữ. Hãy kiểm tra trạng thái nội dung trước khi thử lại.'],
+  trashFailed: ['The move to Trash could not be confirmed. Check the list before trying again.', 'Chưa xác nhận được việc chuyển vào Thùng rác. Hãy kiểm tra danh sách trước khi thử lại.'],
+  restoreFailed: ['The revision could not be restored. Try again.', 'Chưa khôi phục được phiên bản. Hãy thử lại.'],
+  uploadFailed: ['The cover upload could not be verified. Try again with the original file.', 'Chưa xác minh được lượt tải ảnh bìa. Hãy thử lại với tệp gốc.'],
+  reviewSucceeded: ['Article submitted for review.', 'Đã gửi bài viết để duyệt.'],
+  publishSucceeded: ['Article published.', 'Đã đăng bài viết.'],
+  archiveSucceeded: ['Article archived.', 'Đã lưu trữ bài viết.'],
   cover: ['Cover image', 'Ảnh bìa'],
+  noCover: ['No cover image', 'Không có ảnh bìa'],
+  currentCover: ['Current cover image', 'Ảnh bìa hiện tại'],
+  coverRemoved: ['Cover cleared. Save the draft to keep this change.', 'Đã bỏ ảnh bìa. Hãy lưu bản nháp để giữ thay đổi.'],
+  invalidCover: ['Choose a ready image from the public media library, use a site asset, or remove the cover.', 'Chọn ảnh sẵn sàng từ thư viện công khai, dùng ảnh có sẵn trên trang hoặc bỏ ảnh bìa.'],
   chooseCover: ['Choose or replace from the public media library', 'Chọn hoặc thay bằng ảnh từ thư viện công khai'],
   uploadCover: ['Upload a new cover', 'Tải ảnh bìa mới lên'],
   coverSelected: ['New cover selected. Save the draft to keep it.', 'Đã chọn ảnh bìa mới. Hãy lưu bản nháp để giữ ảnh.'],
@@ -42,6 +69,6 @@ const additional = {
 };
 export function cmsText(key, language = 'en') { return copy[language === 'vi' ? 'vi' : 'en'][key] || additional[key]?.[language === 'vi' ? 1 : 0] || key; }
 export function validationText(issue, language) {
-  const keys = { 'cms-title-missing': 'titleMissing', 'cms-summary-missing': 'summaryMissing', 'cms-body-missing': 'bodyMissing', 'cms-slug': 'slugInvalid', 'cms-field-required': 'fieldRequired', 'cms-url-invalid': 'invalidUrl', 'cms-number-invalid': 'invalidNumber', 'cms-option-invalid': 'invalidOption', 'cms-date-invalid': 'invalidDate' };
+  const keys = { 'cms-title-missing': 'titleMissing', 'cms-summary-missing': 'summaryMissing', 'cms-body-missing': 'bodyMissing', 'cms-slug': 'slugInvalid', 'cms-field-required': 'fieldRequired', 'cms-url-invalid': 'invalidUrl', 'cms-cover-invalid': 'invalidCover', 'cms-number-invalid': 'invalidNumber', 'cms-option-invalid': 'invalidOption', 'cms-date-invalid': 'invalidDate' };
   return cmsText(keys[issue.code] || 'invalid', language) + (issue.params?.language ? ` (${issue.params.language})` : '');
 }

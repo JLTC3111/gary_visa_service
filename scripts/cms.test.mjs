@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
+import {createClient} from '@supabase/supabase-js';
 import {bindFeedbackDom} from './feedback-test-dom.mjs';
 import {loadHomepageCms,loadPublishedCms,renderPublicCms,renderServiceCms,cmsCopyOverrides} from '../dist/cms-public.js';
 import {agencyCollections,createAgencyCmsAdapter} from '../dist/cms.js';
 import {createAgencyCms} from '../dist/cms-workspace.js';
 import {mountCms} from '../dist/cms-foundation/index.js';
 import {emptyEntry, titleSlug, validateEntry} from '../dist/cms-foundation/content.js';
-import {publicCmsImage} from '../dist/cms-articles.js';
+import {articleView,newsOrigin,publicCmsImage} from '../dist/cms-articles.js';
 const fixture=async()=>new JSDOM(await readFile(new URL('../dist/index.html',import.meta.url),'utf8'),{url:'https://visa.example/'});
 const entry=(kind,slug,extra={})=>({id:slug,kind,slug,title_en:'English '+slug,title_vi:'Tiếng Việt '+slug,summary_en:'English summary',summary_vi:'Tóm tắt tiếng Việt',body_en:'English body',body_vi:'Nội dung tiếng Việt',published_at:'2026-01-08T09:00:00Z',data:{},...extra});
 const landing=['hero','services','process','about','faq','contact'].map(slot=>entry('landing',slot,{data:{slot,accent_en:'Second line',accent_vi:'Dòng thứ hai',third_line_en:'Third line',third_line_vi:'Dòng thứ ba'}}));
@@ -250,6 +251,7 @@ test('article editor previews and replaces covers; media metadata is bilingual a
   submit('[data-cms-upload]');await settle();
   assert.equal(writes.at(-1).metadata.publicConfirmed,true);
   select('[data-action=remove-media]').click();await settle();
+  select('[data-cms-answer=confirm]').click();await settle();
   assert.equal(select('.cms-media-grid').children.length,1);
   role='publisher';siteOwner=false;await cms.refresh();
   assert.equal(select('[data-action=media]'),null);
@@ -328,4 +330,147 @@ test('new article saves avoid an occupied title address and existing articles ke
  assert.equal(kept.slug,'custom-address');
  assert.equal(calls.at(-1).version,4);
  assert.equal(lookups,1);
+});
+
+test('article cover changes follow reserve, save, review and publish while keeping the old live snapshot',async()=>{
+ const dom=new JSDOM('<main></main>',{url:newsOrigin});
+ const {window}=dom,root=window.document.querySelector('main');
+ bindFeedbackDom(window);
+ window.confirm=()=>assert.fail('Article actions must use the CMS confirmation dialog');
+ const origin='https://duyiihsmaqfgwezmsnjs.supabase.co',owner='80000000-0000-4000-8000-000000000008';
+ const oldPath=owner+'/11111111-1111-4111-8111-111111111111.png';
+ const url=path=>origin+'/storage/v1/object/public/gary-cms-media/'+path;
+ let working=entry('article','cover-guide',{version:1,status:'published',updated_at:'2026-01-08T09:00:00Z',
+  data:{category:'work',image_url:url(oldPath),image_alt_en:'Existing cover',image_caption_vi:'Chú thích cũ'}});
+ let live=structuredClone(working),reserved,uploaded=false,publishOutcome='success';
+ const revisions=[structuredClone(working)],requests=[];
+ const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json',...headers}});
+ const db=createClient(origin,'cms-fixture-key',{auth:{persistSession:false},global:{async fetch(input,init={}){
+  const {pathname}=new URL(input);
+  const name=pathname.split('/').at(-1);
+  const args=typeof init.body==='string'?JSON.parse(init.body):null;
+  requests.push({name,args,pathname});
+  if(name==='gary_cms_capabilities')return json({role:'admin',read:true,edit:true,publish:true,media:true,trash:true});
+  if(name==='gary_cms_entries')return json([{...working,publication:{published_at:live.published_at}}],200,{'Content-Range':'0-0/1'});
+  if(name==='gary_cms_revisions')return json(revisions.map(record=>({...record,snapshot:record})));
+  if(name==='gary_cms_ready_images')return json([{file_name:'old-cover.png',object_path:oldPath}]);
+  if(name==='gary_cms_reserve_media'){
+   reserved={id:'new-media',object_path:args.p_path,file_name:args.p_name,mime_type:args.p_mime,size_bytes:args.p_size,alt_en:args.p_alt_en,alt_vi:args.p_alt_vi,state:'reserved'};
+   return json([reserved]);
+  }
+  if(pathname==='/storage/v1/object/gary-cms-media/'+reserved?.object_path){
+   uploaded=true;
+   return json({Key:'gary-cms-media/'+reserved.object_path});
+  }
+  if(name==='gary_cms_register_media'){
+   assert.ok(uploaded);
+   assert.equal(args.p_path,reserved.object_path);
+   return json([{...reserved,state:'ready'}]);
+  }
+  if(name==='gary_cms_prepare_media_removal'){
+   assert.equal(args.p_id,'old-media');
+   assert.ok(revisions.some(record=>record.data.image_url===url(oldPath)));
+   return json({code:'23514',message:'CMS_MEDIA_IN_USE'},400);
+  }
+  if(['gary_cms_save','gary_cms_transition'].includes(name)){
+   if(args.p_expected_version!==working.version)return json({code:'PT409',message:'CMS_VERSION_CONFLICT'},409);
+   if(args.p_status==='published'){
+    assert.equal(working.status,'review');
+    if(publishOutcome==='unavailable')return json({code:'23514',message:'CMS_MEDIA_NOT_PUBLIC'},400);
+    if(publishOutcome==='unconfirmed')return json([working]);
+   }
+   working={...working,...args.p_record,version:working.version+1,status:args.p_status||'draft'};
+   if(working.status==='published'){
+    live=structuredClone(working);
+    if(!live.data.image_url)delete live.data.image_url;
+   }
+   revisions.push(structuredClone(working));
+   return json([working]);
+  }
+  assert.fail('Unexpected fixture request '+pathname);
+ }}});
+ const adapter=createAgencyCmsAdapter({db,isStaff:()=>true,getUser:()=>({id:owner})});
+ const cms=mountCms(root,{appId:'visa',adapter,collections:agencyCollections.filter(item=>item.kind==='article'),language:'vi'});
+ const settle=()=>new Promise(resolve=>setImmediate(resolve));
+ const find=selector=>root.querySelector(selector);
+ const click=async selector=>{const control=find(selector);assert.ok(control,selector);control.click();await settle();};
+ const save=()=>click('[data-cms-editor] button[type=submit]');
+ const review=()=>click('[data-gw-actions] [data-action=review]');
+ const publish=()=>click('[data-gw-actions] [data-action=publish]');
+ const answer=value=>click(`.cms-confirm-dialog [data-cms-answer="${value}"]`);
+ const toast=()=>[...window.document.querySelectorAll('[data-success-message]')].map(node=>node.textContent).join(' ');
+ const selectCover=value=>{const select=find('[data-cover-select]');select.value=value;select.dispatchEvent(new window.Event('change',{bubbles:true}));};
+ try{
+  await cms.ready;
+  assert.equal(find('.cms-article-public').getAttribute('href'),'/vi/news/cover-guide');
+  assert.equal(find('.cms-article-thumb img').src,url(oldPath));
+  await click('[data-action=edit]');
+  assert.equal(find('[data-cover-select]').value,url(oldPath),'one ready image remains selectable');
+  selectCover('');
+  assert.equal(find('[data-cover-preview] img'),null);
+  assert.equal(cms.isDirty(),true);
+  await click('[data-gw-actions] [data-action=close]');await answer('cancel');
+  assert.equal(cms.isDirty(),true);
+  assert.equal(working.version,1);
+  await click('[data-gw-actions] [data-action=close]');await answer('confirm');
+  await click('[data-action=edit]');
+  assert.equal(find('[data-cover-preview] img').src,url(oldPath));
+  const form=find('[data-cms-cover-upload]');
+  const png=new File([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8foAAAAASUVORK5CYII=','base64')],'replacement.png',{type:'image/png'});
+  Object.defineProperty(form.elements.file,'files',{value:[png]});
+  form.elements.alt_en.value='New cover';
+  form.elements.alt_vi.value='Ảnh bìa mới';
+  globalThis.createImageBitmap=async()=>({width:1,height:1,close(){}});
+  try{await click('[data-action=upload-cover]');}finally{delete globalThis.createImageBitmap;}
+  const replacement=url(reserved.object_path);
+  assert.equal(find('[data-cover-preview] img').src,replacement);
+  assert.equal(working.data.image_url,url(oldPath));
+  assert.doesNotMatch(toast(),/Đã đăng bài viết/);
+  await save();
+  assert.equal(working.data.image_url,replacement);
+  assert.deepEqual(working.data,{category:'work',image_url:replacement});
+  await review();
+  assert.equal(live.data.image_url,url(oldPath));
+  const version=working.version;
+  await publish();await answer('cancel');
+  assert.equal(working.version,version);
+  assert.equal(requests.filter(request=>request.args?.p_status==='published').length,0);
+  publishOutcome='unavailable';
+  await publish();await answer('confirm');
+  assert.match(find('[data-editor-notice][role=alert]').textContent,/Ảnh bìa chưa thể dùng/);
+  assert.doesNotMatch(toast(),/Đã đăng bài viết/);
+  assert.equal(live.data.image_url,url(oldPath));
+  publishOutcome='unconfirmed';
+  await publish();await answer('confirm');
+  assert.match(find('[data-editor-notice][role=alert]').textContent,/Máy chủ chưa xác nhận/);
+  assert.doesNotMatch(toast(),/Đã đăng bài viết/);
+  publishOutcome='success';
+  await publish();await answer('confirm');
+  assert.equal(live.data.image_url,replacement);
+  assert.match(toast(),/Đã đăng bài viết/);
+  assert.equal(working.version,version+1);
+  await click('[data-action=remove-cover]');await save();await review();
+  assert.equal(working.data.image_url,'');
+  assert.equal(live.data.image_url,replacement);
+  await publish();await answer('confirm');
+  assert.equal(live.data.image_url,undefined);
+  for(const language of ['en','vi'])assert.doesNotMatch(articleView({entries:[live],language,slug:live.slug}).content,/<figure>/);
+  assert.deepEqual(revisions.map(record=>record.version),[1,2,3,4,5,6,7]);
+  await assert.rejects(()=>adapter.transition(working.id,'archived',{expectedVersion:1}),{request:'gary_cms_transition',status:409,code:'PT409',message:'CMS_VERSION_CONFLICT'});
+  await assert.rejects(()=>adapter.removeMedia('old-media'),{request:'gary_cms_prepare_media_removal',status:400,message:'CMS_MEDIA_IN_USE'});
+  assert.equal(requests.filter(request=>request.pathname.startsWith('/storage/v1/')).length,1);
+ }finally{cms.destroy({force:true});window.close();}
+});
+
+test('article cover validation accepts canonical site assets and sends a database-compatible path',async()=>{
+ const collection=agencyCollections.find(item=>item.kind==='article');
+ const record=entry('article','site-cover',{version:1,data:{image_url:newsOrigin+'/assets/vietnam-city.jpg'}});
+ const db={rpc:async(name,args)=>({data:args.p_record})};
+ const adapter=createAgencyCmsAdapter({db,isStaff:()=>true,getUser:()=>({id:'editor'})});
+ assert.deepEqual(validateEntry(record,collection,true),[]);
+ const saved=await adapter.save(record,{expectedVersion:record.version});
+ assert.equal(saved.data.image_url,'/assets/vietnam-city.jpg');
+ record.data.image_url='https://example.test/profile-photo.jpg';
+ assert.equal(validateEntry(record,collection,true)[0].code,'cms-cover-invalid');
+ await assert.rejects(()=>adapter.save(record),/CMS_MEDIA_NOT_PUBLIC/);
 });
