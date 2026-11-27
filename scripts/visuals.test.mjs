@@ -28,16 +28,16 @@ function fakeClock() {
     }
   };
 }
-function harness({ ready = true, effects = false, loader } = {}) {
+function harness({ ready = true, effects = false, loader, theme = 'dark' } = {}) {
   const clock = fakeClock();
   const browser = new Surface();
   const document = new Surface();
   const host = { dataset: {} };
   const hero = {};
-  const calls = { loads: 0, mounts: 0, unmounts: 0, pauses: [] };
+  const calls = { loads: 0, mounts: 0, unmounts: 0, pauses: [], themes: [] };
   let observer;
   browser.CustomEvent = class { constructor(type, options) { this.type = type; this.detail = options.detail; } };
-  browser.garyVisaPreferences = { ready, effects };
+  browser.garyVisaPreferences = { ready, effects, resolvedTheme: theme };
   browser.IntersectionObserver = class {
     constructor(callback) { observer = callback; }
     observe() {}
@@ -48,7 +48,12 @@ function harness({ ready = true, effects = false, loader } = {}) {
     calls.mounts++;
     calls.fail = options.onUnavailable;
     calls.ready = options.onReady;
-    return { setPaused(value) { calls.pauses.push(value); }, unmount() { calls.unmounts++; } };
+    calls.mountTheme = options.theme;
+    return {
+      setPaused(value) { calls.pauses.push(value); },
+      setTheme(value) { calls.themes.push(value); },
+      unmount() { calls.unmounts++; }
+    };
   };
   const controller = createVisualEffectsController({
     window: browser, document, host, hero, clock,
@@ -57,7 +62,9 @@ function harness({ ready = true, effects = false, loader } = {}) {
   return {
     calls, host, controller, mountHyperspeed, clock,
     visible(value) { observer?.([{ isIntersecting: value }]); },
-    preference(value) { browser.dispatchEvent(new browser.CustomEvent('gary:visual-preferences', { detail: { effects: value } })); },
+    preference(value, resolvedTheme) {
+      browser.dispatchEvent(new browser.CustomEvent('gary:visual-preferences', { detail: { effects: value, resolvedTheme } }));
+    },
     hidden(value) { document.visibilityState = value ? 'hidden' : 'visible'; document.dispatchEvent({ type: 'visibilitychange' }); }
   };
 }
@@ -185,13 +192,17 @@ test('offscreen, hidden and effects-off periods do not consume the remaining int
   scene.controller.destroy();
 });
 
-test('theme/locale-like preference events never restart the introduction or initialize another context', async () => {
-  const scene = harness({ effects: true }); scene.visible(true); await settled(); scene.calls.ready();
-  scene.clock.advance(4_000); scene.preference(true); scene.preference(true);
+test('resolved theme changes update the existing renderer and preserve the introduction and paused state', async () => {
+  const scene = harness({ effects: true, theme: 'light' });
+  scene.visible(true); await settled(); scene.calls.ready();
+  assert.equal(scene.calls.mountTheme, 'light');
+  scene.clock.advance(4_000); scene.preference(true, 'dark'); scene.preference(true, 'dark');
+  assert.deepEqual(scene.calls.themes, ['dark']);
   assert.equal(scene.clock.pending(), 1);
   scene.clock.advance(6_000); assert.equal(scene.host.dataset.effectsState, 'paused');
-  scene.preference(true); scene.visible(false); scene.visible(true);
+  scene.preference(true, 'light'); scene.visible(false); scene.visible(true);
   scene.clock.advance(60_000); assert.equal(scene.host.dataset.effectsState, 'paused');
+  assert.deepEqual(scene.calls.themes, ['dark', 'light']);
   assert.equal(scene.calls.mounts, 1); assert.equal(scene.clock.pending(), 0);
   scene.controller.destroy();
 });

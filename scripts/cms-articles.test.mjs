@@ -16,13 +16,13 @@ const html = name => readFile(new URL(source+name,import.meta.url),'utf8');
 const stripImports=source=>source.replace(/^import .*;\n/gm,'');
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 
-test('the homepage shows three newest eligible articles with covers, dates and archive links',async()=>{
+test('the homepage features the newest eligible article and lists recent published articles with localized metadata',async()=>{
   const dom=new JSDOM(await html('index.html'),{url:'https://visa.example/'});
   const {document:doc}=dom.window;
   try{
     const rows=[
       record('old','2026-01-01T00:00Z'),record('third','2026-01-02T00:00Z'),
-      record('newest','2026-01-05T00:00Z',{title_vi:'Bài mới nhất',data:{image_url:'/assets/approved.webp',image_alt_en:'An approved cover'}}),
+      record('newest','2026-01-05T00:00Z',{title_vi:'Bài mới nhất',data:{category:'visa',image_url:'/assets/approved.webp',image_alt_en:'An approved cover'}}),
       record('second','2026-01-03T00:00Z',{data:{position:999,image_url:'javascript:alert(1)'}}),
       record('future','2100-01-01T00:00Z'),record('gone','2026-01-12T00:00Z',{deleted_at:'2026-01-13T00:00Z'}),
       record('draft','2026-01-12T00:00Z',{status:'draft'}),record('archived','2026-01-12T00:00Z',{status:'archived'}),
@@ -30,15 +30,27 @@ test('the homepage shows three newest eligible articles with covers, dates and a
     ];
     renderLatestArticles(doc,rows,'vi');
     const section=doc.getElementById('cms-articles');
-    assert.deepEqual([...section.querySelectorAll('article')].map(node=>node.id),['article-newest','article-second','article-third']);
+    assert.equal(doc.getElementById('visa-service-discovery').nextElementSibling,section);
+    assert.equal(section.compareDocumentPosition(doc.getElementById('services')) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING,4);
+    assert.equal(section.querySelector('.cms-editorial-featured').id,'article-newest');
+    assert.deepEqual([...section.querySelectorAll('.cms-editorial-recent article')].map(node=>node.id),['article-second','article-third']);
+    assert.match(section.querySelector('.cms-editorial-recent>h3').textContent,/Bài viết gần đây/);
+    assert.equal(section.querySelector('.cms-editorial-category').textContent,'Thị thực');
     assert.match(section.querySelector('h2').textContent,/Tin tức/);
     assert.match(section.querySelector('h3').textContent,/Bài mới nhất/);
     assert.equal(section.querySelector('.cms-news-header a').getAttribute('href'),'/vi/news');
     assert.equal(section.querySelector('article a').getAttribute('href'),'/vi/news/newest');
     assert.equal(section.querySelector('time').dateTime,'2026-01-05T00:00:00.000Z');
     assert.equal(section.querySelector('img').alt,'An approved cover');
-    assert.match(section.querySelector('#article-second img').src,/\/assets\/vietnam-city.jpg$/);
+    assert.equal(section.querySelector('#article-second img'),null);
     assert.match(section.querySelector('#article-second p').textContent,/short excerpt/);
+    section.querySelector('img').dispatchEvent(new dom.window.Event('error'));
+    assert.equal(section.querySelector('img'),null,'a failed editorial cover leaves the published copy readable');
+    section.querySelector('#article-newest a').focus();
+    renderLatestArticles(doc,[rows[2]],'en');
+    assert.equal(section.querySelector('.cms-editorial-recent'),null);
+    assert.equal(doc.activeElement.getAttribute('href'),'/en/news/newest');
+    assert.equal(section.querySelector('.cms-news-all').textContent,'View all news');
     renderLatestArticles(doc,[],'en');
     assert.equal(section.hidden,false);
     assert.equal(section.querySelectorAll('article').length,0);

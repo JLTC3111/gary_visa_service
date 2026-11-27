@@ -70,9 +70,44 @@ function cards(entries,language,origin,heading){
   return `<div class="cms-news-grid">${entries.map(entry=>`<article class="cms-news-card" id="article-${entry.slug}"><a href="${articlePath(language,entry.slug)}" class="cms-news-link">${image(coverFor(entry,language,origin))}<div class="cms-news-card-body"><div class="cms-news-meta">${escape(articleCategories[categoryFor(entry)][language])} · ${dateLabel(entry,language)}</div><${heading}>${escape(localized(entry,'title',language))}</${heading}><p>${escape(excerpt(entry,language))}</p></div></a></article>`).join('')}</div>`;
 }
 
-export function bindArticleFallbacks(root){
+function editorialCard(entry,language,origin,{featured=false}={}){
+  const src=publicCmsImage(entry.data?.image_url,origin);
+  const cover=src?image({src,alt:localized(entry.data,'image_alt',language)}):'';
+  const title=escape(localized(entry,'title',language));
+  const summary=escape(excerpt(entry,language));
+  const category=escape(articleCategories[categoryFor(entry)][language]);
+  const heading=featured?'h3':'h4';
+  const label=featured?`<p class="cms-editorial-label">${local(language,'Featured article','Bài viết nổi bật')}</p>`:'';
+  return `<article class="cms-news-card${featured?' cms-editorial-featured':''}" id="article-${entry.slug}">
+    <a href="${articlePath(language,entry.slug)}" class="cms-news-link">
+      ${featured?cover:''}
+      <div class="cms-news-card-body">
+        ${label}
+        <div class="cms-news-meta"><span class="cms-editorial-category">${category}</span>${dateLabel(entry,language)}</div>
+        <${heading}>${title}</${heading}>
+        ${summary?`<p class="cms-editorial-summary">${summary}</p>`:''}
+      </div>
+      ${featured?'':cover}
+    </a>
+  </article>`;
+}
+
+function editorialArticles([featured,...recent],language,origin){
+  return `<div class="cms-editorial${recent.length?'':' cms-editorial--single'}">
+    ${editorialCard(featured,language,origin,{featured:true})}
+    ${recent.length?`<div class="cms-editorial-recent">
+      <h3>${local(language,'Recent articles','Bài viết gần đây')}</h3>
+      ${recent.map(entry=>editorialCard(entry,language,origin)).join('')}
+    </div>`:''}
+  </div>`;
+}
+
+export function bindArticleFallbacks(root,{omitMissing=false}={}){
   for(const img of root.querySelectorAll('img[data-article-cover]')){
-    const fallback=()=>{if(img.getAttribute('src')!==fallbackCover){img.src=fallbackCover;img.alt='';img.closest('figure')?.querySelector('figcaption')?.remove();}};
+    const fallback=()=>{
+      if(omitMissing)img.remove();
+      else if(img.getAttribute('src')!==fallbackCover){img.src=fallbackCover;img.alt='';img.closest('figure')?.querySelector('figcaption')?.remove();}
+    };
     img.addEventListener('error',fallback,{once:true});
     if(img.complete&&img.naturalWidth===0)fallback();
   }
@@ -87,8 +122,13 @@ export function renderLatestArticles(doc,entries,language,{state='ready',databas
   let section=doc.getElementById('cms-articles');
   if(!section){
     section=doc.createElement('section');section.id='cms-articles';section.className='section cms-public-articles';
-    section.setAttribute('aria-labelledby','cms-news-title');doc.getElementById('faq')?.before(section);
+    section.setAttribute('aria-labelledby','cms-news-title');
+    const discovery=doc.getElementById('visa-service-discovery');
+    if(discovery)discovery.after(section);
+    else (doc.getElementById('services')??doc.getElementById('faq'))?.before(section);
   }
+  const activeLink=doc.activeElement?.closest('#cms-articles a');
+  const articleId=activeLink?.closest('article')?.id;
   const rows=state==='ready'?eligibleArticles(entries,databaseClock?Infinity:undefined).slice(0,3):[],t=(en,vi)=>local(language,en,vi);
   section.hidden=false;
   section.setAttribute('aria-busy',String(state==='loading'));
@@ -96,9 +136,13 @@ export function renderLatestArticles(doc,entries,language,{state='ready',databas
     state==='loading'?t('Loading articles…','Đang tải bài viết…'):
     t('New articles will appear here as they are published.','Bài viết mới sẽ xuất hiện tại đây sau khi được xuất bản.');
   const retry=state==='error'?`<button type="button" class="service-link" data-retry-articles>${t('Try again','Thử lại')}</button>`:'';
-  section.innerHTML=`<div class="container"><div class="cms-news-header"><h2 id="cms-news-title" tabindex="-1">${t('News &amp; Guides','Tin tức &amp; Hướng dẫn')}</h2><a href="${articlePath(language)}" class="service-link">${t('View all','Xem tất cả')}</a></div>${rows.length?cards(rows,language,doc.location.origin,'h3'):`<div class="cms-news-empty${state==='loading'?' lattice-surface':''}">${state==='loading'?'<div class="lattice-slot" data-lattice="navigation" data-reserve></div>':''}<p role="status">${message}</p>${retry}</div>`}</div>`;
+  section.innerHTML=`<div class="container"><div class="cms-news-header"><h2 id="cms-news-title" tabindex="-1">${t('News &amp; Guides','Tin tức &amp; Hướng dẫn')}</h2><a href="${articlePath(language)}" class="cms-news-all">${t('View all news','Xem tất cả tin tức')}</a></div>${rows.length?editorialArticles(rows,language,doc.location.origin):`<div class="cms-news-empty${state==='loading'?' lattice-surface':''}">${state==='loading'?'<div class="lattice-slot" data-lattice="navigation" data-reserve></div>':''}<p role="status">${message}</p>${retry}</div>`}</div>`;
   mountArticleLattice(section,state);
-  bindArticleFallbacks(section);
+  bindArticleFallbacks(section,{omitMissing:true});
+  if(activeLink){
+    const next=articleId?doc.getElementById(articleId)?.querySelector('a'):section.querySelector('.cms-news-all');
+    (next??doc.getElementById('cms-news-title'))?.focus({preventScroll:true});
+  }
 }
 
 function filterForm(language,{q,category}){

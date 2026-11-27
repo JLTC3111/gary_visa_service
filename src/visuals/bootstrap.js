@@ -14,6 +14,7 @@ export function createVisualEffectsController({
   if (!host || !hero) return { destroy() {}, togglePlayback() {} };
   const initial = browser.garyVisaPreferences;
   let enabled = initial?.ready === true && initial.effects === true;
+  let theme = initial?.resolvedTheme === 'light' ? 'light' : 'dark';
   let visible = !browser.IntersectionObserver;
   let disposed = false, failed = false, pending = false, frameReady = false;
   let generation = 0, modulePromise, renderer, lastStatus;
@@ -105,6 +106,7 @@ export function createVisualEffectsController({
       // A fresh context needs its first frame even if a previous scene was
       // manually paused. After it is ready, preserve the page's playback intent.
       renderer = mountHyperspeed(host, hero, {
+        theme,
         onUnavailable: () => unavailable(token),
         onToggle: togglePlayback,
         onReady: () => {
@@ -122,9 +124,13 @@ export function createVisualEffectsController({
     }
   };
   const onPreference = event => {
-    const value = event.detail?.effects;
-    if (typeof value !== 'boolean') return;
-    enabled = value;
+    const { effects, resolvedTheme } = event.detail ?? {};
+    if (typeof effects !== 'boolean') return;
+    enabled = effects;
+    if (theme !== resolvedTheme && (resolvedTheme === 'light' || resolvedTheme === 'dark')) {
+      theme = resolvedTheme;
+      if (enabled) renderer?.setTheme?.(theme);
+    }
     void reconcile();
   };
   const onVisibility = () => { void reconcile(); };

@@ -66,9 +66,9 @@ export function renderPublicCms({doc,entries,language='en',news}){
  const activeSlot=slot=>entries.some(e=>e.kind==='landing'&&e.data?.slot===slot);
  for(const [slot,selector]of [['hero','#visa-service-discovery'],['services','#services'],['process','#process'],['about','#about'],['faq','#faq'],['contact','#contact']]){const node=doc.querySelector(selector);if(node)node.hidden=!activeSlot(slot);}
  const allFilter=doc.querySelector('[data-filter=all]');if(allFilter)allFilter.textContent=t(`All services · ${services.length}`,`Tất cả dịch vụ · ${services.length}`);
- if(cards){cards.replaceChildren(...services.map((entry,index)=>{
+ if(cards){cards.replaceChildren(...services.map(entry=>{
   const card=el(doc,'article','',{class:'service-card','data-category':entry.data?.category||'documents','data-service':entry.slug});
-  card.append(el(doc,'div',String(index+1).padStart(2,'0'),{class:'service-number'}),el(doc,'h3',copy(entry,'title',language)),el(doc,'p',copy(entry,'summary',language)));
+  card.append(el(doc,'h3',copy(entry,'title',language)),el(doc,'p',copy(entry,'summary',language)));
   const url=publicCmsImage(entry.data?.image_url,doc.location.origin);if(url){const image=el(doc,'img','',{src:url,alt:entry.data?.[`image_alt_${language}`]||copy(entry,'title',language),loading:'lazy'});card.prepend(image)}
   const ul=el(doc,'ul','',{class:'service-list'});for(const value of lines(entry.data?.[`includes_${language}`]))ul.append(el(doc,'li',value));card.append(ul,el(doc,'button',t('Explore service','Xem dịch vụ'),{class:'service-link',type:'button','data-open-cms-service':entry.slug}));return card;
  }));const active=doc.querySelector('[data-filter][aria-pressed=true]')?.dataset.filter||'all';for(const card of cards.children)card.hidden=active!=='all'&&card.dataset.category!==active;const filterStatus=doc.querySelector('#filter-status');if(filterStatus)filterStatus.textContent=t(`${[...cards.children].filter(c=>!c.hidden).length} services shown`,`${[...cards.children].filter(c=>!c.hidden).length} dịch vụ đang hiển thị`);}

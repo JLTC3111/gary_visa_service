@@ -49,11 +49,13 @@ $$('[data-lang]').forEach(button=>button.setAttribute('aria-pressed',String(butt
   document.dispatchEvent(new CustomEvent('gary:language',{detail:{language}}));
 }
 function heroChoices(){return heroServiceEntries??Object.entries(services).map(([slug,service])=>({slug,title_en:t(service.title),title_vi:t(service.title),summary_en:t(service.intro),summary_vi:t(service.intro),data:{service_type:slug}}));}
-function renderHeroChoices(){
+function renderHeroChoices({refreshOptions=true}={}){
   const select=$('#hero-service');if(!select)return;
   const selected=select.value,choices=heroChoices();
-  select.replaceChildren(...choices.map(entry=>{const option=document.createElement('option');option.value=entry.slug;option.textContent=entry[`title_${language}`]||entry.title_en||entry.title_vi||entry.slug;return option}));
-  if(choices.some(entry=>entry.slug===selected))select.value=selected;
+  if(refreshOptions){
+    select.replaceChildren(...choices.map(entry=>{const option=document.createElement('option');option.value=entry.slug;option.textContent=entry[`title_${language}`]||entry.title_en||entry.title_vi||entry.slug;return option}));
+    if(choices.some(entry=>entry.slug===selected))select.value=selected;
+  }
   const entry=choices.find(item=>item.slug===select.value),kind=entry?.data?.service_type||entry?.slug;
   select.disabled=!entry;$('#hero-review-service').disabled=!entry;
   if(heroServiceEntries&&entry)$('#hero-review-service').dataset.openCmsService=entry.slug;else delete $('#hero-review-service').dataset.openCmsService;
@@ -62,7 +64,7 @@ function renderHeroChoices(){
   $('.hero-panel-icon use').setAttribute('href',`#i-${services[kind]?.icon||'documents'}`);
 }
 document.addEventListener('gary:cms-ready',event=>{const entries=event.detail?.entries||[];cmsCopy=cmsCopyOverrides(entries);heroServiceEntries=entries.filter(entry=>entry.kind==='service');setLanguage(language)});
-$('#hero-service').addEventListener('change',renderHeroChoices);
+$('#hero-service').addEventListener('change',()=>renderHeroChoices({refreshOptions:false}));
 function openHeroService(){
   if(!$('#hero-service-form').reportValidity())return;
   const key=$('#hero-service').value,entry=heroChoices().find(item=>item.slug===key);if(!entry)return;
@@ -107,4 +109,4 @@ function renderEnquiry(){const form=new FormData($('#enquiry-form'));const servi
 $('#enquiry-form').addEventListener('submit',event=>{event.preventDefault();if(!event.currentTarget.reportValidity())return;renderEnquiry();showDialog($('#enquiry-dialog'))});
 $('#copy-enquiry').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(messageText);$('#copy-status').textContent=t('copied')}catch{$('#copy-status').textContent=t('copyFailed');const selection=globalThis.getSelection();const range=document.createRange();range.selectNodeContents($('#enquiry-preview'));selection?.removeAllRanges();selection?.addRange(range);$('#enquiry-preview').focus()}});
 $('#copyright-year').textContent=String(new Date().getFullYear());
-if('IntersectionObserver'in globalThis){const navLinks=$$('.desktop-nav a');const observer=new IntersectionObserver(entries=>{const active=entries.filter(item=>item.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(active)navLinks.forEach(link=>link.classList.toggle('nav-active',link.hash===`#${active.target.id}`))},{rootMargin:'-15% 0px -45% 0px',threshold:[0,.1,.3]});$$('#services,#process,#about,#faq').forEach(section=>observer.observe(section))}
+if('IntersectionObserver'in globalThis){const navLinks=$$('.desktop-nav a');const observer=new IntersectionObserver(entries=>{const active=entries.filter(item=>item.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(active)navLinks.forEach(link=>link.classList.toggle('nav-active',link.hash===`#${active.target.id}`))},{rootMargin:'-15% 0px -45% 0px',threshold:[0,.1,.3]});$$('#services,#cms-articles,#contact').forEach(section=>observer.observe(section))}

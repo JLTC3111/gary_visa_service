@@ -14,6 +14,7 @@ function between(start, end) {
   return code.slice(a, b);
 }
 const closures = [
+  between('const paint =', 'let resizePending ='),
   between('const frame =', 'const wake ='),
   between('const wake =', 'const setHeld ='),
   between('const setHeld =', 'const onMove ='),
@@ -46,7 +47,8 @@ function scene({ managed = false, firstFrame } = {}) {
     requestAnimationFrame(fn) { const id = ++next; queue.set(id, fn); return id; },
     cancelAnimationFrame(id) { queue.delete(id); },
     document: { ...events, hidden: false }, window: events, container: events,
-    syncColors() {}, applyResize() { counts.resize++; },
+    keys: { light: null },
+    syncColors(s) { context.keys.light = s.light; }, applyResize() { counts.resize++; },
     callbacksRef: { current: {
       onReady() { counts.ready++; firstFrame?.(settings); },
       onBoostStart() { counts.boostStart++; }, onBoostEnd() { counts.boostEnd++; }
@@ -64,7 +66,7 @@ function scene({ managed = false, firstFrame } = {}) {
     disposables: Array.from({ length: 3 }, () => ({ dispose() { counts.materials++; } })),
     resize() {}, onMove() {}, onLeave() {}, onContextLost() {}
   };
-  vm.runInNewContext(`let raf=0,last=performance.now(),frameBudget=1000/60,alive=true,firstFrame=true,resizePending=false; const reduce=false; ${closures}\n${cleanup}\nglobalThis.api={wake,frame,onDown,onUp,onMenu,cleanup,pause(value){settingsRef.current.paused=value;onAnimationState();},hidden(value){document.hidden=value;onAnimationState();},visible(value){state.visible=value;onAnimationState();},resize(){resizePending=true;wake();}};`, context);
+  vm.runInNewContext(`let raf=0,last=performance.now(),frameBudget=1000/60,alive=true,firstFrame=true,resizePending=false,paletteFade; const reduce=false; ${closures}\n${cleanup}\nglobalThis.api={wake,frame,onDown,onUp,onMenu,cleanup,pause(value){settingsRef.current.paused=value;onAnimationState();},theme(light){settingsRef.current.light=light;onAnimationState();},hidden(value){document.hidden=value;onAnimationState();},visible(value){state.visible=value;onAnimationState();},resize(){resizePending=true;wake();}};`, context);
   return {
     ...context.api, counts, settings, shared, state: context.state,
     pending: () => queue.size,
@@ -89,6 +91,26 @@ test('actual paused renderer cancels RAF, performs no render/resize, and resumes
   assert.equal(s.counts.resize, 1);
   assert.equal(s.shared.uTime.value, .04, 'paused wall time is excluded from shader time');
   assert.equal(s.counts.ready, 1, 'resume keeps the existing scene');
+  s.cleanup();
+});
+
+test('a visible paused scene repaints once for a new palette and keeps its frozen timeline', () => {
+  const s = scene();
+  s.wake(); s.advance(20); s.pause(true);
+  const initialRenders = s.counts.render;
+  s.theme(true);
+  const lightRenders = s.counts.render;
+  assert.ok(lightRenders > initialRenders);
+  assert.equal(s.pending(), 0);
+  assert.equal(s.shared.uTime.value, .02);
+  s.theme(true);
+  assert.equal(s.counts.render, lightRenders, 'an unchanged palette needs no paint');
+  s.visible(false); s.theme(false);
+  assert.equal(s.counts.render, lightRenders, 'defer updates while offscreen');
+  s.visible(true);
+  assert.equal(s.counts.render, 2 * lightRenders - initialRenders);
+  assert.equal(s.shared.uTime.value, .02);
+  assert.equal(s.counts.ready, 1);
   s.cleanup();
 });
 

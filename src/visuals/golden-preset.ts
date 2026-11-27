@@ -12,3 +12,20 @@ export const garyVisaGolden: HyperspeedProps = {
   poleColors: ['#f1eece'],
   background: 'transparent', theme: 'dark', interactive: true
 };
+
+export const garyVisaDaylight: HyperspeedProps = {
+  ...garyVisaGolden,
+  theme: 'light',
+  background: '#edf6ff',
+  roadColor: '#a6c5e7',
+  roadOpacity: 0.66,
+  lineColor: '#537faf',
+  fogNear: 64,
+  fogFar: 310,
+  tailColors: ['#1249d7', '#245cfc', '#3c77d5'],
+  headColors: ['#057991', '#008bae', '#00a7c8'],
+  poleColors: ['#197ca9'],
+  dustColor: '#648ec0',
+  glow: 0.26,
+  reflections: 0.22
+};

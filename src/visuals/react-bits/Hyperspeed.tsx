@@ -28,6 +28,7 @@ export type HyperspeedProps = {
   poles?: number;
   poleHeight?: number;
   dust?: number;
+  dustColor?: string;
   glow?: number;
   reflections?: number;
   steer?: number;
@@ -38,12 +39,14 @@ export type HyperspeedProps = {
   roadOpacity?: number;
   lineColor?: string;
   background?: string;
+  fogNear?: number;
+  fogFar?: number;
   theme?: 'dark' | 'light';
   interactive?: boolean;
   boosting?: boolean;
   onBoostStart?: () => void;
   onBoostEnd?: () => void;
-  // Gary Visa lifecycle extensions; the road/shader composition is unchanged.
+  // Gary Visa lifecycle extensions.
   paused?: boolean;
   // The host arbitrates tap-to-pause versus hold-to-boost; steering is retained.
   managedPlaybackInput?: boolean;
@@ -94,6 +97,8 @@ type Settings = {
   roadOpacity: number;
   lineColor: string;
   background: string;
+  fogNear: number;
+  fogFar: number;
   dustColor: string;
   interactive: boolean;
   boosting: boolean;
@@ -547,6 +552,7 @@ const Hyperspeed = ({
   poles = 20,
   poleHeight = 1,
   dust = 100,
+  dustColor,
   glow = 0.6,
   reflections = 0.5,
   steer = 0.35,
@@ -557,6 +563,8 @@ const Hyperspeed = ({
   roadOpacity = 0.1,
   lineColor,
   background,
+  fogNear = TRAVEL * 0.22,
+  fogFar = TRAVEL * 0.95,
   theme = 'dark',
   interactive = true,
   boosting = false,
@@ -598,7 +606,9 @@ const Hyperspeed = ({
     roadOpacity: Math.min(1, Math.max(0, roadOpacity)),
     lineColor: lineColor ?? palette.lines,
     background: background ?? palette.background,
-    dustColor: palette.dust,
+    fogNear,
+    fogFar,
+    dustColor: dustColor ?? palette.dust,
     interactive,
     boosting,
     paused,
@@ -613,7 +623,8 @@ const Hyperspeed = ({
     const container = containerRef.current;
     if (!container) return undefined;
 
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const reduce = motionPreference?.matches ?? false;
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'low-power' });
@@ -924,6 +935,7 @@ const Hyperspeed = ({
     let frameBudget = window.matchMedia('(max-width: 760px)').matches ? 1000 / 30 : 1000 / 60;
     let alive = true;
     let firstFrame = true;
+    let paletteFade: Animation | undefined;
 
     const syncColors = (s: Settings) => {
       const tailKey = s.tailColors.join();
@@ -954,7 +966,10 @@ const Hyperspeed = ({
         clearColor.setRGB(...backdrop, THREE.LinearSRGBColorSpace);
         clearAlpha = transparent ? 0 : 1;
       }
+      shared.uFogNear.value = s.fogNear;
+      shared.uFogFar.value = s.fogFar;
       if (keys.light !== s.light) {
+        const switching = keys.light !== null;
         keys.light = s.light;
         effectMaterials.forEach(item => {
           item.blending = s.light ? THREE.NormalBlending : THREE.AdditiveBlending;
@@ -964,6 +979,55 @@ const Hyperspeed = ({
         bloomMaterial.blendSrcAlpha = s.light ? THREE.OneFactor : THREE.ZeroFactor;
         bloomMaterial.blendDstAlpha = s.light ? THREE.OneMinusSrcAlphaFactor : THREE.OneFactor;
         bloomMaterial.uniforms.uLight.value = s.light ? 1 : 0;
+        if (switching) {
+          paletteFade?.cancel();
+          if (!motionPreference?.matches) {
+            paletteFade = renderer.domElement.animate?.([{ opacity: 0 }, { opacity: 1 }], {
+              duration: 240,
+              easing: 'ease-out'
+            });
+          }
+        }
+      }
+    };
+
+    const paint = (s: Settings) => {
+      syncColors(s);
+      const surface = 0.45 + 0.55 * s.roadOpacity;
+      for (const group of [tail, head]) {
+        group.core.uniforms.uIntensity.value = s.light ? 0.95 : 1 + 0.35 * state.boost;
+        group.core.uniforms.uCore.value = s.light ? 0 : 0.75;
+        group.reflection.uniforms.uIntensity.value = s.reflections * (s.light ? 0.22 : 0.42) * surface;
+      }
+      polesLayers.core.uniforms.uIntensity.value = s.light ? 0.9 : 1;
+      polesLayers.core.uniforms.uCore.value = s.light ? 0 : 0.6;
+      polesLayers.reflection.uniforms.uIntensity.value = s.reflections * (s.light ? 0.2 : 0.38) * surface;
+      dustUniforms.uIntensity.value = (s.light ? 0.35 : 0.45) * (1 + state.boost);
+      roadUniforms.uOpacity.value = s.roadOpacity;
+      roadMaterial.depthWrite = s.roadOpacity > 0.5;
+
+      renderer.setRenderTarget(null);
+      renderer.setClearColor(clearColor, clearAlpha);
+      renderer.clear();
+      renderer.render(scene, camera);
+
+      if (s.glow > 0) {
+        const pixel = shared.uPixel.value;
+        shared.uPixel.value = pixel * (renderer.domElement.height / levels[0].height);
+        camera.layers.set(1);
+        roadMaterial.colorWrite = false;
+        renderer.setRenderTarget(levels[0]);
+        renderer.setClearColor(0x000000, 0);
+        renderer.clear();
+        renderer.render(scene, camera);
+        roadMaterial.colorWrite = true;
+        camera.layers.set(0);
+        shared.uPixel.value = pixel;
+        for (let i = 1; i < levels.length; i++) pass(downMaterial, levels[i - 1], levels[i]);
+        for (let i = levels.length - 1; i > 1; i--) pass(upMaterial, levels[i], levels[i - 1]);
+        bloomMaterial.uniforms.uStrength.value = s.glow * (s.light ? 0.5 : 1.4);
+        bloomMaterial.uniforms.uCeiling.value = s.glow * (s.light ? 0.3 : 0.5);
+        pass(bloomMaterial, levels[1], null);
       }
     };
 
@@ -1005,7 +1069,6 @@ const Hyperspeed = ({
       const s = settingsRef.current;
       const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
       last = now;
-      syncColors(s);
 
       const wanted = (state.held && s.interactive) || s.boosting ? 1 : 0;
       state.boost += (wanted - state.boost) * (1 - Math.exp(-dt / (wanted > state.boost ? 0.28 : 0.85)));
@@ -1021,7 +1084,6 @@ const Hyperspeed = ({
       shared.uCurveB.value = state.weights[4];
 
       const halfRoad = s.roadWidth / 2 + s.medianWidth / 2;
-      const surface = 0.45 + 0.55 * s.roadOpacity;
       [tail, head].forEach((group, index) => {
         group.geometry.instanceCount = s.density * 2;
         group.uniforms.uRoadX.value = index ? halfRoad : -halfRoad;
@@ -1029,29 +1091,20 @@ const Hyperspeed = ({
         group.uniforms.uLanes.value = s.lanes;
         group.uniforms.uTrail.value = s.trailLength;
         group.uniforms.uSize.value = s.lightSize;
-        group.core.uniforms.uIntensity.value = s.light ? 0.95 : 1 + 0.35 * state.boost;
-        group.core.uniforms.uCore.value = s.light ? 0 : 0.75;
-        group.reflection.uniforms.uIntensity.value = s.reflections * (s.light ? 0.22 : 0.42) * surface;
       });
 
       poleGeometry.instanceCount = s.poles * 2;
       poleUniforms.uCount.value = Math.max(1, s.poles);
       poleUniforms.uEdge.value = s.roadWidth + s.medianWidth / 2 + 0.8;
       poleUniforms.uHeight.value = s.poleHeight;
-      polesLayers.core.uniforms.uIntensity.value = s.light ? 0.9 : 1;
-      polesLayers.core.uniforms.uCore.value = s.light ? 0 : 0.6;
-      polesLayers.reflection.uniforms.uIntensity.value = s.reflections * (s.light ? 0.2 : 0.38) * surface;
 
       dustGeometry.setDrawRange(0, s.dust * 2);
-      dustUniforms.uIntensity.value = (s.light ? 0.35 : 0.45) * (1 + state.boost);
       dustUniforms.uSpread.value = (s.roadWidth * 2 + s.medianWidth) * 5;
 
       roadUniforms.uWidth.value = s.roadWidth * 2 + s.medianWidth + 3;
       roadUniforms.uRoadWidth.value = s.roadWidth;
       roadUniforms.uMedian.value = s.medianWidth;
       roadUniforms.uLanes.value = s.lanes;
-      roadUniforms.uOpacity.value = s.roadOpacity;
-      roadMaterial.depthWrite = s.roadOpacity > 0.5;
 
       const fovTarget = reduce ? s.fov : s.fov + (s.boostFov - s.fov) * state.boost;
       state.fovVelocity += ((fovTarget - state.fov) * 90 - state.fovVelocity * 13) * dt;
@@ -1078,30 +1131,7 @@ const Hyperspeed = ({
       camera.lookAt(lookTarget);
       camera.updateProjectionMatrix();
 
-      renderer.setRenderTarget(null);
-      renderer.setClearColor(clearColor, clearAlpha);
-      renderer.clear();
-      renderer.render(scene, camera);
-
-      if (s.glow > 0) {
-        const pixel = shared.uPixel.value;
-        shared.uPixel.value = pixel * (renderer.domElement.height / levels[0].height);
-        camera.layers.set(1);
-        roadMaterial.colorWrite = false;
-        renderer.setRenderTarget(levels[0]);
-        renderer.setClearColor(0x000000, 0);
-        renderer.clear();
-        renderer.render(scene, camera);
-        roadMaterial.colorWrite = true;
-        camera.layers.set(0);
-        shared.uPixel.value = pixel;
-        for (let i = 1; i < levels.length; i++) pass(downMaterial, levels[i - 1], levels[i]);
-        for (let i = levels.length - 1; i > 1; i--) pass(upMaterial, levels[i], levels[i - 1]);
-        bloomMaterial.uniforms.uStrength.value = s.glow * (s.light ? 0.5 : 1.4);
-        bloomMaterial.uniforms.uCeiling.value = s.glow * (s.light ? 0.3 : 0.5);
-        pass(bloomMaterial, levels[1], null);
-      }
-
+      paint(s);
       if (firstFrame) { firstFrame = false; callbacksRef.current.onReady?.(); }
       if (alive && state.visible && !document.hidden && !settingsRef.current.paused) raf = requestAnimationFrame(frame);
     };
@@ -1139,11 +1169,16 @@ const Hyperspeed = ({
       if (settingsRef.current.interactive && !settingsRef.current.managedPlaybackInput) event.preventDefault();
     };
     const onAnimationState = () => {
-      if (document.hidden || settingsRef.current.paused || !state.visible) {
+      const s = settingsRef.current;
+      const visible = state.visible && !document.hidden;
+      // Repaint a frozen scene on a palette change without advancing its time or camera.
+      if (visible && s.paused && !firstFrame && keys.light !== s.light) paint(s);
+      if (visible && !s.paused) wake();
+      else {
         setHeld(false);
         cancelAnimationFrame(raf);
         raf = 0;
-      } else wake();
+      }
     };
     const onContextLost = () => callbacksRef.current.onUnavailable?.();
 
@@ -1168,6 +1203,7 @@ const Hyperspeed = ({
 
     return () => {
       alive = false;
+      paletteFade?.cancel();
       cancelAnimationFrame(raf);
       raf = 0;
       resizeObserver.disconnect();
@@ -1191,7 +1227,7 @@ const Hyperspeed = ({
 
   useEffect(() => {
     containerRef.current?.dispatchEvent(new Event('gary:animation-state'));
-  }, [paused]);
+  }, [paused, theme]);
 
   return <div ref={containerRef} className={`hyperspeed${className ? ` ${className}` : ''}`} style={style} />;
 };

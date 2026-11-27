@@ -24,7 +24,9 @@ test('Visa service discovery sits below the cinematic hero and keeps details and
   assert.equal(hero.querySelector('.hero-ticket'),null);
   assert.equal(hero.querySelectorAll('.hero-journey li').length,3);
   assert.equal(select.options.length,4);assert.ok(d.querySelector('label[for="hero-service"]'));
+  const workOption=select.options[1];
   select.value='work';select.dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert.equal(select.selectedOptions[0],workOption,'choosing a service keeps the existing select options');
   assert.equal(d.querySelector('#hero-service-title').textContent,'Work permits');
   d.querySelector('#hero-service-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
   assert.equal(d.querySelector('#service-dialog').open,true);
@@ -72,11 +74,15 @@ test('Visa hero follows published CMS services, handles new types safely and nev
 test('hero selection stays synchronized with the existing CMS detail and enquiry controller',async()=>{
  const h=await publicPage();try{
   const {d,w}=h,{renderPublicCms,renderServiceCms}=await import('../dist/cms-public.js');
+  const {renderLatestArticles}=await import('../dist/cms-articles.js');
   const service=(slug,en,vi,type)=>({id:slug,kind:'service',slug,title_en:en,title_vi:vi,summary_en:'Current published service support.',summary_vi:'Hỗ trợ dịch vụ đã được đăng.',body_en:'Service information.',body_vi:'Thông tin dịch vụ.',data:{service_type:type,includes_en:['Document review'],includes_vi:['Xem xét hồ sơ']}});
   const entries=[service('visa','Visa services','Dịch vụ visa','visa'),service('employer-support','Employer support','Hỗ trợ doanh nghiệp','work'),{id:'hero',kind:'landing',slug:'hero',title_en:'Visa and residence.',title_vi:'Visa và lưu trú.',summary_en:'Review your service options.',summary_vi:'Tìm hiểu các dịch vụ phù hợp.',data:{slot:'hero'}}];
-  w.__cms={db:{},loadPublishedCms:async()=>entries,renderPublicCms,renderServiceCms};
+  w.__cms={
+   db:{},loadHomepageCms:async()=>({content:entries,news:{entries:[],state:'ready'}}),
+   renderPublicCms,renderServiceCms,renderLatestArticles
+  };
   const source=(await readFile(new URL('../dist/cms-public-bootstrap.js',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'');
-  await w.eval(`(async()=>{const {db,loadPublishedCms,renderPublicCms,renderServiceCms}=window.__cms;${source}})()`);
+  await w.eval(`(async()=>{const {db,loadHomepageCms,renderPublicCms,renderServiceCms,renderLatestArticles}=window.__cms;${source}})()`);
   d.querySelector('[data-open-cms-service="visa"]').click();d.querySelector('[data-close-dialog="service-dialog"]').click();
   d.querySelector('#hero-service').value='employer-support';d.querySelector('#hero-service').dispatchEvent(new w.Event('change',{bubbles:true}));
   d.querySelector('#hero-review-service').click();assert.equal(d.querySelector('#service-dialog-title').textContent,'Employer support');
