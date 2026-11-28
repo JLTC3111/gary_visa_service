@@ -161,13 +161,13 @@ test('teardown during an in-flight import prevents initialization', async () => 
 });
 
 
-test('introduction pauses after exactly ten seconds of active first-frame playback, never import/loading time', async () => {
+test('introduction pauses after exactly 2.5 seconds of active first-frame playback, never import/loading time', async () => {
   const scene = harness({ effects: true }); scene.visible(true); await settled();
   scene.clock.advance(30_000);
   assert.equal(scene.clock.pending(), 0);
   assert.equal(scene.host.dataset.effectsState, 'loading');
   scene.calls.ready();
-  scene.clock.advance(9_999);
+  scene.clock.advance(2_499);
   assert.equal(scene.host.dataset.effectsState, 'active');
   scene.clock.advance(1);
   assert.equal(scene.host.dataset.effectsState, 'paused');
@@ -179,14 +179,14 @@ test('introduction pauses after exactly ten seconds of active first-frame playba
 
 test('offscreen, hidden and effects-off periods do not consume the remaining introduction budget', async () => {
   const scene = harness({ effects: true }); scene.visible(true); await settled(); scene.calls.ready();
-  scene.clock.advance(3_000); scene.visible(false);
+  scene.clock.advance(800); scene.visible(false);
   assert.equal(scene.clock.pending(), 0); scene.clock.advance(60_000);
-  scene.visible(true); scene.clock.advance(2_000); scene.hidden(true);
+  scene.visible(true); scene.clock.advance(400); scene.hidden(true);
   assert.equal(scene.clock.pending(), 0); scene.clock.advance(60_000);
-  scene.hidden(false); scene.clock.advance(1_000); scene.preference(false);
+  scene.hidden(false); scene.clock.advance(300); scene.preference(false);
   assert.equal(scene.calls.unmounts, 1); assert.equal(scene.clock.pending(), 0); scene.clock.advance(60_000);
   scene.preference(true); await settled(); scene.calls.ready();
-  scene.clock.advance(3_999); assert.equal(scene.host.dataset.effectsState, 'active');
+  scene.clock.advance(999); assert.equal(scene.host.dataset.effectsState, 'active');
   scene.clock.advance(1); assert.equal(scene.host.dataset.effectsState, 'paused');
   assert.equal(scene.calls.mounts, 2); assert.equal(scene.calls.loads, 1);
   scene.controller.destroy();
@@ -196,10 +196,10 @@ test('resolved theme changes update the existing renderer and preserve the intro
   const scene = harness({ effects: true, theme: 'light' });
   scene.visible(true); await settled(); scene.calls.ready();
   assert.equal(scene.calls.mountTheme, 'light');
-  scene.clock.advance(4_000); scene.preference(true, 'dark'); scene.preference(true, 'dark');
+  scene.clock.advance(1_000); scene.preference(true, 'dark'); scene.preference(true, 'dark');
   assert.deepEqual(scene.calls.themes, ['dark']);
   assert.equal(scene.clock.pending(), 1);
-  scene.clock.advance(6_000); assert.equal(scene.host.dataset.effectsState, 'paused');
+  scene.clock.advance(1_500); assert.equal(scene.host.dataset.effectsState, 'paused');
   scene.preference(true, 'light'); scene.visible(false); scene.visible(true);
   scene.clock.advance(60_000); assert.equal(scene.host.dataset.effectsState, 'paused');
   assert.deepEqual(scene.calls.themes, ['dark', 'light']);
@@ -209,7 +209,7 @@ test('resolved theme changes update the existing renderer and preserve the intro
 
 test('manual resume plays indefinitely; viewport suspension preserves manual play or pause intent', async () => {
   const scene = harness({ effects: true }); scene.visible(true); await settled(); scene.calls.ready();
-  scene.clock.advance(10_000); scene.controller.togglePlayback();
+  scene.clock.advance(2_500); scene.controller.togglePlayback();
   assert.equal(scene.host.dataset.effectsState, 'active'); assert.equal(scene.clock.pending(), 0);
   scene.clock.advance(600_000); assert.equal(scene.host.dataset.effectsState, 'active');
   scene.visible(false); assert.equal(scene.calls.pauses.at(-1), true);

@@ -20,7 +20,7 @@ export function createVisualEffectsController({
   let generation = 0, modulePromise, renderer, lastStatus;
   // One introduction per page session. Time only accrues after a real first frame
   // while visible, enabled and playing; theme/locale events never reset it.
-  let introduction = true, remaining = 10_000, wantsPlayback = true;
+  let introduction = true, remaining = 2_500, wantsPlayback = true;
   let runningSince = null, deadline = null, deadlineGeneration = 0;
   const visiblePage = () => visible && document.visibilityState !== 'hidden';
   const status = value => {
