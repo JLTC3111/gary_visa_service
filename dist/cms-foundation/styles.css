@@ -68,6 +68,7 @@
 .cms-article-toolbar .cms-toolbar-icon-button svg, .cms-icon-button svg {
   display: block; width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
+.cms-article-toolbar .cms-toolbar-icon-button svg { fill: none; }
 .gary-cms[data-cms-articles] .cms-entry-list { overflow: visible; }
 .gary-cms[data-cms-articles] .cms-entry-table { min-width: 0; table-layout: fixed; }
 [data-cms-articles] .cms-entry-table thead th:nth-child(2) { width: 9rem; }

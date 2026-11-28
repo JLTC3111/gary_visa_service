@@ -53,6 +53,7 @@ test('Visa CMS card controls preserve localized searches, filters and the existi
   }finally{h.close();}
   const css=await readFile(new URL('../dist/cms-foundation/styles.css',import.meta.url),'utf8');
   assert.match(css,/\.cms-article-toolbar \.cms-toolbar-icon-button \{[^}]*width: 44px; height: 44px;/);
+  assert.match(css,/\.cms-article-toolbar \.cms-toolbar-icon-button svg \{ fill: none; \}/);
   assert.match(css,/\.gary-cms \.cms-entry-table \{ display: block; min-width: 0; \}/);
 });
 test('editor keeps the same bilingual draft through locale changes and honors dirty leave guard', async () => {
